@@ -1,0 +1,23 @@
+
+# Temporary/generated files
+###################################
+.idea/
+*.pyc
+*.asv
+
+# Data and media
+###################################
+*.csv
+*.json
+*.png
+*.jpg
+*.jpeg
+*.pdf
+*.fig
+*.mp4
+*.avi
+*.ppt
+*.pptx
+
+
+

@@ -1,3 +1,28 @@
+############
+#
+# Copyright (c) 2022 MIT CSAIL and Joseph DelPreto
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+# WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+# IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+#
+# See https://action-net.csail.mit.edu for more usage information.
+# Created 2021-2022 for the MIT ActionNet project by Joseph DelPreto [https://josephdelpreto.com].
+#
+############
 
 from sensor_streamers.SensorStreamer import SensorStreamer
 
@@ -27,6 +52,7 @@ class ExperimentControlStreamer(SensorStreamer):
   
   def __init__(self, streams_info=None,
                log_player_options=None, visualization_options=None,
+               activities=None,
                print_status=True, print_debug=False, log_history_filepath=None):
     SensorStreamer.__init__(self, streams_info,
                             log_player_options=log_player_options,
@@ -85,28 +111,31 @@ class ExperimentControlStreamer(SensorStreamer):
       'Manus: Poses Left',
       'Manus: Poses Right',
       ]
-    self._activities = [
-      'Get/replace items from refrigerator/cabinets/drawers',
-      'Clear cutting board',
-      'Peel a cucumber',
-      'Slice a cucumber',
-      'Peel a potato',
-      'Slice a potato',
-      'Slice bread',
-      'Spread almond butter on a bread slice',
-      'Spread jelly on a bread slice',
-      'Open/close a jar of almond butter',
-      'Pour water from a pitcher into a glass',
-      'Clean a plate with a sponge',
-      'Clean a plate with a towel',
-      'Clean a pan with a sponge',
-      'Clean a pan with a towel',
-      'Get items from cabinets: 3 each large/small plates, bowls, mugs, glasses, sets of utensils',
-      'Set table: 3 each large/small plates, bowls, mugs, glasses, sets of utensils',
-      'Stack on table: 3 each large/small plates, bowls',
-      'Load dishwasher: 3 each large/small plates, bowls, mugs, glasses, sets of utensils',
-      'Unload dishwasher: 3 each large/small plates, bowls, mugs, glasses, sets of utensils',
-      ]
+    if activities is None:
+      self._activities = [
+        'Get/replace items from refrigerator/cabinets/drawers',
+        'Clear cutting board',
+        'Peel a cucumber',
+        'Slice a cucumber',
+        'Peel a potato',
+        'Slice a potato',
+        'Slice bread',
+        'Spread almond butter on a bread slice',
+        'Spread jelly on a bread slice',
+        'Open/close a jar of almond butter',
+        'Pour water from a pitcher into a glass',
+        'Clean a plate with a sponge',
+        'Clean a plate with a towel',
+        'Clean a pan with a sponge',
+        'Clean a pan with a towel',
+        'Get items from cabinets: 3 each large/small plates, bowls, mugs, glasses, sets of utensils',
+        'Set table: 3 each large/small plates, bowls, mugs, glasses, sets of utensils',
+        'Stack on table: 3 each large/small plates, bowls',
+        'Load dishwasher: 3 each large/small plates, bowls, mugs, glasses, sets of utensils',
+        'Unload dishwasher: 3 each large/small plates, bowls, mugs, glasses, sets of utensils',
+        ]
+    else:
+      self._activities = activities
     
     # Define the calibration data streams and their corresponding GUI inputs.
     # The input names will be updated later once they are added to the GUI.

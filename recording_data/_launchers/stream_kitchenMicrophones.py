@@ -1,3 +1,28 @@
+############
+#
+# Copyright (c) 2022 MIT CSAIL and Joseph DelPreto
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+# WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+# IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+#
+# See https://action-net.csail.mit.edu for more usage information.
+# Created 2021-2022 for the MIT ActionNet project by Joseph DelPreto [https://josephdelpreto.com].
+#
+############
 
 from sensor_streamer_handlers.SensorManager import SensorManager
 
@@ -83,37 +108,43 @@ if __name__ == '__main__':
   ]
   
   # Configure where and how to save sensor data.
-  script_dir = os.path.dirname(os.path.realpath(__file__))
-  (log_time_str, log_time_s) = get_time_str(return_time_s=True)
-  log_tag = 'test-mic'
-  log_dir_root = os.path.join(script_dir, '..', 'data', '2022-04-13 test microphones in kitchen')
-  log_subdir = '%s_%s' % (log_time_str, log_tag)
-  log_dir = os.path.join(log_dir_root, log_subdir)
-  datalogging_options = {
-    'log_dir': log_dir, 'log_tag': log_tag,
-    'use_external_recording_sources': True,
-    'videos_in_hdf5': False,
-    'audio_in_hdf5': False,
-    # Choose whether to periodically write data to files.
-    'stream_csv'  : False,
-    'stream_hdf5' : True,
-    'stream_video': False,
-    'stream_audio': True,
-    'stream_period_s': 15,
-    'clear_logged_data_from_memory': True, # ignored if dumping is also enabled
-    # Choose whether to write all data at the end.
-    'dump_csv'  : False,
-    'dump_hdf5' : False,
-    'dump_video': False,
-    'dump_audio': False,
-    # Additional configuration.
-    'videos_format': 'avi', # mp4 occasionally gets openCV errors about a tag not being supported?
-    'audio_format' : 'wav', # currently only supports WAV
-    'print_status': print_status, 'print_debug': print_debug
-  }
-  # Initialize a file for writing the log history of all printouts/messages.
-  log_history_filepath = os.path.join(log_dir, '%s_log_history.txt' % log_time_str)
-  os.makedirs(log_dir, exist_ok=True)
+  enable_data_logging = True
+  if enable_data_logging:
+    script_dir = os.path.dirname(os.path.realpath(__file__))
+    (log_time_str, log_time_s) = get_time_str(return_time_s=True)
+    log_tag = 'test-mic'
+    log_dir_root = os.path.join(script_dir, '..', '..', 'data', '2022-04-13 test microphones in kitchen')
+    log_subdir = '%s_%s' % (log_time_str, log_tag)
+    log_dir = os.path.join(log_dir_root, log_subdir)
+    datalogging_options = {
+      'log_dir': log_dir, 'log_tag': log_tag,
+      'use_external_recording_sources': True,
+      'videos_in_hdf5': False,
+      'audio_in_hdf5': False,
+      # Choose whether to periodically write data to files.
+      'stream_csv'  : False,
+      'stream_hdf5' : True,
+      'stream_video': False,
+      'stream_audio': True,
+      'stream_period_s': 15,
+      'clear_logged_data_from_memory': True, # ignored if dumping is also enabled
+      # Choose whether to write all data at the end.
+      'dump_csv'  : False,
+      'dump_hdf5' : False,
+      'dump_video': False,
+      'dump_audio': False,
+      # Additional configuration.
+      'videos_format': 'avi', # mp4 occasionally gets openCV errors about a tag not being supported?
+      'audio_format' : 'wav', # currently only supports WAV
+      'print_status': print_status, 'print_debug': print_debug
+    }
+    # Initialize a file for writing the log history of all printouts/messages.
+    log_history_filepath = os.path.join(log_dir, '%s_log_history.txt' % log_time_str)
+    os.makedirs(log_dir, exist_ok=True)
+  else:
+    log_dir = None
+    log_history_filepath = None
+    datalogging_options = None
   
   # Configure visualization.
   # visualization_options = None

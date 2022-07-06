@@ -1,3 +1,28 @@
+############
+#
+# Copyright (c) 2022 MIT CSAIL and Joseph DelPreto
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+# WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+# IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+#
+# See https://action-net.csail.mit.edu for more usage information.
+# Created 2021-2022 for the MIT ActionNet project by Joseph DelPreto [https://josephdelpreto.com].
+#
+############
 
 from sensor_streamer_handlers.SensorManager import SensorManager
 
@@ -32,29 +57,35 @@ if __name__ == '__main__':
   
   # Define the streamers to use.
   sensor_streamer_specs = [
-    # # Allow the experimenter to label data and enter notes.
-    # {'class': 'ExperimentControlStreamer',
-    #  'print_debug': print_debug, 'print_status': print_status
-    #  },
+    # Stream from one or more tactile sensors, such as the ones on the gloves.
+    # See the __init__ method of TouchStreamer to configure settings such as
+    #  what sensors are available and their COM ports.
+    {'class': 'TouchStreamer',
+     'com_ports': {
+       'tactile-glove-left' : 'COM3', # None
+       'tactile-glove-right': 'COM6', # None
+     },
+     'print_debug': print_debug, 'print_status': print_status
+     },
     # Allow the experimenter to record timestamped notes at any time.
     {'class': 'NotesStreamer',
      'print_debug': print_debug, 'print_status': print_status
      },
-    # # Stream from the Myo device including EMG, IMU, and gestures.
-    # {'class': 'MyoStreamer',
-    #  'num_myos': 2,
+    # # Allow the experimenter to label data and enter notes.
+    # {'class': 'ExperimentControlStreamer',
+    #  'activities': [
+    #  ],
     #  'print_debug': print_debug, 'print_status': print_status
     #  },
     # # Stream from the Xsens body tracking and Manus gloves.
     # {'class': 'XsensStreamer',
     #  'print_debug': print_debug, 'print_status': print_status
     #  },
-    # Stream from one or more tactile sensors, such as the ones on the gloves.
-    # See the __init__ method of TouchStreamer to configure settings such as
-    #  what sensors are available and their COM ports.
-    {'class': 'TouchStreamer',
-     'print_debug': print_debug, 'print_status': print_status
-     },
+    # # Stream from the Myo device including EMG, IMU, and gestures.
+    # {'class': 'MyoStreamer',
+    #  'num_myos': 2,
+    #  'print_debug': print_debug, 'print_status': print_status
+    #  },
     # # Stream from the Pupil Labs eye tracker, including gaze and video data.
     # {'class': 'EyeStreamer',
     #  'stream_video_world'    : False, # the world video
@@ -79,75 +110,67 @@ if __name__ == '__main__':
   ]
   
   # Configure where and how to save sensor data.
-  # To not log data, simply set
-  datalogging_options = None
-  log_dir = None
-  log_history_filepath = None
-  # script_dir = os.path.dirname(os.path.realpath(__file__))
-  # (log_time_str, log_time_s) = get_time_str(return_time_s=True)
-  # log_tag = 'testing-tactiles'
-  # log_dir_root = os.path.join(script_dir, '..', 'data', '%s_test_tactile_sensors' % get_time_str(format='%Y-%m-%d'))
-  # log_subdir = '%s_%s' % (log_time_str, log_tag)
-  # log_dir = os.path.join(log_dir_root, log_subdir)
-  # datalogging_options = {
-  #   'log_dir': log_dir, 'log_tag': log_tag,
-  #   'use_external_recording_sources': True,
-  #   'videos_in_hdf5': False,
-  #   'audio_in_hdf5': False,
-  #   # Choose whether to periodically write data to files.
-  #   'stream_csv'  : False,
-  #   'stream_hdf5' : True,
-  #   'stream_video': True,
-  #   'stream_audio': True,
-  #   'stream_period_s': 15,
-  #   'clear_logged_data_from_memory': True, # ignored if dumping is also enabled
-  #   # Choose whether to write all data at the end.
-  #   'dump_csv'  : False,
-  #   'dump_hdf5' : False,
-  #   'dump_video': False,
-  #   'dump_audio': False,
-  #   # Additional configuration.
-  #   'videos_format': 'avi', # mp4 occasionally gets openCV errors about a tag not being supported?
-  #   'audio_format' : 'wav', # currently only supports WAV
-  #   'print_status': print_status, 'print_debug': print_debug
-  # }
-  # # Initialize a file for writing the log history of all printouts/messages.
-  # log_history_filepath = os.path.join(log_dir, '%s_log_history.txt' % log_time_str)
-  # os.makedirs(log_dir, exist_ok=True)
+  enable_data_logging = True
+  if enable_data_logging:
+    script_dir = os.path.dirname(os.path.realpath(__file__))
+    (log_time_str, log_time_s) = get_time_str(return_time_s=True)
+    log_tag = 'glove_testing'
+    log_dir_root = os.path.join(script_dir, '..', '..', 'data',
+                                'tests',
+                                '%s_my_folder_tag' % get_time_str(format='%Y-%m-%d'))
+    log_subdir = '%s_%s' % (log_time_str, log_tag)
+    log_dir = os.path.join(log_dir_root, log_subdir)
+    datalogging_options = {
+      'log_dir': log_dir, 'log_tag': log_tag,
+      'use_external_recording_sources': True,
+      'videos_in_hdf5': False,
+      'audio_in_hdf5': False,
+      # Choose whether to periodically write data to files.
+      'stream_csv'  : True,
+      'stream_hdf5' : True,
+      'stream_video': True,
+      'stream_audio': True,
+      'stream_period_s': 15,
+      'clear_logged_data_from_memory': True, # ignored if dumping is also enabled
+      # Choose whether to write all data at the end.
+      'dump_csv'  : False,
+      'dump_hdf5' : False,
+      'dump_video': False,
+      'dump_audio': False,
+      # Additional configuration.
+      'videos_format': 'avi', # mp4 occasionally gets openCV errors about a tag not being supported?
+      'audio_format' : 'wav', # currently only supports WAV
+      'print_status': print_status, 'print_debug': print_debug
+    }
+    # Initialize a file for writing the log history of all printouts/messages.
+    log_history_filepath = os.path.join(log_dir, '%s_log_history.txt' % log_time_str)
+    os.makedirs(log_dir, exist_ok=True)
+  else:
+    log_dir = None
+    log_history_filepath = None
+    datalogging_options = None
   
   # Configure visualization.
-  # To not show any visualizations, simply set
   # visualization_options = None
-  composite_frame_size = (900, 1500) # height, width # (1800, 3000)
-  composite_col_width = int(composite_frame_size[1]/3)
+  composite_frame_size = (1800, 3000) # height, width # (1800, 3000)
+  composite_col_width = int(composite_frame_size[1]/2)
   composite_row_height = int(composite_frame_size[0]/3)
   visualization_options = {
     'visualize_streaming_data'       : True,
     'visualize_all_data_when_stopped': False,
     'wait_while_visualization_windows_open': False,
-    'update_period_s': 0.4,
+    'update_period_s': 0.25,
     # 'classes_to_visualize': ['TouchStreamer']
-    'use_composite_video': False, # If False, each streamer will spawn its own visualization window
-    # 'composite_video_layout': [
-    #   [
-    #     {'device_name':'dummy-line', 'stream_name':'dummy-stream', 'width':1500, 'height':1500},
-    #     {'device_name':'dummy-line', 'stream_name':'dummy-stream', 'width':1500, 'height':750},
-    #   ],
-    #   [
-    #     {'device_name':None, 'stream_name':None, 'width':0, 'height':0},
-    #     {'device_name':'dummy-line', 'stream_name':'dummy-stream', 'width':1500, 'height':750},
-    #   ],
-    # ],
+    'use_composite_video': True,
     'composite_video_layout':
       [
-        [ # row 0
-          {'device_name':'tactile-glove-left', 'stream_name':'tactile_data',    'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
-          {'device_name':'tactile-glove-right', 'stream_name':'tactile_data',   'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
+        [ # row  0
+          {'device_name':'tactile-glove-left',  'stream_name':'tactile_data', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
+          {'device_name':'tactile-glove-right', 'stream_name':'tactile_data', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
         ],
       ],
+    'composite_video_filepath': os.path.join(log_dir, 'composite_visualization') if log_dir is not None else None,
   }
-  if log_dir is not None:
-    visualization_options['composite_video_filepath'] = os.path.join(log_dir, 'composite_visualization')
   
   # Create a sensor manager.
   sensor_manager = SensorManager(sensor_streamer_specs=sensor_streamer_specs,
@@ -169,8 +192,6 @@ if __name__ == '__main__':
     global fps_start_time_s, fps_last_print_time_s, fps_start_num_timesteps, fps_num_timesteps
     printed_fps = False
     for (streamer_index, streamer) in enumerate(streamers_for_fps):
-      if len(streamer.get_device_names()) == 0:
-        continue
       device_for_fps = streamer.get_device_names()[0]
       stream_for_fps = streamer.get_stream_names(device_for_fps)[0]
       num_timesteps = streamer.get_num_timesteps(device_for_fps, stream_for_fps)
@@ -211,10 +232,6 @@ if __name__ == '__main__':
       def check_if_user_quit():
         return False
   
-  
-  # print()
-  # print('Enter \'quit\' or \'q\' as an experiment note to end the program')
-  # print()
   
   # Run!
   sensor_manager.connect()

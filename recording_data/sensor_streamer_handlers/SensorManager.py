@@ -1,11 +1,38 @@
+############
+#
+# Copyright (c) 2022 MIT CSAIL and Joseph DelPreto
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+# WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+# IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+#
+# See https://action-net.csail.mit.edu for more usage information.
+# Created 2021-2022 for the MIT ActionNet project by Joseph DelPreto [https://josephdelpreto.com].
+#
+############
 
 import multiprocessing, multiprocessing.managers
 import multiprocessing.managers
 import itertools
-import os
-import sys
+import glob
 import h5py
 import time
+import sys
+import os
+script_dir = os.path.dirname(os.path.realpath(__file__))
 
 from utils.time_utils import *
 from utils.dict_utils import *
@@ -14,15 +41,6 @@ from utils.print_utils import *
 from sensor_streamers.SensorStreamer import SensorStreamer
 from sensor_streamer_handlers.DataLogger import DataLogger
 from sensor_streamer_handlers.DataVisualizer import DataVisualizer
-from sensor_streamers.MyoStreamer        import MyoStreamer
-from sensor_streamers.XsensStreamer      import XsensStreamer
-from sensor_streamers.TouchStreamer      import TouchStreamer
-from sensor_streamers.EyeStreamer        import EyeStreamer
-from sensor_streamers.MicrophoneStreamer import MicrophoneStreamer
-from sensor_streamers.ScaleStreamer      import ScaleStreamer
-from sensor_streamers.DummyStreamer      import DummyStreamer
-from sensor_streamers.NotesStreamer      import NotesStreamer
-from sensor_streamers.ExperimentControlStreamer import ExperimentControlStreamer
 
 ################################################
 ################################################
@@ -77,7 +95,20 @@ class SensorManager:
             proc.kill()
       except:
         pass
-  
+
+    # Import all classes in the sensor_streamers folder.
+    # Assumes the class name matches the filename.
+    self._sensor_streamer_classes = {}
+    sensor_streamer_files = glob.glob(os.path.join(script_dir, '..', 'sensor_streamers', '*.py'))
+    for sensor_streamer_file in sensor_streamer_files:
+      try:
+        sensor_streamer_class_name = os.path.splitext(os.path.basename(sensor_streamer_file))[0]
+        sensor_streamer_module = __import__('sensor_streamers.%s' % sensor_streamer_class_name, fromlist=[sensor_streamer_class_name])
+        sensor_streamer_class = getattr(sensor_streamer_module, sensor_streamer_class_name)
+        self._sensor_streamer_classes[sensor_streamer_class_name] = sensor_streamer_class
+      except:
+        pass
+    
   # Record various configuration options.
     self._log_player_options = log_player_options
     self._data_visualizer_options = data_visualizer_options or {}
@@ -112,7 +143,7 @@ class SensorManager:
     #  so that Proxy classes will be created for them that can share memory.
     self._log_status('SensorManager starting the multiprocessing manager')
     for class_name in [spec['class'] for spec in sensor_streamer_specs_flattened]:
-      multiprocessing.managers.BaseManager.register('%s_mp' % class_name, eval(class_name))
+      multiprocessing.managers.BaseManager.register('%s_mp' % class_name, self._sensor_streamer_classes[class_name])
     multiprocessing_manager = multiprocessing.managers.BaseManager()
     multiprocessing_manager.start()
 
@@ -140,7 +171,7 @@ class SensorManager:
         # If the streamer says it should be in the main process,
         #  then create an instance of it directly instead of using a proxy class.
         if class_object.get_threading_config('always_run_in_main_process'):
-          class_type = eval(class_name)
+          class_type = self._sensor_streamer_classes[class_name]
           class_object = class_type(**class_args)
         # Store the streamer object.
         self._streamers.append(class_object)

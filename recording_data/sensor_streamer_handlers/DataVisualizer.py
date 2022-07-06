@@ -1,3 +1,28 @@
+############
+#
+# Copyright (c) 2022 MIT CSAIL and Joseph DelPreto
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+# WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+# IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+#
+# See https://action-net.csail.mit.edu for more usage information.
+# Created 2021-2022 for the MIT ActionNet project by Joseph DelPreto [https://josephdelpreto.com].
+#
+############
 
 # Whether to use OpenCV or pyqtgraph to generate a composite visualization.
 #   The OpenCV method is a bit faster, but the pyqtgraph method is interactive.
@@ -68,7 +93,8 @@ class DataVisualizer:
     self._visualizers = []
     
     if composite_video_layout is not None:
-      self._composite_video_timestamp_height = max(20, round(1/2/100*sum([tile_layout['width'] for tile_layout in composite_video_layout[0]])))
+      # self._composite_video_timestamp_height = max(20, round(1/2/100*sum([tile_layout['width'] for tile_layout in composite_video_layout[0]])))
+      self._composite_video_timestamp_height = max(20, round(1/2/15*sum([tile_layout['height'] for tile_layout in composite_video_layout[0]])))
       self._composite_video_timestamp_bg_color = [100, 100, 100] # BGR
       self._composite_video_timestamp_color = [255, 255, 0] # BGR
       # Find a font scale that will make the text fit within the desired pad size.

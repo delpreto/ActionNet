@@ -1,6 +1,32 @@
+############
+#
+# Copyright (c) 2022 MIT CSAIL and Joseph DelPreto
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+# WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+# IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+#
+# See https://action-net.csail.mit.edu for more usage information.
+# Created 2021-2022 for the MIT ActionNet project by Joseph DelPreto [https://josephdelpreto.com].
+#
+############
 
 from sensor_streamers.SensorStreamer import SensorStreamer
 from visualizers.LinePlotVisualizer import LinePlotVisualizer
+from visualizers.OrientationVisualizer import OrientationVisualizer
 
 # Add the myo path and then import the library.
 # Use a path relative to this script directory (rather than the current execution directory, which could be arbitrary).
@@ -481,6 +507,9 @@ class MyoStreamer(myo.ApiDeviceListener, SensorStreamer):
       'plot_duration_s': 15,
       'downsample_factor': 1,
       }
+    orientation_options = {
+      'class': OrientationVisualizer,
+      }
     # Override with any provided options.
     if isinstance(visualization_options, dict):
       if 'emg' in visualization_options:
@@ -489,6 +518,9 @@ class MyoStreamer(myo.ApiDeviceListener, SensorStreamer):
       if 'imu' in visualization_options:
         for (k, v) in visualization_options['emg'].items():
           imu_options[k] = v
+      if 'orientation' in visualization_options:
+        for (k, v) in visualization_options['orientation'].items():
+          orientation_options[k] = v
 
     # Set all devices to the same options.
     processed_options = {}
@@ -501,6 +533,8 @@ class MyoStreamer(myo.ApiDeviceListener, SensorStreamer):
           processed_options[device_name][stream_name] = imu_options
         elif stream_name == 'angular_velocity_deg_s':
           processed_options[device_name][stream_name] = imu_options
+        elif stream_name == 'orientation_quaternion':
+          processed_options[device_name][stream_name] = orientation_options
         else:
           processed_options[device_name][stream_name] = {'class':None}
 

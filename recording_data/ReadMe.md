@@ -32,6 +32,7 @@ A brief summary of the required software and the currently tested versions is be
     - Visualizers can be configured to either use matplotlib or pyqtgraph.  Using pyqtgraph is faster and thus recommended:
     - `pip install pyqtgraph` 
     - `pip install PyQt6`
+    - `pip install PyQt5` might also be needed
     - `pip install PyOpenGL`
     - To use matplotlib instead:
     - `pip install matplotlib`

@@ -1,3 +1,28 @@
+############
+#
+# Copyright (c) 2022 MIT CSAIL and Joseph DelPreto
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+# WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+# IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+#
+# See https://action-net.csail.mit.edu for more usage information.
+# Created 2021-2022 for the MIT ActionNet project by Joseph DelPreto [https://josephdelpreto.com].
+#
+############
 
 from sensor_streamers.SensorStreamer import SensorStreamer
 from visualizers.HeatmapVisualizer import HeatmapVisualizer
@@ -25,6 +50,7 @@ class TouchStreamer(SensorStreamer):
 
   def __init__(self, streams_info=None,
                 log_player_options=None, visualization_options=None,
+                com_ports=None,
                 print_status=True, print_debug=False, log_history_filepath=None):
     SensorStreamer.__init__(self, streams_info,
                               log_player_options=log_player_options,
@@ -37,10 +63,13 @@ class TouchStreamer(SensorStreamer):
     # Define the connected sensors.
     # Port configurations should be checked on the operating system.
     # Setting a port to None will ignore that sensor.
-    self._com_ports = {
-      'tactile-glove-left' : 'COM3', # None
-      'tactile-glove-right': 'COM6', # None
-    }
+    if com_ports is None:
+      self._com_ports = {
+        'tactile-glove-left' : 'COM3', # None
+        'tactile-glove-right': 'COM6', # None
+      }
+    else:
+      self._com_ports = com_ports
     # Configurations that should match settings in Arduino code.
     self._sensor_waits_for_request = True # Should match setting in Arduino code
     self._sensor_sends_debug_values = False # Should match setting in Arduino code

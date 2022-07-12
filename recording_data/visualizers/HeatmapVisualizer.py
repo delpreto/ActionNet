@@ -64,6 +64,11 @@ class HeatmapVisualizer(Visualizer):
   def init(self, device_name, stream_name, stream_info):
     if self._print_debug: print('HeatmapVisualizer initializing for %s %s' % (device_name, stream_name))
     
+    # Get the size of each sample, and ensure it is at least 2D.
+    self._sample_size = stream_info['sample_size']
+    if len(self._sample_size) == 1:
+      self._sample_size = [1, self._sample_size[0]]
+    
     # Process default plotting options.
     # Default color maps include:
     #   cividis, inferno, magma, plasma, viridis
@@ -77,7 +82,6 @@ class HeatmapVisualizer(Visualizer):
     if not self._auto_colorbar_levels:
       assert isinstance(colorbar_levels, (list, tuple)) and len(colorbar_levels) == 2
       self._colorbar_levels = colorbar_levels
-    sample_size = stream_info['sample_size']
     if self._layout_size is None:
       # screen_widths = [screen.size().width() for screen in app.screens()]
       # screen_heights = [screen.size().heights() for screen in app.screens()]
@@ -102,7 +106,7 @@ class HeatmapVisualizer(Visualizer):
         self._layout.hide()
     
     # Create dummy data, and use it to initialize the plot.
-    self._data = np.zeros(sample_size)
+    self._data = np.zeros(self._sample_size)
     h_heatmap = pyqtgraph.ImageItem(image=self._data, hoverable=True)
     h_plot = self._layout.addPlot(0,0, 1,1, title=title) # row, col, rowspan, colspan
     h_plot.addItem(h_heatmap, title=title)
@@ -147,7 +151,7 @@ class HeatmapVisualizer(Visualizer):
   #   Otherwise the new data should replace the visualization if applicable.
   def update(self, new_data, visualizing_all_data):
     # Update the heatmap with the latest data.
-    self._data = np.array(new_data['data'][-1])
+    self._data = np.array(new_data['data'][-1]).reshape(self._sample_size)
     self._heatmap.setImage(self._data.T) # index the image as (x, y) but numpy as (y, x)
     
     # Update the colorbar scale based on a buffer of recent colorbar levels.

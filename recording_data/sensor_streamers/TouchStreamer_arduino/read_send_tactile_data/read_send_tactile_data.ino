@@ -90,6 +90,16 @@ const int num_row_pins = sizeof(pins_selectRows)/sizeof(int);
 const int num_col_pins = sizeof(pins_selectCols)/sizeof(int);
 const int led_pin = 13;
 
+// Define helpers that will be used to improve Arduino analogRead speeds.
+#if USING_ARDUINO
+#ifndef cbi   // clear bit
+#define cbi(sfr, bit) (_SFR_BYTE(sfr) &= ~_BV(bit))
+#endif
+#ifndef sbi   // set bit
+#define sbi(sfr, bit) (_SFR_BYTE(sfr) |= _BV(bit))
+#endif
+#endif
+
 // Initialize state.
 uint16_t analog_reading_averaged = 0;
 uint8_t matrix_index = 0;
@@ -114,6 +124,13 @@ void setup()
 {
   // Set up serial.
   Serial.begin(SERIAL_RATE, SERIAL_8N1);
+
+  // Adjust the ADC clock prescale for faster Arduino analogReads.
+  #if USING_ARDUINO
+  sbi(ADCSRA, ADPS2); // ADCSRA |= B00000100; ADC prescaler is 16. 16MHz/16 = 1MHz
+  cbi(ADCSRA, ADPS1);
+  cbi(ADCSRA, ADPS0);
+  #endif
 
   // Set up pin modes.
   for(int i = 0; i < num_row_pins; i++)
@@ -338,6 +355,11 @@ void scan_send_matrix()
   #if USING_ARDUINO
   Serial.write((uint8_t)'\n');
   #endif
+  #endif
+
+  // Delay a bit to hopefully reduce corrupted lines?
+  #if USING_ARDUINO && (SEND_DATA_SERIAL && !SERIAL_WAIT_FOR_REQUEST)
+  delayMicroseconds(500);
   #endif
 
 //  Serial.println(matrix_counter);

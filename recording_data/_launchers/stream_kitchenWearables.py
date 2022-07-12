@@ -54,17 +54,33 @@ if __name__ == '__main__':
   def _log_userAction(msg, *extra_msgs, **kwargs):
     write_log_message(msg, *extra_msgs, source_tag='launcher',
                       print_message=True, userAction=True, filepath=log_history_filepath, **kwargs)
-  
-  # Define the streamers to use.
+
+  # TODO: Define the streamers to use.
+  #   Configure settings for each class in sensor_streamer_specs.
+  sensor_streamers_enabled = dict([
+    # Use one of the following to control the experiment (enter notes, quit, etc)
+    ('ExperimentControlStreamer', True),  # A GUI to label activities/calibrations and enter notes
+    ('NotesStreamer',             False),  # A command-line based way to submit notes during the experiment (but not label activities explicitly)
+    # Sensors!
+    ('MyoStreamer',        True),  # One or more Myo EMG/IMU armbands
+    ('TouchStreamer',      True),  # Custom tactile sensors streaming via an Arduino
+    ('XsensStreamer',      True),  # The Xsens body tracking system (includes the Manus finger-tracking gloves if connected to Xsens)
+    ('EyeStreamer',        True),  # The Pupil Labs eye-tracking headset
+    ('ScaleStreamer',      True),  # The Dymo M25 digital postal scale
+    ('MoticonStreamer',    False),  # Moticon insole pressure sensors
+    ('MicrophoneStreamer', False),  # One or more microphones
+    ('CameraStreamer',     False),  # One or more cameras
+    ('DummyStreamer',      False),  # Dummy data (no hardware required)
+  ])
   sensor_streamer_specs = [
     # Allow the experimenter to label data and enter notes.
     {'class': 'ExperimentControlStreamer',
      'print_debug': print_debug, 'print_status': print_status
      },
-    # # Allow the experimenter to record timestamped notes at any time.
-    # {'class': 'NotesStreamer',
-    #  'print_debug': print_debug, 'print_status': print_status
-    #  },
+    # Allow the experimenter to record timestamped notes at any time.
+    {'class': 'NotesStreamer',
+     'print_debug': print_debug, 'print_status': print_status
+     },
     # Stream from the Myo device including EMG, IMU, and gestures.
     {'class': 'MyoStreamer',
      'num_myos': 2,
@@ -91,26 +107,38 @@ if __name__ == '__main__':
     {'class': 'ScaleStreamer',
      'print_debug': print_debug, 'print_status': print_status
      },
-    # # Stream from one or more microphones.
-    # {'class': 'MicrophoneStreamer',
-    #  'device_names_withAudioKeywords': {'microphone_conference': 'USB audio CODEC'},
-    #  'print_debug': print_debug, 'print_status': print_status
-    #  },
-    # # Dummy data.
-    # {'class': 'DummyStreamer',
-    #  'update_period_s': 0.1,
-    #  'print_debug': print_debug, 'print_status': print_status
-    #  },
+    # Stream from one or more microphones.
+    {'class': 'MicrophoneStreamer',
+     'device_names_withAudioKeywords': {'microphone_conference': 'USB audio CODEC'},
+     'print_debug': print_debug, 'print_status': print_status
+     },
+    # Stream from one or more cameras.
+    {'class': 'CameraStreamer',
+     'cameras_to_stream': { # map camera names (usable as device names in the HDF5 file) to capture device indexes
+       'camera-built-in': 0,
+     },
+     'print_debug': print_debug, 'print_status': print_status
+    },
+    # Dummy data.
+    {'class': 'DummyStreamer',
+     'update_period_s': 0.1,
+     'print_debug': print_debug, 'print_status': print_status
+     },
   ]
+  # Remove disabled streamers.
+  sensor_streamer_specs = [spec for spec in sensor_streamer_specs
+                           if spec['class'] in sensor_streamers_enabled
+                           and sensor_streamers_enabled[spec['class']]]
 
-  # Configure where and how to save sensor data.
-  enable_data_logging = True
+  # TODO: Configure where and how to save sensor data.
+  #       Adjust enable_data_logging, log_tag, and log_dir_root as desired.
+  enable_data_logging = True # If False, no data will be logged and the below directory settings will be ignored
   if enable_data_logging:
     script_dir = os.path.dirname(os.path.realpath(__file__))
     (log_time_str, log_time_s) = get_time_str(return_time_s=True)
     log_tag = 'actionNet-wearables_S05'
     log_dir_root = os.path.join(script_dir, '..', '..', 'data',
-                                'experiments',
+                                'experiments', # recommend 'tests' and 'experiments' for testing vs "real" data
                                 '%s_experiment_S05' % get_time_str(format='%Y-%m-%d'))
     log_subdir = '%s_%s' % (log_time_str, log_tag)
     log_dir = os.path.join(log_dir_root, log_subdir)
@@ -144,8 +172,7 @@ if __name__ == '__main__':
     log_history_filepath = None
     datalogging_options = None
   
-  # Configure visualization.
-  # visualization_options = None
+  # TODO: Configure visualization.
   composite_frame_size = (900, 1500) # height, width # (1800, 3000)
   composite_col_width = int(composite_frame_size[1]/3)
   composite_row_height = int(composite_frame_size[0]/3)

@@ -408,7 +408,7 @@ class TouchStreamer(SensorStreamer):
                                         kwargs={'sensor_name': sensor_name})
       self._run_threads[sensor_name].daemon = False
       self._run_threads[sensor_name].start()
-    # Join the threads to wait until are all done.
+    # Join the threads to wait until all are done.
     for sensor_name in self._sensor_names_active:
       self._run_threads[sensor_name].join()
     

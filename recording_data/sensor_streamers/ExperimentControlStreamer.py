@@ -701,7 +701,7 @@ class ExperimentControlStreamer(SensorStreamer):
     ttk.Combobox(activities_frame, state='readonly', # no custom values
                  name='combo_activities',
                  values=['']+self._activities,
-                 width=max(20, max([len(x) for x in self._activities])),
+                 width=max(20, max([len(x) for x in ['']+self._activities])),
                  )\
           .grid(sticky=tkinter.W + tkinter.N, padx=5, pady=5, **grid_positions['activities_combo'])
     # Add a button to start/stop the activity.

@@ -54,15 +54,15 @@ if __name__ == '__main__':
   def _log_userAction(msg, *extra_msgs, **kwargs):
     write_log_message(msg, *extra_msgs, source_tag='launcher',
                       print_message=True, userAction=True, filepath=log_history_filepath, **kwargs)
-
+  
   # TODO: Define the streamers to use.
   #   Configure settings for each class in sensor_streamer_specs.
   sensor_streamers_enabled = dict([
     # Use one of the following to control the experiment (enter notes, quit, etc)
-    ('ExperimentControlStreamer', True),  # A GUI to label activities/calibrations and enter notes
-    ('NotesStreamer',             False),  # A command-line based way to submit notes during the experiment (but not label activities explicitly)
+    ('ExperimentControlStreamer', False),  # A GUI to label activities/calibrations and enter notes
+    ('NotesStreamer',             True),  # A command-line based way to submit notes during the experiment (but not label activities explicitly)
     # Sensors!
-    ('MyoStreamer',        True),  # One or more Myo EMG/IMU armbands
+    ('MyoStreamer',        False),  # One or more Myo EMG/IMU armbands
     ('TouchStreamer',      False),  # Custom tactile sensors streaming via an Arduino
     ('XsensStreamer',      False),  # The Xsens body tracking system (includes the Manus finger-tracking gloves if connected to Xsens)
     ('EyeStreamer',        False),  # The Pupil Labs eye-tracking headset
@@ -70,19 +70,20 @@ if __name__ == '__main__':
     ('ScaleStreamer',      False),  # The Dymo M25 digital postal scale
     ('MicrophoneStreamer', False),  # One or more microphones
     ('CameraStreamer',     False),  # One or more cameras
-    ('DummyStreamer',      False),  # Dummy data (no hardware required)
+    ('DummyStreamer',      True),  # Dummy data (no hardware required)
+    ('TemplateStreamer',   False),  # Dummy data (no hardware required)
   ])
   sensor_streamer_specs = [
+    # The template streamer!
+    {'class': 'TemplateStreamer',
+     # Add any keyword arguments here that you added to __init__()
+     'print_debug': print_debug, 'print_status': print_status
+     },
     # Allow the experimenter to label data and enter notes.
     {'class': 'ExperimentControlStreamer',
      'activities': [ # TODO: Enter your activities that you want to label
-       'Grasping/Releasing Right',
-       'Grasping/Releasing Left',
-       'Grasping/Releasing Passing',
-       'Sutuering',
-       'Cutting',
-       'Knotting',
-       'Stapling',
+       'My first activity',
+       'Another activity',
      ],
      'print_debug': print_debug, 'print_status': print_status
      },
@@ -90,19 +91,23 @@ if __name__ == '__main__':
     {'class': 'NotesStreamer',
      'print_debug': print_debug, 'print_status': print_status
      },
-    # Stream from the Myo device including EMG, IMU, and gestures.
-    {'class': 'MyoStreamer',
-     'num_myos': 1,
+    # Stream from one or more tactile sensors, such as the ones on the gloves.
+    # See the __init__ method of TouchStreamer to configure settings such as
+    #  what sensors are available and their COM ports.
+    {'class': 'TouchStreamer',
+     'com_ports': {
+       'tactile-glove-left' : 'COM3', # None
+       'tactile-glove-right': 'COM6', # None
+     },
      'print_debug': print_debug, 'print_status': print_status
      },
     # Stream from the Xsens body tracking and Manus gloves.
     {'class': 'XsensStreamer',
      'print_debug': print_debug, 'print_status': print_status
      },
-    # Stream from one or more tactile sensors, such as the ones on the gloves.
-    # See the __init__ method of TouchStreamer to configure settings such as
-    #  what sensors are available and their COM ports.
-    {'class': 'TouchStreamer',
+    # Stream from the Myo device including EMG, IMU, and gestures.
+    {'class': 'MyoStreamer',
+     'num_myos': 2,
      'print_debug': print_debug, 'print_status': print_status
      },
     # Stream from the Pupil Labs eye tracker, including gaze and video data.
@@ -138,17 +143,17 @@ if __name__ == '__main__':
   sensor_streamer_specs = [spec for spec in sensor_streamer_specs
                            if spec['class'] in sensor_streamers_enabled
                            and sensor_streamers_enabled[spec['class']]]
-
+  
   # TODO: Configure where and how to save sensor data.
   #       Adjust enable_data_logging, log_tag, and log_dir_root as desired.
-  enable_data_logging = True # If False, no data will be logged and the below directory settings will be ignored
+  enable_data_logging = False # If False, no data will be logged and the below directory settings will be ignored
   if enable_data_logging:
     script_dir = os.path.dirname(os.path.realpath(__file__))
     (log_time_str, log_time_s) = get_time_str(return_time_s=True)
-    log_tag = 'demo_myo'
+    log_tag = 'testing_templateStreamer'
     log_dir_root = os.path.join(script_dir, '..', '..', 'data',
-                                'experiments', # recommend 'tests' and 'experiments' for testing vs "real" data
-                                '%s_demo' % get_time_str(format='%Y-%m-%d'))
+                                'tests', # recommend 'tests' and 'experiments' for testing vs "real" data
+                                '%s_template_folder_tag' % get_time_str(format='%Y-%m-%d'))
     log_subdir = '%s_%s' % (log_time_str, log_tag)
     log_dir = os.path.join(log_dir_root, log_subdir)
     datalogging_options = {
@@ -157,12 +162,12 @@ if __name__ == '__main__':
       'videos_in_hdf5': False,
       'audio_in_hdf5': False,
       # Choose whether to periodically write data to files.
-      'stream_csv'  : True,
-      'stream_hdf5' : True,
+      'stream_hdf5' : True, # recommended over CSV since it creates a single file
+      'stream_csv'  : True, # will create a CSV per stream
       'stream_video': True,
       'stream_audio': True,
-      'stream_period_s': 15,
-      'clear_logged_data_from_memory': True, # ignored if dumping is also enabled
+      'stream_period_s': 15, # how often to save streamed data to disk
+      'clear_logged_data_from_memory': True, # ignored if dumping is also enabled below
       # Choose whether to write all data at the end.
       'dump_csv'  : False,
       'dump_hdf5' : False,
@@ -182,7 +187,6 @@ if __name__ == '__main__':
     datalogging_options = None
   
   # TODO: Configure visualization.
-  # visualization_options = None
   composite_frame_size = (1800, 3000) # height, width # (1800, 3000)
   composite_col_width = int(composite_frame_size[1]/2)
   composite_row_height = int(composite_frame_size[0]/3)
@@ -190,37 +194,20 @@ if __name__ == '__main__':
     'visualize_streaming_data'       : True,
     'visualize_all_data_when_stopped': False,
     'wait_while_visualization_windows_open': False,
-    'update_period_s': 0.2,
-    'use_composite_video': True,
+    'update_period_s': 0.1,
+    # 'classes_to_visualize': ['TemplateStreamer']
+    'use_composite_video': False,
     'composite_video_filepath': os.path.join(log_dir, 'composite_visualization') if log_dir is not None else None,
-  }
-  myo_streamer_index = ['MyoStreamer' in spec['class'] for spec in sensor_streamer_specs].index(True)
-  if sensor_streamer_specs[myo_streamer_index]['num_myos'] == 2:
-    visualization_options['composite_video_layout'] = [
+    'composite_video_layout':
+      [
         [ # row  0
-          {'device_name':'myo-left',  'stream_name':'emg', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':   composite_row_height},
-          {'device_name':'myo-right', 'stream_name':'emg', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':   composite_row_height},
+          {'device_name':'template-sensor-device',  'stream_name':'stream_1', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
         ],
-        [ # row 1
-          {'device_name':'myo-left',  'stream_name':'acceleration_g', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height': composite_row_height},
-          {'device_name':'myo-right', 'stream_name':'acceleration_g', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height': composite_row_height},
-        ],
-        [ # row 2
-          {'device_name':'myo-left',  'stream_name':'orientation_quaternion', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height': composite_row_height},
-          {'device_name':'myo-right', 'stream_name':'orientation_quaternion', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height': composite_row_height},
+        [ # row  1
+          {'device_name':'template-sensor-device',  'stream_name':'stream_2', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
         ],
       ],
-  elif sensor_streamer_specs[myo_streamer_index]['num_myos'] == 1:
-    visualization_options['composite_video_layout'] = [
-        [ # row  0
-          {'device_name':'myo-left',  'stream_name':'emg', 'rowspan':2, 'colspan':1, 'width':composite_col_width, 'height':   composite_row_height*2},
-          {'device_name':'myo-left',  'stream_name':'acceleration_g', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height': composite_row_height},
-        ],
-        [ # row 1
-          {'device_name':None,  'stream_name':None, 'rowspan':0, 'colspan':0, 'width':0, 'height': 0},
-          {'device_name':'myo-left',  'stream_name':'orientation_quaternion', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height': composite_row_height},
-        ],
-      ]
+  }
   
   # Create a sensor manager.
   sensor_manager = SensorManager(sensor_streamer_specs=sensor_streamer_specs,
@@ -282,10 +269,6 @@ if __name__ == '__main__':
       def check_if_user_quit():
         return False
   
-  
-  # print()
-  # print('Enter \'quit\' or \'q\' as an experiment note to end the program')
-  # print()
   
   # Run!
   sensor_manager.connect()

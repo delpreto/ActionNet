@@ -31,6 +31,9 @@ import cv2
 from threading import Thread
 import numpy as np
 import time
+import h5py
+import os
+import glob
 from collections import OrderedDict
 import traceback
 
@@ -86,6 +89,15 @@ class CameraStreamer(SensorStreamer):
     self._cameras_to_stream = cameras_to_stream
     self._captures = {}
     self._run_threads = {}
+
+    # Update configuration based on existing data logs if desired.
+    if self._replaying_data_logs:
+      # Find videos in the log directory that correspond to CameraStreamer outputs.
+      videos_info = self.get_videos_info_from_log_dir()
+      camera_names = list(videos_info.keys())
+      # Add these as the target cameras to stream, using dummy device indexes
+      #   since the saved videos will be used instead of a live stream.
+      self._cameras_to_stream = dict([(camera_name, i) for (i, camera_name) in enumerate(camera_names)])
     
   #######################################
   # Connect to the sensor.
@@ -216,9 +228,54 @@ class CameraStreamer(SensorStreamer):
     
     return processed_options
 
-  #####################
-  ###### HELPERS ######
-  #####################
+  #########################################
+  ###### REPLAYING EXISTING DATA LOG ######
+  #########################################
+
+  # A method to determine whether videos in the
+  #  log directory correspond to video streams from this sensor.
+  # Returns a dict with structure videos_info[device_name][stream_name] = video_info
+  #  where video_info has keys 'video_filepath', 'time_s_stream_device_name', and 'time_s_stream_name'
+  #  that indicate the video filepath and the HDF5 stream that contains frame timestamps.
+  def get_videos_info_from_log_dir(self):
+    # Find all HDF5 files in the log directory.
+    hdf5_filepaths = glob.glob(os.path.join(self._log_player_options['log_dir'], '*.hdf5'))
+    
+    # Discover the camera names that were used,
+    #  by finding all devices that were created by the CameraStreamer class.
+    camera_names = []
+    for hdf5_filepath in hdf5_filepaths:
+      hdf5_file = h5py.File(hdf5_filepath, 'r')
+      for (device_name, device_group) in hdf5_file.items():
+        metadata = dict(device_group.attrs.items())
+        streamer_class_name = metadata[SensorStreamer.metadata_class_name_key]
+        if 'CameraStreamer' == streamer_class_name:
+          camera_names.append(device_name)
+      hdf5_file.close()
+    
+    # Find videos in the log directory with the desired device names,
+    #  and record the video information.
+    videos_info = {}
+    for camera_name in camera_names:
+      for file in os.listdir(self._log_player_options['log_dir']):
+        if file.endswith('.avi') or file.endswith('.mp4'):
+          video_filepath = os.path.join(self._log_player_options['log_dir'], file)
+          if '%s_frame.' % camera_name in file:
+            device_name = camera_name
+            stream_name = 'frame'
+            video_info = {}
+            video_info['video_filepath'] = video_filepath
+            video_info['time_s_stream_device_name'] = device_name
+            video_info['time_s_stream_name'] = 'frame_timestamp'
+            videos_info[device_name] = {}
+            videos_info[device_name][stream_name] = video_info
+    
+    # Return the information for all discovered videos that match streams in an HDF5 file.
+    return videos_info
+
+#####################
+###### HELPERS ######
+#####################
   
 # Try to discover cameras and display a frame from each one,
 #  to help identify device indexes.

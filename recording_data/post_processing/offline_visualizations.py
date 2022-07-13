@@ -44,35 +44,8 @@ if __name__ == '__main__':
     # Define the log(s) to replay.
     data_dir = os.path.realpath(os.path.join(script_dir, '..', '..', 'data'))
     experiments_dir = os.path.join(data_dir, 'experiments')
-    # log_dirs = [os.path.join(data_dir, '2022-04-14 test all sensors', '2022-04-14_19-13-29_test-all-kitchen-withAV')]
-    # log_dirs = [os.path.join(data_dir, '2022-05-08 test streaming', '2022-05-08_20-54-31_test-eyeDirect-tactileHub')]
-    # log_dirs = [os.path.join(data_dir, '2022-05-13 test all but manus - long duration', '2022-05-13_21-13-04_test-not-worn')]
-    # log_dir_root = os.path.join(data_dir, '2022-05-24 test all in kitchen')
-    # log_dir_root = os.path.join(data_dir, 'experiments', '2022-06-07_experiment_S00')
-    # log_dirs = [
-    #   # os.path.join(log_dir_root, '2022-05-24_21-09-52_test-all - peel cucumber'),
-    #   # os.path.join(log_dir_root, '2022-05-24_22-22-44_test-all - potatoes bread spread'),
-    #   # os.path.join(log_dir_root, '2022-05-24_22-42-15_test-all - jar plate'),
-    #   # os.path.join(log_dir_root, '2022-05-24_20-30-53_test-all - tactile calibration'),
-    #   # os.path.join(log_dir_root, '2022-05-24_20-30-53_test-all - tactile calibration'),
-    #   # os.path.join(log_dir_root, '2022-06-07_17-18-17_actionNet-wearables_S00'),
-    #   os.path.join(log_dir_root, '2022-06-07_18-10-55_actionNet-wearables_S00'),
-    # ]
     log_dirs = [
-      # os.path.join(experiments_dir, '2022-06-07_experiment_S00', '2022-06-07_17-18-17_actionNet-wearables_S00'),
-      # os.path.join(experiments_dir, '2022-06-07_experiment_S00', '2022-06-07_18-10-55_actionNet-wearables_S00'),
-      os.path.join(experiments_dir, '2022-06-13_experiment_S01_recordingStopped', '2022-06-13_18-13-12_actionNet-wearables_S01'),
-      os.path.join(experiments_dir, '2022-06-13_experiment_S02', '2022-06-13_21-39-50_actionNet-wearables_S02'),
-      # os.path.join(experiments_dir, '2022-06-13_experiment_S02', '2022-06-13_21-47-57_actionNet-wearables_S02'),
-      # os.path.join(experiments_dir, '2022-06-13_experiment_S02', '2022-06-13_22-34-45_actionNet-wearables_S02'),
-      # os.path.join(experiments_dir, '2022-06-13_experiment_S02', '2022-06-13_23-16-47_actionNet-wearables_S02'),
-      # os.path.join(experiments_dir, '2022-06-13_experiment_S02', '2022-06-13_23-22-21_actionNet-wearables_S02'),
-      # os.path.join(experiments_dir, '2022-06-14_experiment_S03', '2022-06-14_13-01-32_actionNet-wearables_S03'),
-      # os.path.join(experiments_dir, '2022-06-14_experiment_S03', '2022-06-14_13-11-44_actionNet-wearables_S03'),
-      # os.path.join(experiments_dir, '2022-06-14_experiment_S03', '2022-06-14_13-52-21_actionNet-wearables_S03'),
-      # os.path.join(experiments_dir, '2022-06-14_experiment_S04', '2022-06-14_16-38-18_actionNet-wearables_S04'),
-      # os.path.join(experiments_dir, '2022-06-14_experiment_S05', '2022-06-14_20-36-27_actionNet-wearables_S05'),
-      # os.path.join(experiments_dir, '2022-06-14_experiment_S05', '2022-06-14_20-45-43_actionNet-wearables_S05'),
+      os.path.join(experiments_dir, '2022-06-07_experiment_S00', '2022-06-07_18-10-55_actionNet-wearables_S00'),
     ]
   else:
     log_dirs = sys.argv[1:]
@@ -140,7 +113,7 @@ if __name__ == '__main__':
                                     {'device_name':'myo-right', 'stream_name':'acceleration_g', 'rowspan':1, 'colspan':1, 'width':col_width, 'height': row_height},
                                   ],
                                 ],
-                                composite_video_filepath = composite_video_filepath,
+                                composite_video_filepath=composite_video_filepath,
                                 print_status=print_status, print_debug=print_debug)
     visualizer.visualize_logged_data(start_offset_s=None, end_offset_s=end_offset_s,
                                      duration_s=None,

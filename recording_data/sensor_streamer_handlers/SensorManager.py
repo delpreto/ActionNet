@@ -85,7 +85,6 @@ class SensorManager:
     if kill_other_python_processes:
       try:
         import psutil
-        import os
         for proc in psutil.process_iter():
           pinfo = proc.as_dict(attrs=['pid', 'name'])
           procname = str(pinfo['name'])

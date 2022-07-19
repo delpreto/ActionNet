@@ -332,11 +332,11 @@ class XsensSkeletonVisualizer(Visualizer):
           'fov': 60,
           # 'rotation': (1.0, 0.0, 0.0, 0.0),
           'elevation': 15.0,
-          'center': QtGui.QVector3D(plot_xyz_cm_mean[0]*0.7,
-                                    plot_xyz_cm_mean[1]*0.9,
+          'center': QtGui.QVector3D(plot_xyz_cm_mean[0],
+                                    plot_xyz_cm_mean[1],
                                     plot_xyz_cm_mean[2]),
           'azimuth': 55,
-          'distance': np.max(np.max(plot_xyz_cm_all, axis=0) - np.min(plot_xyz_cm_all, axis=0))*1.5
+          'distance': np.max(np.max(plot_xyz_cm_all, axis=0) - np.min(plot_xyz_cm_all, axis=0))*1.1
         }
         self._glWidget.setCameraParams(**camera_params)
       

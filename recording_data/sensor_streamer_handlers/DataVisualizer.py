@@ -92,25 +92,6 @@ class DataVisualizer:
 
     self._visualizers = []
     
-    if composite_video_layout is not None:
-      # self._composite_video_timestamp_height = max(20, round(1/2/100*sum([tile_layout['width'] for tile_layout in composite_video_layout[0]])))
-      self._composite_video_timestamp_height = max(20, round(1/2/15*sum([tile_layout['height'] for tile_layout in composite_video_layout[0]])))
-      self._composite_video_timestamp_bg_color = [100, 100, 100] # BGR
-      self._composite_video_timestamp_color = [255, 255, 0] # BGR
-      # Find a font scale that will make the text fit within the desired pad size.
-      fontFace = cv2.FONT_HERSHEY_SIMPLEX
-      fontScale = 5
-      fontThickness = 2 if self._composite_video_timestamp_height > 25 else 1
-      textsize = None
-      while textsize is None or (textsize[1] > 0.8*self._composite_video_timestamp_height):
-        textsize = cv2.getTextSize(get_time_str(0, format='%Y-%m-%d %H:%M:%S.%f'), fontFace, fontScale, fontThickness)[0]
-        fontScale -= 0.2
-      fontScale += 0.2
-      self._composite_video_timestamp_fontScale = fontScale
-      self._composite_video_timestamp_textSize = textsize
-      self._composite_video_timestamp_fontThickness = fontThickness
-      self._composite_video_timestamp_fontFace = fontFace
-
   # Initialize visualizers.
   # Will use the visualizer specified by each streamer,
   #  which may be a default visualizer defined in this file or a custom one.
@@ -131,11 +112,46 @@ class DataVisualizer:
       # assert (not np.any(np.diff(heights, axis=1) != 0)), 'All images in a row of the composite video must have the same height.'
       widths = np.array([[tile_spec['width'] for tile_spec in row_layout] for row_layout in self._composite_video_layout])
       # assert (not np.any(np.diff(widths, axis=0) != 0)), 'All images in a column of the composite video must have the same width.'
-
+      
+      # Determine the overall size of the composite video frames.
       self._composite_frame_width = np.sum(widths, axis=1)[0] # + 2*len(widths)*self._composite_video_tileBorder_width
       self._composite_frame_height = np.sum(heights, axis=0)[0] # + 2*len(widths)*self._composite_video_tileBorder_width
-      self._composite_frame_height_withTimestamp = self._composite_frame_height + self._composite_video_timestamp_height
       
+      # Configure the bottom banner that includes the timestamps and labels.
+      self._composite_video_banner_height = max(20, round(1/30 * self._composite_frame_height))
+      self._composite_frame_height_withTimestamp = self._composite_frame_height + self._composite_video_banner_height
+      self._composite_video_banner_bg_color = [100, 100, 100] # BGR
+      self._composite_video_banner_text_color = [255, 255, 0] # BGR
+      self._composite_video_banner_activity_text_colors = {
+        'Good' : self._composite_video_banner_text_color, # BGR
+        'Maybe': [0, 155, 255], # BGR
+        'Bad'  : [50, 50, 255] # BGR
+      }
+      # Find a font scale that will make the text fit within the desired pad size.
+      target_height = 0.5*self._composite_video_banner_height
+      target_width = 0.5*self._composite_frame_width
+      fontFace = cv2.FONT_HERSHEY_SIMPLEX
+      fontScale = 0
+      fontThickness = 2 if self._composite_video_banner_height > 25 else 1
+      textsize = None
+      while (textsize is None) or ((textsize[1] < target_height) and (textsize[0] < target_width)):
+        fontScale += 0.2
+        textsize = cv2.getTextSize(get_time_str(0, format='%Y-%m-%d %H:%M:%S.%f'), fontFace, fontScale, fontThickness)[0]
+      fontScale -= 0.2
+      textsize = cv2.getTextSize(get_time_str(0, format='%Y-%m-%d %H:%M:%S.%f'), fontFace, fontScale, fontThickness)[0]
+      self._composite_video_banner_timestamp_fontScale = fontScale
+      self._composite_video_banner_timestamp_textSize = textsize
+      self._composite_video_banner_fontThickness = fontThickness
+      self._composite_video_banner_fontFace = fontFace
+      self._composite_video_banner_targetFontHeight = target_height
+
+      # Check whether an ExperimentControlStreamer is present,
+      #  so activity labels can be added to the composite video.
+      self._experimentControl_streamer = None
+      for streamer in self._streamers:
+        if type(streamer).__name__ == 'ExperimentControlStreamer':
+          self._experimentControl_streamer = streamer
+          
       # Get a list of streams included in the composite video.
       streams_in_composite = []
       for (row_index, row_layout) in enumerate(self._composite_video_layout):
@@ -286,6 +302,7 @@ class DataVisualizer:
       if realtime:
         next_update_time_s = start_viz_time_s + current_frame_index * self._update_period_s
         time.sleep(max(0, next_update_time_s - time.time()))
+    self._log_status('DataVisualizer finished visualizing logged data')
     
   # Determine reasonable start and end times for visualizing logged data.
   def get_loggedData_start_end_times_s(self, start_offset_s=None, end_offset_s=None,
@@ -538,17 +555,55 @@ class DataVisualizer:
           imgs_for_column.append(row_imgs[column_index])
       composite_column_imgs.append(cv2.vconcat(imgs_for_column))
     composite_img = cv2.hconcat(composite_column_imgs)
+    
+    # Add a banner on the bottom.
+    if time_s is not None or self._experimentControl_streamer is not None:
+      composite_img = cv2.copyMakeBorder(composite_img, 0, self._composite_video_banner_height, 0, 0,
+                                         cv2.BORDER_CONSTANT, value=self._composite_video_banner_bg_color)
+    # Add a timestamp to the bottom banner.
     if time_s is not None:
-      # Determine a font size that will fit in the desired pad size.
       timestamp_str = get_time_str(time_s, format='%Y-%m-%d %H:%M:%S.%f')
-      # Add the padding and the text.
-      composite_img = cv2.copyMakeBorder(composite_img, 0, self._composite_video_timestamp_height, 0, 0,
-                                         cv2.BORDER_CONSTANT, value=self._composite_video_timestamp_bg_color)
       composite_img = cv2.putText(composite_img, timestamp_str,
-                                  [int(composite_img.shape[1]/2 - self._composite_video_timestamp_textSize[0]/2),
-                                   int(composite_img.shape[0] - (self._composite_video_timestamp_height-self._composite_video_timestamp_textSize[1])/2)],
-                                  fontFace=self._composite_video_timestamp_fontFace, fontScale=self._composite_video_timestamp_fontScale,
-                                  color=self._composite_video_timestamp_color, thickness=self._composite_video_timestamp_fontThickness, lineType=cv2.LINE_AA)
+                                  [int(composite_img.shape[1]/50),  # for centered text: int(composite_img.shape[1] - self._composite_video_timestamp_textSize[0]/2)
+                                   int(composite_img.shape[0] - self._composite_video_banner_height/2 + self._composite_video_banner_timestamp_textSize[1]/3)],
+                                  fontFace=self._composite_video_banner_fontFace, fontScale=self._composite_video_banner_timestamp_fontScale,
+                                  color=self._composite_video_banner_text_color, thickness=self._composite_video_banner_fontThickness)
+    # Add active labels to the bottom banner.
+    if self._experimentControl_streamer is not None:
+      device_name = 'experiment-activities'
+      stream_name = 'activities'
+      index_forTime = self._experimentControl_streamer.get_index_for_time_s(device_name, stream_name, time_s, 'before')
+      if index_forTime is not None:
+        # Get the most recent label entry.
+        label_data = self._experimentControl_streamer.get_data(device_name, stream_name, return_deepcopy=False,
+                                     starting_index=index_forTime,
+                                     ending_index=index_forTime+1)
+        # If it started an activity, then write its label in the banner.
+        label_data = label_data['data'][-1]
+        label_data = [x.decode('utf-8') for x in label_data]
+        if 'Start' in label_data:
+          activity_label = label_data[0]
+          activity_ranking = label_data[2]
+          # Find a text size so it will fit in the banner height and in half of the frame width.
+          target_height = self._composite_video_banner_targetFontHeight
+          target_width = 0.5*self._composite_frame_width
+          fontFace = self._composite_video_banner_fontFace
+          fontScale = 0
+          fontThickness = self._composite_video_banner_fontThickness
+          textsize = None
+          while (textsize is None) or ((textsize[1] < target_height) and (textsize[0] < target_width)):
+            fontScale += 0.2
+            textsize = cv2.getTextSize(activity_label, fontFace, fontScale, fontThickness)[0]
+          fontScale -= 0.2
+          textsize = cv2.getTextSize(activity_label, fontFace, fontScale, fontThickness)[0]
+          fontColor = self._composite_video_banner_text_color
+          if activity_ranking in self._composite_video_banner_activity_text_colors:
+            fontColor = self._composite_video_banner_activity_text_colors[activity_ranking]
+          composite_img = cv2.putText(composite_img, activity_label,
+                                      [int(composite_img.shape[1] - composite_img.shape[1]/50 - textsize[0]),
+                                       int(composite_img.shape[0] - self._composite_video_banner_height/2 + textsize[1]/3)],
+                                      fontFace=fontFace, fontScale=fontScale,
+                                      color=fontColor, thickness=fontThickness)
     
     # Display the composite image if desired.
     if not hidden:

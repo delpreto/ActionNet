@@ -36,6 +36,10 @@ data = [ % each row is a subject
     5	8	6	8	6
     7	8	8	5	2
     3	3	3	8	8
+    9	9	10	7	7
+    7	5.5	4	9	6.5
+    1	1	1	7	3
+    9	8	7	10	10
     ];
 figure(1); clf;
 if use_scatter
@@ -52,6 +56,7 @@ else
     set(gca, 'XTickLabel', headers);
 end
 grid on;
+box on;
 title('Expertise Levels');
 ylabel('Rating [0-10]');
 ylim([0 10]);
@@ -59,7 +64,7 @@ set(gca, 'FontSize', 16);
 update_figure_paper_size;
 
 %% HANDEDNESS
-data = {'Right', 'Right', 'Right', 'Right', 'Right', 'Right'};
+data = {'Right', 'Right', 'Right', 'Right', 'Right', 'Right', 'Left', 'Right', 'Right', 'Right'};
 num_left = sum(strcmpi(data, 'left'));
 num_right = sum(strcmpi(data, 'right'));
 fprintf('\n');
@@ -67,7 +72,7 @@ fprintf('\nRight handed: %d (%0.1f%%)', num_right, 100*num_right/(num_right+num_
 fprintf('\nLeft  handed: %d (%0.1f%%)', num_left,  100*num_left/(num_right+num_left));
 
 %% EYE DOMINANCE
-data = {'Right', 'Right', 'Right', 'Left', 'Right', 'Left'};
+data = {'Right', 'Right', 'Right', 'Left', 'Right', 'Left', 'Left', 'Right', 'Right', 'Right'};
 num_left = sum(strcmpi(data, 'left'));
 num_right = sum(strcmpi(data, 'right'));
 fprintf('\n');
@@ -76,7 +81,7 @@ fprintf('\nLeft  eye: %d (%0.1f%%)', num_left,  100*num_left/(num_right+num_left
 
 
 %% GENDER
-data = {'M', 'M', 'F', 'M', 'F', 'M'};
+data = {'M', 'M', 'F', 'M', 'F', 'M', 'M', 'M', 'M', 'F'};
 num_male = sum(strcmpi(data, 'M'));
 num_female = sum(strcmpi(data, 'F'));
 fprintf('\n');
@@ -84,7 +89,18 @@ fprintf('\nMale  : %d (%0.1f%%)', num_male, 100*num_male/(num_male+num_female));
 fprintf('\nFemale: %d (%0.1f%%)', num_female,  100*num_female/(num_male+num_female));
 
 %% AGE
-data = [31, 32, 31, 31, 25, 26];
+data = [
+    31
+    32
+    31
+    31
+    25
+    26
+    26
+    21
+    24
+    26
+];
 fprintf('\n');
 fprintf('\nAge: %0.2f +- %0.2f (%d to %d)', mean(data), std(data), min(data), max(data));
 
@@ -99,6 +115,10 @@ data = [ % each row is a subject
     9	6	5	3	3
     8	8	7	1	2
     6	7.5	6.5	7.5	6
+    7	nan	nan	2	6.5
+    7	nan	nan	6	3
+    4	nan	nan	0	3
+    4	nan	nan	3	6
     ];
 figure(2); clf;
 if use_scatter
@@ -115,6 +135,7 @@ else
     set(gca, 'XTickLabel', headers);
 end
 grid on;
+box on;
 set(gca, 'XTickLabel', headers);
 title('Sensor Obtrusiveness');
 ylabel('Rating [0-10]');
@@ -146,12 +167,16 @@ ylim([0 10]);
 headers = {'Meal', 'Cut', 'Fetch', 'Load', 'Unload', 'Wash', 'Return', 'Table', 'Clean'};
 subjects = {'S00', 'S01', 'S02', 'S03', 'S04', 'S05'};
 data = [ % each row is a subject
-    10	10	10	9	7	8	9	6	10	6	8	6	9	6	7	8	10	9
-    10	10	10	0	5	5	10	10	10	10	0	0	10	10	10	10	10	10
-    7	8	10	1	6	6.75	2.75	10	3	10	2.75	10	1	10	1	10	8	8.75
-    0	1	5	3	2	2	8	0	8	0	1	1	4	4	4	4	7	8
-    10	2	10	2	10	2	10	2	10	2	2	2	2	8	10	3	10	10
-    10	10	10	10	10	10	10	10	10	10	10	10	10	10	10	10	10	10
+        10	10	10	9	7	8	9	6	10	6	8	6	9	6	7	8	10	9
+        10	10	10	0	5	5	10	10	10	10	0	0	10	10	10	10	10	10
+        7	8	10	1	6	6.75	2.75	10	3	10	2.75	10	1	10	1	10	8	8.75
+        0	1	5	3	2	2	8	0	8	0	1	1	4	4	4	4	7	8
+        10	2	10	2	10	2	10	2	10	2	2	2	2	8	10	3	10	10
+        10	10	10	10	10	10	10	10	10	10	10	10	10	10	10	10	10	10
+        7	9	4	4	7	9	10	10	10	10	10	10	5	10	10	10	10	10
+        2	8	8	nan	3	nan	10	9	10	9	10	9	10	10	10	10	10	10
+        9	7	9	7	9	7	10	10	10	10	7	10	8	7	4	6	10	10
+        10	8	10	10	10	10	10	10	10	10	10	8	10	10	10	8	10	10
     ];
 figure(3); clf;
 if use_scatter
@@ -177,6 +202,7 @@ else
                  'primaryLabels', headers, 'secondaryLabels', {'Autonomously', 'Collaboratively'});
 end
 grid on;
+box on;
 title('Robot Assistant Desirability');
 ylabel('Rating [0-10]');
 ylim([0 10]);
@@ -191,6 +217,10 @@ data = [ % each row is a subject
         4	3	1	6	4	1
         3	7	0	0	4	1
         7	7	5	1.5	7	1.5
+        5	7.5	6.5	1	4	5
+        7	6	5	2	7	6
+        6	4	3	2	5	7
+        2	2	4	1.5	4	2
     ];
 data = mean(data, 2);
 fprintf('\n');

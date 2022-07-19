@@ -63,7 +63,7 @@ if __name__ == '__main__':
     ('NotesStreamer',             False),  # A command-line based way to submit notes during the experiment (but not label activities explicitly)
     # Sensors!
     ('MyoStreamer',        True),  # One or more Myo EMG/IMU armbands
-    ('TouchStreamer',      True),  # Custom tactile sensors streaming via an Arduino
+    ('TouchStreamer',      False),  # Custom tactile sensors streaming via an Arduino
     ('XsensStreamer',      True),  # The Xsens body tracking system (includes the Manus finger-tracking gloves if connected to Xsens)
     ('EyeStreamer',        True),  # The Pupil Labs eye-tracking headset
     ('ScaleStreamer',      True),  # The Dymo M25 digital postal scale
@@ -136,10 +136,10 @@ if __name__ == '__main__':
   if enable_data_logging:
     script_dir = os.path.dirname(os.path.realpath(__file__))
     (log_time_str, log_time_s) = get_time_str(return_time_s=True)
-    log_tag = 'actionNet-wearables_S05'
+    log_tag = 'actionNet-wearables_S09'
     log_dir_root = os.path.join(script_dir, '..', '..', 'data',
                                 'experiments', # recommend 'tests' and 'experiments' for testing vs "real" data
-                                '%s_experiment_S05' % get_time_str(format='%Y-%m-%d'))
+                                '%s_experiment_S09' % get_time_str(format='%Y-%m-%d'))
     log_subdir = '%s_%s' % (log_time_str, log_tag)
     log_dir = os.path.join(log_dir_root, log_subdir)
     datalogging_options = {

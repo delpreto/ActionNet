@@ -24,6 +24,9 @@
 #
 ############
 
+# This script will print out activity label start/end times
+#  in a format that can be copied into YouTube descriptions to create chapters.
+
 from sensor_streamer_handlers.SensorManager import SensorManager
 from sensor_streamer_handlers.DataVisualizer import DataVisualizer
 
@@ -72,7 +75,25 @@ if __name__ == '__main__':
     'S05': [
       os.path.join(experiments_dir, '2022-06-14_experiment_S05', '2022-06-14_20-36-27_actionNet-wearables_S05'),
       os.path.join(experiments_dir, '2022-06-14_experiment_S05', '2022-06-14_20-45-43_actionNet-wearables_S05'),
-    ]
+    ],
+    'S06': [
+      os.path.join(experiments_dir, '2022-07-12_experiment_S06', '2022-07-12_14-30-38_actionNet-wearables_S06'),
+      os.path.join(experiments_dir, '2022-07-12_experiment_S06', '2022-07-12_15-07-50_actionNet-wearables_S06'),
+    ],
+    'S07': [
+      os.path.join(experiments_dir, '2022-07-13_experiment_S07', '2022-07-13_11-01-18_actionNet-wearables_S07'),
+    ],
+    'S08': [
+      os.path.join(experiments_dir, '2022-07-13_experiment_S08', '2022-07-13_14-15-03_actionNet-wearables_S08'),
+    ],
+    'S09': [
+      os.path.join(experiments_dir, '2022-07-14_experiment_S09', '2022-07-14_09-47-52_actionNet-wearables_S09'),
+      os.path.join(experiments_dir, '2022-07-14_experiment_S09', '2022-07-14_09-58-40_actionNet-wearables_S09'),
+      os.path.join(experiments_dir, '2022-07-14_experiment_S09', '2022-07-14_11-13-55_actionNet-wearables_S09'),
+    ],
+    # 'Badminton': [
+    #   os.path.join(experiments_dir, '2022-07-14_badminton_test_wearing', '2022-07-14_17-43-05_testing in holodeck'),
+    # ],
   }
   
   # Loop through each specified log directory to process.
@@ -98,7 +119,6 @@ if __name__ == '__main__':
       datalogging_options = None
       # Configure visualizations to be shown as a simulation of real-time streaming.
       visualization_options = None
-      composite_video_filepath = os.path.join(log_dir, 'composite_visualization_postProcessed')
       # Create a sensor manager.
       sensor_manager = SensorManager(sensor_streamer_specs=None,
                                      log_player_options=log_player_options,
@@ -109,9 +129,6 @@ if __name__ == '__main__':
       sensor_manager.connect()
       
       # Get the start and end times that the visualizer used when making the video.
-      frame_size = (1500, 2500) # height, width # (1800, 3000)
-      col_width = int(frame_size[1]/3)
-      row_height = int(frame_size[0]/3)
       visualizer = DataVisualizer(sensor_streamers=sensor_manager.get_streamers(),
                                   update_period_s = 0.1,
                                   use_composite_video=False,
@@ -120,22 +137,19 @@ if __name__ == '__main__':
           start_offset_s=None, end_offset_s=None,
           duration_s=None)
       
-      # Get label times.
+      # Get label information.
       experimentControl_streamer = sensor_manager.get_streamers(class_name='ExperimentControlStreamer')[0]
       activity_data_dict = experimentControl_streamer.get_data('experiment-activities', 'activities')
       if activity_data_dict is None:
         print()
         print('Advancing video time but skipping labels since no activities were recorded')
-        video_start_time_s += end_time_s - start_time_s
+        video_start_time_s += (end_time_s - start_time_s)
         continue
       activity_times_s = activity_data_dict['time_s']
       activity_datas = activity_data_dict['data']
       activity_datas = [[x.decode('utf-8') for x in datas] for datas in activity_datas]
-      # activity_labels = [data[0].decode('utf-8') for data in activity_datas]
-      # activity_startStop = [data[1].decode('utf-8') for data in activity_datas]
-      # activity_rating = [data[2].decode('utf-8') for data in activity_datas]
-      # activity_notes = [data[3].decode('utf-8') for data in activity_datas]
-  
+      
+      # Get start/end times for each label instance.
       activities_labels = []
       activities_start_times_s = []
       activities_end_times_s = []
@@ -163,10 +177,11 @@ if __name__ == '__main__':
       # print_var(activity_ratings)
       # print_var(activity_notes)
       
-      # Group unique activities.
+      # Get a list of unique activity labels.
       activity_labels_unique = list(set(activities_labels))
       
       # Convert activity times to chapter times.
+      # For each label, will use the start of the first instance and the end of the last instance.
       for activity_label in activity_labels_unique:
         activity_start_times_s = [x for (i, x) in enumerate(activities_start_times_s) if activities_labels[i] == activity_label]
         activity_end_times_s = [x for (i, x) in enumerate(activities_end_times_s) if activities_labels[i] == activity_label]
@@ -178,15 +193,16 @@ if __name__ == '__main__':
         
       video_start_time_s += end_time_s - start_time_s
     
-    # Sort.
+    # Sort chapters by their start times.
     chapter_labels = [x for _,x in sorted(zip(chapter_start_times_s, chapter_labels))]
     chapter_end_times_s = [x for _,x in sorted(zip(chapter_start_times_s, chapter_end_times_s))]
     chapter_start_times_s = sorted(chapter_start_times_s)
     
-    # Print the result
+    # Print the result in a format that can be copied into YouTube descriptions.
     print()
     print('-'*50)
     print('Video chapters for %s\n' % video_key)
+    print('00:00:00 Calibration/Setup')
     for i in range(len(chapter_labels)):
       activity_start_time_s = chapter_start_times_s[i]
       label = chapter_labels[i]

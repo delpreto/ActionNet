@@ -248,7 +248,10 @@ class CameraStreamer(SensorStreamer):
       hdf5_file = h5py.File(hdf5_filepath, 'r')
       for (device_name, device_group) in hdf5_file.items():
         metadata = dict(device_group.attrs.items())
-        streamer_class_name = metadata[SensorStreamer.metadata_class_name_key]
+        try:
+          streamer_class_name = metadata[SensorStreamer.metadata_class_name_key]
+        except KeyError:
+          continue
         if 'CameraStreamer' == streamer_class_name:
           camera_names.append(device_name)
       hdf5_file.close()

@@ -34,22 +34,9 @@ import traceback
 #  a folder named 'externally_recorded_data' with external recordings.
 script_dir = os.path.dirname(os.path.realpath(__file__))
 log_dir_root = os.path.realpath(os.path.join(script_dir, '..', '..', 'data',
-          # '2022-01-30 test eye external recording', '2022-01-30_17-16-54_notes-eye'
-          # '2022-02-01 test xsens streams', '2022-02-01_18-53-18_notes-xsens'
-          # '2022-02-02 test xsens streams', '2022-02-02_21-06-26_notes-xsens_withFingers'
-          # '2022-02-02 test xsens streams', '2022-02-02_21-09-45_notes-xsens_noFingers'
-          # '2022-02-03 test xsens streams', '2022-02-03_14-38-31_notes-xsens_noFingers'
-          # '2022-02-03 test xsens streams', '2022-02-03_14-32-25_notes-xsens_withFingers'
-          # '2022-02-03 test xsens streams', '2022-02-03_14-38-31_notes-xsens_noFingers'
-          # '2022-03-10 testing eye logging', '2022-03-10_12-28-58_test-eye'
-          # '2022-04-14 test all sensors', '2022-04-14_19-13-29_test-all-kitchen-withAV'
-          # '2022-05-08 test streaming', '2022-05-08_20-54-31_test-eyeDirect-tactileHub'
-          # '2022-05-24 test all in kitchen'
-          # '2022-05-29 test xsens update and myos', '2022-05-29_17-45-52_test-myo-xsens'
-          # 'experiments', '2022-06-07_experiment_S00'
-          'experiments', 'to_process_batch2'
+          'experiments', 'my_set_of_experiments', # contains a few log directories (see iteration depth setting below)
           ))
-iterate_log_subdirs_depth = 2
+iterate_log_subdirs_depth = 1 # 0 if log_dir_root is a log folder directly (e.g. contains an HDF5 file), then add 1 for each level up
 
 # Merge the data!
 # Process all subdirectories in the provided log directory,

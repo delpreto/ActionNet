@@ -685,27 +685,40 @@ class EyeStreamer(SensorStreamer):
                                      cv2.VideoWriter_fourcc(*fourcc),
                                      sampling_rate_hz, (frame_width, frame_height))
       # Loop through each input frame and overlay the gaze indicator.
+      previous_video_frame = None
+      previous_video_frame_noGaze = None
       for i in range(frame_count):
         # Get the next video frame, and the gaze estimate closest to it in time.
-        success, video_frame = video_reader.read()
-        video_time_s = video_times_s[i]
-        gaze_index = (np.abs(gaze_times_s - video_time_s)).argmin()
-        gaze_time_s = gaze_times_s[gaze_index][0]
-        gaze_position = gaze_positions[gaze_index, :]
-        # Draw the gaze indicator on the frame.
-        world_gaze_time_diff_s = video_time_s - gaze_time_s
-        gaze_radius = 10
-        gaze_color_outer = (255, 255, 255) # BGR format
-        if abs(world_gaze_time_diff_s) < self._gaze_estimate_stale_s: # check if the gaze prediction is recent
-          gaze_color_inner = (0, 255, 0) # BGR format
-        else: # gaze prediction is stale
-          gaze_color_inner = (0, 0, 0) # BGR format
-        gaze_position[1] = 1 - gaze_position[1]
-        gaze_position = tuple((gaze_position * [video_frame.shape[1], video_frame.shape[0]]).astype(int))
-        cv2.circle(video_frame, gaze_position, gaze_radius, gaze_color_outer, -1, lineType=cv2.LINE_AA)
-        cv2.circle(video_frame, gaze_position, round(gaze_radius*0.7), gaze_color_inner, -1, lineType=cv2.LINE_AA)
-        # Write the frame.
-        video_writer.write(video_frame)
+        try:
+          success, video_frame = video_reader.read()
+          previous_video_frame_noGaze = video_frame
+          video_time_s = video_times_s[i]
+          gaze_index = (np.abs(gaze_times_s - video_time_s)).argmin()
+          gaze_time_s = gaze_times_s[gaze_index][0]
+          gaze_position = gaze_positions[gaze_index, :]
+          # Draw the gaze indicator on the frame.
+          world_gaze_time_diff_s = video_time_s - gaze_time_s
+          gaze_radius = 10
+          gaze_color_outer = (255, 255, 255) # BGR format
+          if abs(world_gaze_time_diff_s) < self._gaze_estimate_stale_s: # check if the gaze prediction is recent
+            gaze_color_inner = (0, 255, 0) # BGR format
+          else: # gaze prediction is stale
+            gaze_color_inner = (0, 0, 0) # BGR format
+          gaze_position[1] = 1 - gaze_position[1]
+          gaze_position = tuple((gaze_position * [video_frame.shape[1], video_frame.shape[0]]).astype(int))
+          cv2.circle(video_frame, gaze_position, gaze_radius, gaze_color_outer, -1, lineType=cv2.LINE_AA)
+          cv2.circle(video_frame, gaze_position, round(gaze_radius*0.7), gaze_color_inner, -1, lineType=cv2.LINE_AA)
+          # Write the frame.
+          video_writer.write(video_frame)
+          previous_video_frame = video_frame
+        except:
+          # Add a dummy frame to stay aligned with the frame timestamps.
+          self._log_debug('  Error processing frame %6d/%d. Copying the previous frame instead.' % ((i+1), frame_count))
+          if previous_video_frame_noGaze is not None:
+            video_frame = previous_video_frame_noGaze
+          else:
+            video_frame = np.zeros((frame_height, frame_width, 3), dtype=np.uint8)
+          video_writer.write(video_frame)
         # Print some status updates.
         if self._print_debug and (((i+1) % int(frame_count/10)) == 0 or (i+1) == frame_count):
           self._log_debug('  Processed %6d/%d frames (%0.1f%%)' % ((i+1), frame_count, 100*(i+1)/frame_count))

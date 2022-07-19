@@ -72,22 +72,25 @@ if __name__ == '__main__':
         ('ExperimentControlStreamer', True),  # A GUI to label activities/calibrations and enter notes
         ('NotesStreamer',             False),  # A command-line based way to submit notes during the experiment (but not label activities explicitly)
         # Sensors!
-        ('MyoStreamer',        False),  # One or more Myo EMG/IMU armbands
+        ('MyoStreamer',        True),  # One or more Myo EMG/IMU armbands
         ('TouchStreamer',      False),  # Custom tactile sensors streaming via an Arduino
         ('XsensStreamer',      True),  # The Xsens body tracking system (includes the Manus finger-tracking gloves if connected to Xsens)
-        ('EyeStreamer',        False),  # The Pupil Labs eye-tracking headset
+        ('EyeStreamer',        True),  # The Pupil Labs eye-tracking headset
+        ('E4Streamer',         True),  # Moticon insole pressure sensors
         ('MoticonStreamer',    True),  # Moticon insole pressure sensors
         ('ScaleStreamer',      False),  # The Dymo M25 digital postal scale
         ('MicrophoneStreamer', False),  # One or more microphones
-        ('CameraStreamer',     False),  # One or more cameras
+        ('CameraStreamer',     True),  # One or more cameras
         ('DummyStreamer',      False),  # Dummy data (no hardware required)
     ])
     sensor_streamer_specs = [
         # Allow the experimenter to label data and enter notes.
         {'class': 'ExperimentControlStreamer',
          'activities': [ # TODO: Enter your activities that you want to label
-             'My first activity',
-             'Another activity',
+             'Smashing (with birdie)',
+             'Smashing (no birdie)',
+             'Backhand',
+             'Forehand',
          ],
          'print_debug': print_debug, 'print_status': print_status
          },
@@ -95,8 +98,13 @@ if __name__ == '__main__':
         {'class': 'NotesStreamer',
          'print_debug': print_debug, 'print_status': print_status
          },
-        # The template streamer!
+        # Moticon insole pressure sensors.
         {'class': 'MoticonStreamer',
+         # Add any keyword arguments here that you added to __init__()
+         'print_debug': print_debug, 'print_status': print_status
+         },
+        # The E4 smart watch.
+        {'class': 'E4Streamer',
          # Add any keyword arguments here that you added to __init__()
          'print_debug': print_debug, 'print_status': print_status
          },
@@ -138,7 +146,7 @@ if __name__ == '__main__':
         # Stream from one or more cameras.
         {'class': 'CameraStreamer',
          'cameras_to_stream': { # map camera names (usable as device names in the HDF5 file) to capture device indexes
-           'camera-built-in': 0,
+           'camera-usb': 1,
          },
          'print_debug': print_debug, 'print_status': print_status
         },
@@ -159,10 +167,10 @@ if __name__ == '__main__':
     if enable_data_logging:
         script_dir = os.path.dirname(os.path.realpath(__file__))
         (log_time_str, log_time_s) = get_time_str(return_time_s=True)
-        log_tag = 'testing'
+        log_tag = 'testing in holodeck'
         log_dir_root = os.path.join(script_dir, '..', '..', 'data',
                                     'tests', # recommend 'tests' and 'experiments' for testing vs "real" data
-                                    '%s_moticon_tests' % get_time_str(format='%Y-%m-%d'))
+                                    '%s_badminton_test' % get_time_str(format='%Y-%m-%d'))
         log_subdir = '%s_%s' % (log_time_str, log_tag)
         log_dir = os.path.join(log_dir_root, log_subdir)
         datalogging_options = {
@@ -198,23 +206,40 @@ if __name__ == '__main__':
     # TODO: Configure visualization.
     composite_frame_size = (1800, 3000)  # height, width # (1800, 3000)
     composite_col_width = int(composite_frame_size[1] / 3)
-    composite_row_height = int(composite_frame_size[0])
+    composite_row_height = int(composite_frame_size[0] / 4)
     visualization_options = {
         'visualize_streaming_data': True,
         'visualize_all_data_when_stopped': False,
         'wait_while_visualization_windows_open': False,
-        'update_period_s': 0.1,
+        'update_period_s': 0.5,
         # 'classes_to_visualize': ['TemplateStreamer']
         'use_composite_video': True,
         'composite_video_filepath': os.path.join(log_dir, 'composite_visualization') if log_dir is not None else None,
-        'composite_video_layout':
-            [
-                [  # row  0
-                    {'device_name': 'insole-moticon-left',  'stream_name': 'pressure_values_N_cm2', 'rowspan': 1, 'colspan': 1, 'width': composite_col_width, 'height': composite_row_height},
-                    {'device_name': 'insole-moticon-right', 'stream_name': 'pressure_values_N_cm2', 'rowspan': 1, 'colspan': 1, 'width': composite_col_width, 'height': composite_row_height},
-                    {'device_name': 'xsens-segments',       'stream_name': 'position_cm',           'rowspan': 1, 'colspan': 1, 'width': composite_col_width, 'height': composite_row_height},
-                ],
-            ],
+      'composite_video_layout':
+        [
+          [ # row 0
+            {'device_name':'camera-usb',  'stream_name':'frame', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
+            {'device_name':'xsens-segments', 'stream_name':'position_cm', 'rowspan':2, 'colspan':1, 'width':composite_col_width, 'height': 2*composite_row_height},
+            {'device_name':'eye-tracking-video-worldGaze', 'stream_name':'frame', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
+          ],
+          [  # row  1
+            {'device_name': 'insole-moticon-left', 'stream_name': 'pressure_values_N_cm2', 'rowspan': 1, 'colspan': 1, 'width': composite_col_width, 'height': composite_row_height},
+            {'device_name':None, 'stream_name':None, 'rowspan':0, 'colspan':0, 'width':0, 'height': 0},
+            {'device_name': 'insole-moticon-right', 'stream_name': 'pressure_values_N_cm2', 'rowspan': 1, 'colspan': 1, 'width': composite_col_width, 'height': composite_row_height},
+    
+            # {'device_name': 'xsens-segments', 'stream_name': 'position_cm', 'rowspan': 1, 'colspan': 1, 'width': composite_col_width, 'height': composite_row_height},
+          ],
+          [ # row 2
+            {'device_name':'myo-left', 'stream_name':'emg',               'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':   composite_row_height},
+            {'device_name': 'ACC-empatica_e4', 'stream_name': 'acc-values', 'rowspan': 1, 'colspan': 1, 'width': composite_col_width, 'height': composite_row_height},
+            {'device_name':'myo-right', 'stream_name':'emg',              'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':   composite_row_height},
+          ],
+          [ # row 3
+            {'device_name': 'BVP-empatica_e4', 'stream_name': 'bvp-values', 'rowspan': 1, 'colspan': 1, 'width': composite_col_width, 'height': composite_row_height},
+            {'device_name': 'GSR-empatica_e4', 'stream_name': 'gsr-values', 'rowspan': 1, 'colspan': 1, 'width': composite_col_width, 'height': composite_row_height},
+            {'device_name': 'Tmp-empatica_e4', 'stream_name': 'tmp-values', 'rowspan': 1, 'colspan': 1, 'width': composite_col_width, 'height': composite_row_height},
+          ],
+        ],
     }
 
     # Create a sensor manager.

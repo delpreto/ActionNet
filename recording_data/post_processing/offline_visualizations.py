@@ -43,16 +43,18 @@ if __name__ == '__main__':
   if len(sys.argv) <= 1:
     # Define the log(s) to replay.
     data_dir = os.path.realpath(os.path.join(script_dir, '..', '..', 'data'))
-    experiments_dir = os.path.join(data_dir, 'experiments')
+    experiments_dir = os.path.join(data_dir, 'tests')
     log_dirs = [
-      os.path.join(experiments_dir, '2022-06-07_experiment_S00', '2022-06-07_18-10-55_actionNet-wearables_S00'),
+      os.path.join(experiments_dir, 'my_set_of_experiments', 'my_experiment_folder'),
     ]
   else:
     log_dirs = sys.argv[1:]
-  
-  # start_end_times = [['12:30', '16:45'], ['5:34', '13:32'], ['1:40', '13:15'], ['2:03', '3:55']]
-  start_offsets_s = [None]*len(log_dirs) # for 2022-05-24: [12*60+30] # 5*60+34, 1*60+40, 2*60+3
-  end_offsets_s = [None]*len(log_dirs) # for 2022-05-24: [(22*60+47) - (16*60+45)] # (14*60+24) - (13*60+32), (14*60+1) - (13*60+15), (5*60+58) - (3*60+55)
+
+  # Define offsets for start/end of processing.
+  #  Should be a list with an entry for each log directory.
+  #  Each entry can be a time in seconds, or None to use all log data.
+  start_offsets_s = [None]*len(log_dirs)
+  end_offsets_s = [None]*len(log_dirs)
 
   # Loop through each specified log directory to process.
   for (i, log_dir) in enumerate(log_dirs):
@@ -73,7 +75,7 @@ if __name__ == '__main__':
     # Configure visualizations to be shown as a simulation of real-time streaming.
     visualization_options = None
     composite_video_filepath = os.path.join(log_dir,
-                                  'composite_visualization_postProcessed_0-1s')
+                                  'composite_visualization_postProcessed_10fps')
 
     # Create a sensor manager.
     sensor_manager = SensorManager(sensor_streamer_specs=None,
@@ -87,9 +89,9 @@ if __name__ == '__main__':
     sensor_manager.connect()
 
     # Visualize!
-    frame_size = (768, 1280) # height, width # (1800, 3000)
-    col_width = int(frame_size[1]/3)
-    row_height = int(frame_size[0]/3)
+    frame_size = (760, 1280) # height, width # (1800, 3000)
+    composite_col_width = int(frame_size[1] / 3)
+    composite_row_height = int(frame_size[0] / 3)
     visualizer = DataVisualizer(sensor_streamers=sensor_manager.get_streamers(),
                                 update_period_s = 0.1,
                                 use_composite_video=True,
@@ -98,9 +100,6 @@ if __name__ == '__main__':
                                     {'device_name':'tactile-glove-left', 'stream_name':'tactile_data',    'rowspan':1, 'colspan':1, 'width':col_width, 'height':row_height},
                                     {'device_name':'eye-tracking-video-worldGaze', 'stream_name':'frame', 'rowspan':1, 'colspan':1, 'width':col_width, 'height':row_height},
                                     {'device_name':'tactile-glove-right', 'stream_name':'tactile_data',   'rowspan':1, 'colspan':1, 'width':col_width, 'height':row_height},
-                                    # {'device_name':'dummy-line', 'stream_name':'dummy-stream',    'width':1000, 'height':600},
-                                    # {'device_name':'dummy-line', 'stream_name':'dummy-stream', 'width':1000, 'height':600},
-                                    # {'device_name':'dummy-line', 'stream_name':'dummy-stream',   'width':1000, 'height':600},
                                   ],
                                   [ # row  1
                                     {'device_name':'myo-left', 'stream_name':'emg',               'rowspan':1, 'colspan':1, 'width':col_width, 'height':   row_height},
@@ -115,7 +114,7 @@ if __name__ == '__main__':
                                 ],
                                 composite_video_filepath=composite_video_filepath,
                                 print_status=print_status, print_debug=print_debug)
-    visualizer.visualize_logged_data(start_offset_s=None, end_offset_s=end_offset_s,
+    visualizer.visualize_logged_data(start_offset_s=start_offset_s, end_offset_s=end_offset_s,
                                      duration_s=None,
                                      hide_composite=False, realtime=False)
     print('Done visualizing!')

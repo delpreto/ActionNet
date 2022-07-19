@@ -45,9 +45,6 @@ if collecting_files:
   # Define the top-level folder to recursively search.
   log_dir_root = input('Enter the directory to recursively search for MVN files: ')
   # script_dir = os.path.dirname(os.path.realpath(__file__))
-  # (log_time_str, log_time_s) = get_time_str(return_time_s=True)
-  # log_tag = 'notes-xsens'
-  # log_dir_root = os.path.join(script_dir, '..', 'data', '2022-02-01 test xsens streams')
   
   # Define where to put MVN files to process.
   mvn_processing_dir = os.path.join(log_dir_root, 'mvn_processing')
@@ -62,6 +59,12 @@ if collecting_files:
   
   # Find all MVN files, and move them to the temporary processing folder.
   filepaths = glob.glob(os.path.join(log_dir_root, '**', '*.mvn'), recursive=True)
+  print()
+  print('Will move the following %d files:')
+  for filepath in filepaths:
+    print('  ', filepath)
+  input('Press Enter to continue')
+  print()
   for filepath in filepaths:
     filepath_relative = os.path.relpath(filepath, log_dir_root)
     new_filename = filepath_relative.replace(os.path.sep, '__sep__')
@@ -112,6 +115,13 @@ if restoring_files:
     print('No files will be copied, since the following destinations already exist:')
     print('\n'.join(existing_destination_filepaths))
   else:
+    print()
+    print('Will move the following %d files:')
+    for i in range(len(source_filepaths)):
+      print('  %02d: %s' % (i, source_filepaths[i]))
+      print(  '    > %s' % (restored_filepaths[i]))
+    input('Press Enter to continue')
+    print()
     for i in range(len(source_filepaths)):
       print('Moving file %02d: %s > %s' % (i, source_filepaths[i], restored_filepaths[i]))
       shutil.move(source_filepaths[i], restored_filepaths[i])

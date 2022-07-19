@@ -434,7 +434,7 @@ class SensorStreamer(ABC):
   #  or the index of the first sample that is >= the specified time.
   def get_index_for_time_s(self, device_name, stream_name, target_time_s, target_type='before'):
     # Get the sample times streamed so far, or loaded from existing logs.
-    times_s = self._get_times_s(device_name, stream_name)
+    times_s = np.array(self._get_times_s(device_name, stream_name))
     # Get the last sample before the specified time.
     if 'before' == target_type.lower().strip():
       indexes = np.argwhere(times_s <= target_time_s)

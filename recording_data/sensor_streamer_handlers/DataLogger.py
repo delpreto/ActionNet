@@ -696,15 +696,8 @@ class DataLogger:
                 ending_index = None
               if ending_index == 0: # no time is needed to solidify, so fetch up to the most recent data
                 ending_index = None
-              try:
-                new_data = streamer.get_data(device_name, stream_name, return_deepcopy=False,
-                                              starting_index=starting_index, ending_index=ending_index)
-              except: # sometimes got a multiprocessing error? update: may have been related to high RAM usage as well, so may not need the try/catch block?
-                new_data = None
-                msg = '\n\nWARNING: DataLogger caught an error while fetching new data for %s %s. ' % (device_name, stream_name)
-                msg += '\n  Ignoring it for now, and will try to fetch it again next time.'
-                msg += '\n  %s\n' % traceback.format_exc()
-                self._log_warn(msg)
+              new_data = streamer.get_data(device_name, stream_name, return_deepcopy=False,
+                                            starting_index=starting_index, ending_index=ending_index)
               # Write any new data to files.
               if new_data is not None:
                 if self._stream_csv:
@@ -744,9 +737,15 @@ class DataLogger:
     except KeyboardInterrupt: # The program was likely terminated
       pass
     except:
-      self._log_error('\n\n***ERROR DURING DATA LOGGING:\n%s\n' % traceback.format_exc())
+      self._log_error('\n'*10 + ('***ERROR DURING DATA LOGGING:\n%s' % traceback.format_exc()) + '\n'*10)
+      try:
+        self._log_warn('\nThe last attempted DataLogger fetch was for %s.%s.\n' % (device_name, stream_name))
+      except:
+        pass
     finally:
-      # Stop all of the streamers if not done already.
+      # Stop all streamers if not done already.
+      # Note that this is especially important if an error occurred,
+      #  to try to make sure that the files are closed so data is not lost.
       if self._streamLogging:
         try:
           self.stop()

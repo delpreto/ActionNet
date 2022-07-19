@@ -217,53 +217,66 @@ class MyoStreamer(myo.ApiDeviceListener, SensorStreamer):
     self._log_status('Connected to Myo %s' % device_name)
 
     # Check whether this device is already stored, based on the MAC address.
-    # If so, update that device's information instead of creating a new entry.
+    # If so, do nothing since the device names should not change mid-experiment.
+    is_new_device = True
     mac_new = event.mac_address
     for (device_name_toCheck, device_info_toCheck) in self._metadata.items():
-      if device_info_toCheck['mac_address'] == mac_new:
-        # Rename the existing device entry to the new name,
-        #  so that entry is updated below instead of creating a new one.
-        self._log_status('The Myo was already known, so updating its information')
-        self.rename_device(device_name_toCheck, device_name)
+      if str(device_info_toCheck['mac_address']) == str(mac_new):
+        is_new_device = False
+        device_name = device_name_toCheck
+        self._log_status('The Myo was already known, so will use the existing device entry %s' % device_name)
 
-    # Initialize variables for the device
-    self._locks[device_name] = Lock()
-    with self._locks[device_name]:
-      # Record metadata about the device
-      self._metadata[device_name] = OrderedDict([
-        ('arm', None),
-        ('x_direction', None),
-        ('mac_address', event.mac_address),
-        ('device_id', device_id),
-        ('device_handle', event.deviceProxy._device.handle),
-        ('firmware_version', event.deviceProxy.firmware_version),
-        ('connect_time', event.deviceProxy.connect_time),
-        ('pair_time', event.deviceProxy.pair_time),
-      ])
-      self._log_debug('Device metadata:')
-      self._log_debug(str(self._metadata[device_name]))
-      # Record a handle to the device itself
-      self._deviceProxies[device_name] = event.deviceProxy
-      # Add data streams for the device
-      self.add_stream(device_name, stream_name='emg',                    data_type='int32',   sample_size=[8], sampling_rate_hz=200,  timesteps_before_solidified=1, extra_data_info={'time_s_original': {'data_type':'float64', 'sample_size':[1]}}, data_notes=self._data_notes['emg'])
-      self.add_stream(device_name, stream_name='acceleration_g',         data_type='float64', sample_size=[3], sampling_rate_hz=50,   data_notes=self._data_notes['acceleration_g'])
-      self.add_stream(device_name, stream_name='angular_velocity_deg_s', data_type='float64', sample_size=[3], sampling_rate_hz=50,   data_notes=self._data_notes['angular_velocity_deg_s'])
-      self.add_stream(device_name, stream_name='orientation_quaternion', data_type='float64', sample_size=[4], sampling_rate_hz=50,   data_notes=self._data_notes['orientation_quaternion'])
-      self.add_stream(device_name, stream_name='gesture',                data_type='S25',     sample_size=[1], sampling_rate_hz=None, data_notes=self._data_notes['gesture'])
-      self.add_stream(device_name, stream_name='battery',                data_type='int32',   sample_size=[1], sampling_rate_hz=None, data_notes=self._data_notes['battery'])
-      self.add_stream(device_name, stream_name='rssi',                   data_type='int32',   sample_size=[1], sampling_rate_hz=None, data_notes=self._data_notes['rssi'])
-      self.add_stream(device_name, stream_name='synced',                 data_type='int32',   sample_size=[1], sampling_rate_hz=None, data_notes=self._data_notes['synced'])
-
-    # Initialize streaming
+    # Initialize the device and its streams if it is new.
+    if is_new_device:
+      self._locks[device_name] = Lock()
+      with self._locks[device_name]:
+        # Record metadata about the device
+        self._metadata[device_name] = OrderedDict([
+          ('arm', None),
+          ('x_direction', None),
+          ('mac_address', event.mac_address),
+          ('device_id', device_id),
+          ('device_handle', event.deviceProxy._device.handle),
+          ('firmware_version', event.deviceProxy.firmware_version),
+          ('connect_time', event.deviceProxy.connect_time),
+          ('pair_time', event.deviceProxy.pair_time),
+        ])
+        self._log_debug('Device metadata:')
+        self._log_debug(str(self._metadata[device_name]))
+        # Record a handle to the device itself
+        self._deviceProxies[device_name] = event.deviceProxy
+        # Add data streams for the device
+        self.add_stream(device_name, stream_name='emg',                    data_type='int32',   sample_size=[8], sampling_rate_hz=200,  timesteps_before_solidified=1, extra_data_info={'time_s_original': {'data_type':'float64', 'sample_size':[1]}}, data_notes=self._data_notes['emg'])
+        self.add_stream(device_name, stream_name='acceleration_g',         data_type='float64', sample_size=[3], sampling_rate_hz=50,   data_notes=self._data_notes['acceleration_g'])
+        self.add_stream(device_name, stream_name='angular_velocity_deg_s', data_type='float64', sample_size=[3], sampling_rate_hz=50,   data_notes=self._data_notes['angular_velocity_deg_s'])
+        self.add_stream(device_name, stream_name='orientation_quaternion', data_type='float64', sample_size=[4], sampling_rate_hz=50,   data_notes=self._data_notes['orientation_quaternion'])
+        self.add_stream(device_name, stream_name='gesture',                data_type='S25',     sample_size=[1], sampling_rate_hz=None, data_notes=self._data_notes['gesture'])
+        self.add_stream(device_name, stream_name='battery',                data_type='int32',   sample_size=[1], sampling_rate_hz=None, data_notes=self._data_notes['battery'])
+        self.add_stream(device_name, stream_name='rssi',                   data_type='int32',   sample_size=[1], sampling_rate_hz=None, data_notes=self._data_notes['rssi'])
+        self.add_stream(device_name, stream_name='synced',                 data_type='int32',   sample_size=[1], sampling_rate_hz=None, data_notes=self._data_notes['synced'])
+        self.add_stream(device_name, stream_name='connected',              data_type='int32',   sample_size=[1], sampling_rate_hz=None, data_notes=self._data_notes['connected'])
+  
+      # Record that the Myo is not yet known to be synced.
+      self.append_data(device_name, 'synced', time.time(), 0)
+    
+    # Record that the Myo is connected.
+    self.append_data(device_name, 'connected', time.time(), 1)
+    
+    # Initialize streaming.
     self.vibrate(device_name=device_name, duration='medium')
     event.deviceProxy.stream_emg(True)
     self.request_rssi(device_name)
     self.request_battery_level(device_name)
-    # Record that the Myo is not yet known to be synced.
-    self.append_data(device_name, 'synced', time.time(), 0)
-
+    
   def on_disconnected(self, event):
-    pass
+    device_name = self._get_event_device_name(event, check_existence=True)
+    self.append_data(device_name, 'connected', time.time(), 0)
+    # Print an update.
+    self._log_status('Myo %s arm DISCONNECTED' % device_name)
+    print('\n'*10)
+    print('WARNING: MYO %s DISCONNECTED' % (device_name))
+    print('\n'*10)
+  
   def on_warmup_completed(self, event):
     pass
   # Note: locked refers to whether the built-in pose classifications are allowed to update or not
@@ -664,6 +677,12 @@ class MyoStreamer(myo.ApiDeviceListener, SensorStreamer):
                       'which arm it\'s on and how it\'s oriented on the arm.  '
                       'Only changes in the sync status are recorded; so for example, '
                       'it is synced for all times after a \'1\' entry until a '
+                      '\'0\' entry is recorded.'),
+    ])
+    self._data_notes['connected'] = OrderedDict([
+      ('Description', 'Indicates when the Myo is connected (via Myo Connect). '
+                      'Only changes in the connection status are recorded; so for example, '
+                      'it is connected for all times after a \'1\' entry until a '
                       '\'0\' entry is recorded.'),
     ])
     self._data_notes['battery'] = OrderedDict([

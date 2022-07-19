@@ -92,7 +92,7 @@ if __name__ == '__main__':
      },
     # Stream from the Myo device including EMG, IMU, and gestures.
     {'class': 'MyoStreamer',
-     'num_myos': 2,
+     'num_myos': 1,
      'print_debug': print_debug, 'print_status': print_status
      },
     # Stream from the Xsens body tracking and Manus gloves.
@@ -127,7 +127,7 @@ if __name__ == '__main__':
        'camera-built-in': 0,
      },
      'print_debug': print_debug, 'print_status': print_status
-    },
+     },
     # Dummy data.
     {'class': 'DummyStreamer',
      'update_period_s': 0.1,
@@ -145,7 +145,7 @@ if __name__ == '__main__':
   if enable_data_logging:
     script_dir = os.path.dirname(os.path.realpath(__file__))
     (log_time_str, log_time_s) = get_time_str(return_time_s=True)
-    log_tag = 'myos'
+    log_tag = 'test_myos'
     log_dir_root = os.path.join(script_dir, '..', '..', 'data',
                                 'tests', # recommend 'tests' and 'experiments' for testing vs "real" data
                                 '%s_test_myos' % get_time_str(format='%Y-%m-%d'))

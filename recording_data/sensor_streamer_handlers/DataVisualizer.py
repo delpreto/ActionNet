@@ -580,7 +580,9 @@ class DataVisualizer:
                                      ending_index=index_forTime+1)
         # If it started an activity, then write its label in the banner.
         label_data = label_data['data'][-1]
-        label_data = [x.decode('utf-8') for x in label_data]
+        if not isinstance(label_data[0], str):
+          # The data will be str if streaming, but bytes if replaying existing logs.
+          label_data = [x.decode('utf-8') for x in label_data]
         if 'Start' in label_data:
           activity_label = label_data[0]
           activity_ranking = label_data[2]

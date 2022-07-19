@@ -314,7 +314,7 @@ class XsensStreamer(SensorStreamer):
 
   # Parse an Xsens message to extract its information and data.
   def _process_xsens_message_from_buffer(self):
-    self._log_debug('\nProcessing buffer!')
+    # self._log_debug('\nProcessing buffer!')
     message = self._buffer
 
     # Use the starting code to determine the initial index
@@ -361,7 +361,7 @@ class XsensStreamer(SensorStreamer):
     #  use this time as the best-guess timestamp for the data.
     if message_type is not None and sample_counter is not None:
       if self._xsens_sample_index != sample_counter:
-        self._log_debug('Updating timestamp receive time, and setting sample counter to %d' % sample_counter)
+        # self._log_debug('Updating timestamp receive time, and setting sample counter to %d' % sample_counter)
         self._xsens_timestep_receive_time_s = self._xsens_message_start_time_s
         self._xsens_sample_index = sample_counter
 
@@ -566,7 +566,7 @@ class XsensStreamer(SensorStreamer):
       extra_data['device_timestamp_str'] = get_time_str(time_code_s, '%Y-%m-%d %H:%M:%S.%f')
       self.append_data('xsens-time', 'device_timestamp_s',
                         self._xsens_timestep_receive_time_s, time_code_s, extra_data=extra_data)
-      self._log_debug(time_code_str)
+      # self._log_debug(time_code_str)
 
     # The message had a type that is not currently being processed/recorded.
     # No processing is required, but the pointer should still be advanced to ignore the message.
@@ -618,7 +618,7 @@ class XsensStreamer(SensorStreamer):
         #  seeing this message start code in the buffer.
         message_start_index = self._buffer.find(self._xsens_msg_start_code)
         if message_start_index >= 0 and self._xsens_message_start_time_s is None:
-          self._log_debug('Recording xsens message start time')
+          # self._log_debug('Recording xsens message start time')
           self._xsens_message_start_time_s = time.time()
 
         # Try to process the message
@@ -626,7 +626,7 @@ class XsensStreamer(SensorStreamer):
         # If the message was complete, remove it from the buffer
         #  and note that we're waiting for a new start code.
         if message_end_index is not None:
-          self._log_debug('Clearing xsens message start time')
+          # self._log_debug('Clearing xsens message start time')
           self._buffer = self._buffer[message_end_index+1:]
           self._xsens_message_start_time_s = None
         

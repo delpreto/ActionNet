@@ -26,13 +26,14 @@
 
 import h5py
 import numpy as np
+from scipy import interpolate # for the resampling example
 
 # NOTE: HDFView is a helpful program for exploring HDF5 contents.
 #   The official download page is at https://www.hdfgroup.org/downloads/hdfview.
 #   It can also be downloaded without an account from https://www.softpedia.com/get/Others/Miscellaneous/HDFView.shtml.
 
 # Specify the downloaded file to parse.
-filepath = 'example_wearable_data.hdf5'
+filepath = 'path_to_your_ActionNet_hdf5_file.hdf5'
 
 # Open the file.
 h5_file = h5py.File(filepath, 'r')
@@ -41,9 +42,9 @@ h5_file = h5py.File(filepath, 'r')
 # Example of reading sensor data: read Myo EMG data.
 ####################################################
 print()
-print('='*50)
+print('='*65)
 print('Extracting EMG data from the HDF5 file')
-print('='*50)
+print('='*65)
 
 device_name = 'myo-left'
 stream_name = 'emg'
@@ -78,9 +79,9 @@ print()
 # Example of reading label data
 ####################################################
 print()
-print('='*50)
+print('='*65)
 print('Extracting activity labels from the HDF5 file')
-print('='*50)
+print('='*65)
 
 device_name = 'experiment-activities'
 stream_name = 'activities'
@@ -134,9 +135,9 @@ print(activities_end_times_s)
 # Example of getting sensor data for a label.
 ####################################################
 print()
-print('='*50)
+print('='*65)
 print('Extracting EMG data during a specific activity')
-print('='*50)
+print('='*65)
 
 # Get EMG data for the first instance of the second label.
 target_label = activities_labels[1]
@@ -172,4 +173,67 @@ print()
 print('EMG timestamps as strings during instance:')
 print(' Shape:', emg_time_str_forLabel.shape)
 print(' Preview:', emg_time_str_forLabel)
+
+
+####################################################
+# Example of resampling data so segmented lengths
+#  can match across sensors with different rates.
+# Note that the below example resamples the entire
+#  data, but it could also be applied to individual
+#  extracted segments if desired.
+####################################################
+print()
+print('='*65)
+print('Resampling segmented IMU data to match the EMG sampling rate')
+print('='*65)
+
+# Get acceleration data.
+device_name = 'myo-left'
+stream_name = 'acceleration_g'
+# Get the data as an Nx3 matrix where each row is a timestamp and each column is an acceleration axis.
+acceleration_data = h5_file[device_name][stream_name]['data']
+acceleration_data = np.array(acceleration_data)
+# Get the timestamps for each row as seconds since epoch.
+acceleration_time_s = h5_file[device_name][stream_name]['time_s']
+acceleration_time_s = np.squeeze(np.array(acceleration_time_s)) # squeeze (optional) converts from a list of single-element lists to a 1D list
+# Get the timestamps for each row as human-readable strings.
+acceleration_time_str = h5_file[device_name][stream_name]['time_str']
+acceleration_time_str = np.squeeze(np.array(acceleration_time_str)) # squeeze (optional) converts from a list of single-element lists to a 1D list
+
+# Resample the acceleration to match the EMG timestamps.
+#  Note that the IMU streamed at about 50 Hz while the EMG streamed at about 200 Hz.
+fn_interpolate_acceleration = interpolate.interp1d(
+                                acceleration_time_s, # x values
+                                acceleration_data,   # y values
+                                axis=0,              # axis of the data along which to interpolate
+                                kind='linear',       # interpolation method, such as 'linear', 'zero', 'nearest', 'quadratic', 'cubic', etc.
+                                fill_value='extrapolate' # how to handle x values outside the original range
+                                )
+acceleration_time_s_resampled = emg_time_s
+acceleration_data_resampled = fn_interpolate_acceleration(acceleration_time_s_resampled)
+
+
+print('EMG Data:')
+print(' Shape', emg_data.shape)
+print(' Sampling rate: %0.2f Hz' % ((emg_data.shape[0]-1)/(max(emg_time_s) - min(emg_time_s))))
+print()
+print('Acceleration Data Original:')
+print(' Shape', acceleration_data.shape)
+print(' Sampling rate: %0.2f Hz' % ((acceleration_data.shape[0]-1)/(max(acceleration_time_s) - min(acceleration_time_s))))
+print()
+print('Acceleration Data Resampled to EMG Timestamps:')
+print(' Shape', acceleration_data_resampled.shape)
+print(' Sampling rate: %0.2f Hz' % ((acceleration_data_resampled.shape[0]-1)/(max(acceleration_time_s_resampled) - min(acceleration_time_s_resampled))))
+print()
+
+
+
+
+
+
+
+
+
+
+
 

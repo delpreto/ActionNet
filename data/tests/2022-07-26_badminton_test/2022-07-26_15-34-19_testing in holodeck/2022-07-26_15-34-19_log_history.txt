@@ -1,0 +1,174 @@
+2022-07-26 15:34:24.472494 [manager]  [normal]: SensorManager starting the multiprocessing manager
+2022-07-26 15:34:24.766130 [manager]  [normal]: SensorManager creating sensor streamers
+2022-07-26 15:34:24.767128 [control]  [debug] : Adding stream experiment-calibration.body: type S80 | size [6] | sampling None Hz | solidification 2
+2022-07-26 15:34:24.767128 [control]  [debug] : Adding stream experiment-calibration.arms: type S80 | size [8] | sampling None Hz | solidification 2
+2022-07-26 15:34:24.767128 [control]  [debug] : Adding stream experiment-calibration.hand_poses: type S80 | size [5] | sampling None Hz | solidification 2
+2022-07-26 15:34:24.767128 [control]  [debug] : Adding stream experiment-calibration.gaze: type S80 | size [5] | sampling None Hz | solidification 2
+2022-07-26 15:34:24.768404 [control]  [debug] : Adding stream experiment-calibration.tactile_gloves: type S80 | size [5] | sampling None Hz | solidification 2
+2022-07-26 15:34:24.768404 [control]  [debug] : Adding stream experiment-calibration.third_party: type S80 | size [7] | sampling None Hz | solidification 2
+2022-07-26 15:34:24.768404 [control]  [debug] : Adding stream experiment-activities.activities: type S500 | size [4] | sampling None Hz | solidification 2
+2022-07-26 15:34:24.768404 [control]  [debug] : Adding stream experiment-notes.notes: type S500 | size [1] | sampling None Hz | solidification 0
+2022-07-26 15:34:24.769692 [control]  [debug] : Adding stream experiment-calibration.body: type S80 | size [6] | sampling None Hz | solidification 2
+2022-07-26 15:34:24.769692 [control]  [debug] : Adding stream experiment-calibration.arms: type S80 | size [8] | sampling None Hz | solidification 2
+2022-07-26 15:34:24.770692 [control]  [debug] : Adding stream experiment-calibration.hand_poses: type S80 | size [5] | sampling None Hz | solidification 2
+2022-07-26 15:34:24.770692 [control]  [debug] : Adding stream experiment-calibration.gaze: type S80 | size [5] | sampling None Hz | solidification 2
+2022-07-26 15:34:24.770692 [control]  [debug] : Adding stream experiment-calibration.tactile_gloves: type S80 | size [5] | sampling None Hz | solidification 2
+2022-07-26 15:34:24.770692 [control]  [debug] : Adding stream experiment-calibration.third_party: type S80 | size [7] | sampling None Hz | solidification 2
+2022-07-26 15:34:24.770692 [control]  [debug] : Adding stream experiment-activities.activities: type S500 | size [4] | sampling None Hz | solidification 2
+2022-07-26 15:34:24.770692 [control]  [debug] : Adding stream experiment-notes.notes: type S500 | size [1] | sampling None Hz | solidification 0
+2022-07-26 15:34:24.771689 [CogEMG]   [debug] : Adding stream EMGLeft-cognionics.emgleft-values: type float32 | size [1] | sampling 50 Hz | solidification 0
+2022-07-26 15:34:24.771689 [CogEMG]   [debug] : Adding stream EMGRight-cognionics.emgright-values: type float32 | size [1] | sampling 50 Hz | solidification 0
+2022-07-26 15:34:24.772686 [manager]  [normal]: SensorManager creating data loggers
+2022-07-26 15:34:24.773683 [manager]  [normal]: SensorManager creating a data visualizer
+2022-07-26 15:34:24.773683 [manager]  [normal]: 
+2022-07-26 15:34:24.773683 [manager]  [normal]: SensorManager connecting streamer 1/2 (class ExperimentControlStreamer)
+2022-07-26 15:34:24.773683 [manager]  [normal]: 
+2022-07-26 15:34:24.773683 [manager]  [normal]: SensorManager connecting streamer 2/2 (class AutoProxy[CognionicsEMGStreamer_mp])
+2022-07-26 15:34:25.788717 [manager]  [normal]: SensorManager starting external recordings via logger 1/1
+2022-07-26 15:34:25.788717 [manager]  [normal]: SensorManager chose a time for streamers to start: 3.00 seconds from now (at 2022-07-26_15-34-28)
+2022-07-26 15:34:25.788717 [manager]  [normal]: SensorManager starting streamer 2/2 in its own process (AutoProxy[CognionicsEMGStreamer_mp])
+2022-07-26 15:34:25.790712 [manager]  [normal]: SensorManager starting streamer 1/2 in the main process
+2022-07-26 15:34:25.791710 [control]  [normal]: Starting to run!
+2022-07-26 15:34:25.962312 [CogEMG]   [normal]: Starting to run!
+2022-07-26 15:34:28.842246 [manager]  [normal]: SensorManager waiting for streamer 1/2 to start (ExperimentControlStreamer)
+2022-07-26 15:34:28.842246 [manager]  [normal]: SensorManager waiting for streamer 2/2 to start (AutoProxy[CognionicsEMGStreamer_mp])
+2022-07-26 15:34:28.842246 [manager]  [normal]: SensorManager starting data logger 1/1
+2022-07-26 15:34:28.843245 [logger]   [normal]: DataLogger running
+2022-07-26 15:34:28.843245 [logger]   [normal]: Opening HDF5 writer
+2022-07-26 15:34:28.851224 [logger]   [debug] : DataLogger starting stream-logging
+2022-07-26 15:34:28.852222 [manager]  [normal]: SensorManager running streaming data visualizer and waiting until streaming is complete
+2022-07-26 15:34:28.852222 [logger]   [normal]: Starting stream-logging thread
+2022-07-26 15:34:28.852222 [logger]   [debug] : Stream-logging thread waiting for next write time
+2022-07-26 15:34:28.852222 [logger]   [normal]: Stream-logging finished waiting for write time
+2022-07-26 15:34:28.856210 [logger]   [debug] : Logged 27 new entries for stream EMGLeft-cognionics.emgleft-values
+2022-07-26 15:34:28.857208 [logger]   [debug] : Logged 27 new entries for stream EMGRight-cognionics.emgright-values
+2022-07-26 15:34:28.857208 [logger]   [debug] : Stream-logging finished write
+2022-07-26 15:34:28.857208 [logger]   [debug] : Stream-logging thread waiting for next write time
+2022-07-26 15:34:28.987061 [vis]      [normal]: DataVisualizer visualizing streaming data
+2022-07-26 15:34:29.134399 [vis]      [debug] : Time to update visualizers and composite: 0.1466
+2022-07-26 15:34:29.566940 [vis]      [debug] : Time to update visualizers and composite: 0.0737
+2022-07-26 15:34:30.077672 [vis]      [debug] : Time to update visualizers and composite: 0.0798
+2022-07-26 15:34:30.687900 [vis]      [debug] : Time to update visualizers and composite: 0.1884
+2022-07-26 15:34:31.094450 [vis]      [debug] : Time to update visualizers and composite: 0.0808
+2022-07-26 15:34:34.342442 [vis]      [debug] : Time to update visualizers and composite: 2.8153
+2022-07-26 15:34:34.342442 [launcher] [normal]: Status: 500.5 Hz (2681 timesteps in   5.35s) for EMGLeft-cognionics: emgleft-values
+2022-07-26 15:34:34.416251 [vis]      [debug] : Time to update visualizers and composite: 0.0728
+2022-07-26 15:34:34.925921 [vis]      [debug] : Time to update visualizers and composite: 0.0739
+2022-07-26 15:34:35.437693 [vis]      [debug] : Time to update visualizers and composite: 0.0738
+2022-07-26 15:34:35.937981 [vis]      [debug] : Time to update visualizers and composite: 0.0728
+2022-07-26 15:34:36.438534 [vis]      [debug] : Time to update visualizers and composite: 0.0728
+2022-07-26 15:34:36.952190 [vis]      [debug] : Time to update visualizers and composite: 0.0738
+2022-07-26 15:34:37.452710 [vis]      [debug] : Time to update visualizers and composite: 0.0728
+2022-07-26 15:34:37.964424 [vis]      [debug] : Time to update visualizers and composite: 0.0699
+2022-07-26 15:34:38.487575 [vis]      [debug] : Time to update visualizers and composite: 0.0793
+2022-07-26 15:34:39.000914 [vis]      [debug] : Time to update visualizers and composite: 0.0776
+2022-07-26 15:34:39.506094 [vis]      [debug] : Time to update visualizers and composite: 0.0678
+2022-07-26 15:34:39.506094 [launcher] [normal]: Status: 500.5 Hz (5265 timesteps in  10.52s) for EMGLeft-cognionics: emgleft-values
+2022-07-26 15:34:40.017481 [vis]      [debug] : Time to update visualizers and composite: 0.0767
+2022-07-26 15:34:40.535512 [vis]      [debug] : Time to update visualizers and composite: 0.0808
+2022-07-26 15:34:41.041291 [vis]      [debug] : Time to update visualizers and composite: 0.0708
+2022-07-26 15:34:41.557253 [vis]      [debug] : Time to update visualizers and composite: 0.0713
+2022-07-26 15:34:42.082443 [vis]      [debug] : Time to update visualizers and composite: 0.0828
+2022-07-26 15:34:42.576604 [vis]      [debug] : Time to update visualizers and composite: 0.0718
+2022-07-26 15:34:43.097064 [vis]      [debug] : Time to update visualizers and composite: 0.0783
+2022-07-26 15:34:43.591363 [vis]      [debug] : Time to update visualizers and composite: 0.0708
+2022-07-26 15:34:43.866120 [logger]   [normal]: Stream-logging finished waiting for write time
+2022-07-26 15:34:43.879511 [logger]   [debug] : Logged 7512 new entries for stream EMGLeft-cognionics.emgleft-values
+2022-07-26 15:34:43.883532 [logger]   [debug] : Logged 7512 new entries for stream EMGRight-cognionics.emgright-values
+2022-07-26 15:34:43.883532 [logger]   [debug] : Stream-logging finished write
+2022-07-26 15:34:43.883532 [logger]   [debug] : Stream-logging thread waiting for next write time
+2022-07-26 15:34:44.110510 [vis]      [debug] : Time to update visualizers and composite: 0.0748
+2022-07-26 15:34:44.608298 [vis]      [debug] : Time to update visualizers and composite: 0.0706
+2022-07-26 15:34:45.125137 [vis]      [debug] : Time to update visualizers and composite: 0.0718
+2022-07-26 15:34:45.647587 [vis]      [debug] : Time to update visualizers and composite: 0.0788
+2022-07-26 15:34:46.168164 [vis]      [debug] : Time to update visualizers and composite: 0.0849
+2022-07-26 15:34:46.666359 [vis]      [debug] : Time to update visualizers and composite: 0.0698
+2022-07-26 15:34:47.192229 [vis]      [debug] : Time to update visualizers and composite: 0.0808
+2022-07-26 15:34:47.698287 [vis]      [debug] : Time to update visualizers and composite: 0.0714
+2022-07-26 15:34:48.212950 [vis]      [debug] : Time to update visualizers and composite: 0.0718
+2022-07-26 15:34:48.723309 [vis]      [debug] : Time to update visualizers and composite: 0.0691
+2022-07-26 15:34:49.236796 [vis]      [debug] : Time to update visualizers and composite: 0.0685
+2022-07-26 15:34:49.238384 [launcher] [normal]: Status: 500.3 Hz (2566 timesteps in   5.13s) for EMGLeft-cognionics: emgleft-values
+2022-07-26 15:34:49.754109 [vis]      [debug] : Time to update visualizers and composite: 0.0709
+2022-07-26 15:34:50.267318 [vis]      [debug] : Time to update visualizers and composite: 0.0698
+2022-07-26 15:34:50.780113 [vis]      [debug] : Time to update visualizers and composite: 0.0668
+2022-07-26 15:34:51.303128 [vis]      [debug] : Time to update visualizers and composite: 0.0759
+2022-07-26 15:34:51.826192 [vis]      [debug] : Time to update visualizers and composite: 0.0838
+2022-07-26 15:34:52.333076 [vis]      [debug] : Time to update visualizers and composite: 0.0748
+2022-07-26 15:34:52.837299 [vis]      [debug] : Time to update visualizers and composite: 0.0668
+2022-07-26 15:34:53.361458 [vis]      [debug] : Time to update visualizers and composite: 0.0778
+2022-07-26 15:34:53.874783 [vis]      [debug] : Time to update visualizers and composite: 0.0778
+2022-07-26 15:34:54.385253 [vis]      [debug] : Time to update visualizers and composite: 0.0738
+2022-07-26 15:34:54.385253 [launcher] [normal]: Status: 500.2 Hz (5140 timesteps in  10.27s) for EMGLeft-cognionics: emgleft-values
+2022-07-26 15:34:54.896486 [vis]      [debug] : Time to update visualizers and composite: 0.0688
+2022-07-26 15:34:55.410119 [vis]      [debug] : Time to update visualizers and composite: 0.0699
+2022-07-26 15:34:55.926188 [vis]      [debug] : Time to update visualizers and composite: 0.0712
+2022-07-26 15:34:56.438102 [vis]      [debug] : Time to update visualizers and composite: 0.0689
+2022-07-26 15:34:56.958552 [vis]      [debug] : Time to update visualizers and composite: 0.0748
+2022-07-26 15:34:57.467020 [vis]      [debug] : Time to update visualizers and composite: 0.0697
+2022-07-26 15:34:57.982617 [vis]      [debug] : Time to update visualizers and composite: 0.0698
+2022-07-26 15:34:58.501523 [vis]      [debug] : Time to update visualizers and composite: 0.0749
+2022-07-26 15:34:58.879164 [logger]   [normal]: Stream-logging finished waiting for write time
+2022-07-26 15:34:58.883158 [logger]   [debug] : Expanding dataset EMGLeft-cognionics.emgleft-values.data from 10000
+2022-07-26 15:34:58.884126 [logger]   [debug] : Expanding dataset EMGLeft-cognionics.emgleft-values.time_s from 10000
+2022-07-26 15:34:58.884126 [logger]   [debug] : Expanding dataset EMGLeft-cognionics.emgleft-values.time_str from 10000
+2022-07-26 15:34:58.886114 [logger]   [debug] : Logged 7511 new entries for stream EMGLeft-cognionics.emgleft-values
+2022-07-26 15:34:58.888139 [logger]   [debug] : Expanding dataset EMGRight-cognionics.emgright-values.data from 10000
+2022-07-26 15:34:58.888139 [logger]   [debug] : Expanding dataset EMGRight-cognionics.emgright-values.time_s from 10000
+2022-07-26 15:34:58.889106 [logger]   [debug] : Expanding dataset EMGRight-cognionics.emgright-values.time_str from 10000
+2022-07-26 15:34:58.890133 [logger]   [debug] : Logged 7511 new entries for stream EMGRight-cognionics.emgright-values
+2022-07-26 15:34:58.891100 [logger]   [debug] : Stream-logging finished write
+2022-07-26 15:34:58.891100 [logger]   [debug] : Stream-logging thread waiting for next write time
+2022-07-26 15:34:59.004777 [vis]      [debug] : Time to update visualizers and composite: 0.0638
+2022-07-26 15:34:59.528966 [vis]      [debug] : Time to update visualizers and composite: 0.0868
+2022-07-26 15:35:00.048878 [vis]      [debug] : Time to update visualizers and composite: 0.0928
+2022-07-26 15:35:00.541365 [vis]      [debug] : Time to update visualizers and composite: 0.0694
+2022-07-26 15:35:01.054695 [vis]      [debug] : Time to update visualizers and composite: 0.0678
+2022-07-26 15:35:01.586577 [vis]      [debug] : Time to update visualizers and composite: 0.0824
+2022-07-26 15:35:02.090326 [vis]      [debug] : Time to update visualizers and composite: 0.0739
+2022-07-26 15:35:02.598799 [vis]      [debug] : Time to update visualizers and composite: 0.0684
+2022-07-26 15:35:03.114219 [vis]      [debug] : Time to update visualizers and composite: 0.0708
+2022-07-26 15:35:03.631290 [vis]      [debug] : Time to update visualizers and composite: 0.0731
+2022-07-26 15:35:04.140518 [vis]      [debug] : Time to update visualizers and composite: 0.0698
+2022-07-26 15:35:04.141872 [launcher] [normal]: Status: 498.8 Hz (2563 timesteps in   5.14s) for EMGLeft-cognionics: emgleft-values
+2022-07-26 15:35:04.661577 [vis]      [debug] : Time to update visualizers and composite: 0.0760
+2022-07-26 15:35:05.173901 [vis]      [debug] : Time to update visualizers and composite: 0.0733
+2022-07-26 15:35:05.684489 [vis]      [debug] : Time to update visualizers and composite: 0.0719
+2022-07-26 15:35:06.201295 [vis]      [debug] : Time to update visualizers and composite: 0.0769
+2022-07-26 15:35:06.709409 [vis]      [debug] : Time to update visualizers and composite: 0.0708
+2022-07-26 15:35:07.232008 [vis]      [debug] : Time to update visualizers and composite: 0.0783
+2022-07-26 15:35:07.740758 [vis]      [debug] : Time to update visualizers and composite: 0.0739
+2022-07-26 15:35:08.250327 [vis]      [debug] : Time to update visualizers and composite: 0.0698
+2022-07-26 15:35:08.611838 [control]  [normal]: Done!
+2022-07-26 15:35:08.773932 [vis]      [debug] : Time to update visualizers and composite: 0.0789
+2022-07-26 15:35:08.774930 [manager]  [normal]: 
+2022-07-26 15:35:08.774930 [manager]  [normal]: SensorManager stopping streamer 1/2 of class ExperimentControlStreamer
+2022-07-26 15:35:08.774930 [control]  [normal]: Stopping!
+2022-07-26 15:35:08.775969 [control]  [debug] : Not waiting for run thread to finish
+2022-07-26 15:35:08.775969 [manager]  [normal]: 
+2022-07-26 15:35:08.775969 [manager]  [normal]: SensorManager stopping streamer 2/2 of class AutoProxy[CognionicsEMGStreamer_mp]
+2022-07-26 15:35:08.775969 [CogEMG]   [normal]: Stopping!
+2022-07-26 15:35:08.775969 [CogEMG]   [debug] : Joining run thread
+2022-07-26 15:35:08.788397 [CogEMG]   [debug] : Keyboard Interrupted 
+2022-07-26 15:35:08.788397 [CogEMG]   [debug] : Run thread finished successfully
+2022-07-26 15:35:08.788397 [manager]  [normal]: SensorManager stopping external recordings via logger 1/1
+2022-07-26 15:35:08.788397 [manager]  [normal]: 
+2022-07-26 15:35:08.788397 [manager]  [normal]: SensorManager stopping data logger 1/1
+2022-07-26 15:35:08.788397 [logger]   [normal]: DataLogger stopping
+2022-07-26 15:35:08.789362 [logger]   [debug] : DataLogger stopping stream-logging
+2022-07-26 15:35:08.789362 [logger]   [debug] : DataLogger joining stream-logging thread
+2022-07-26 15:35:08.820378 [logger]   [normal]: Stream-logging finished waiting for write time
+2022-07-26 15:35:08.822373 [logger]   [debug] : Expanding dataset EMGLeft-cognionics.emgleft-values.data from 20000
+2022-07-26 15:35:08.822373 [logger]   [debug] : Expanding dataset EMGLeft-cognionics.emgleft-values.time_s from 20000
+2022-07-26 15:35:08.823370 [logger]   [debug] : Expanding dataset EMGLeft-cognionics.emgleft-values.time_str from 20000
+2022-07-26 15:35:08.824367 [logger]   [debug] : Logged 4953 new entries for stream EMGLeft-cognionics.emgleft-values
+2022-07-26 15:35:08.825365 [logger]   [debug] : Expanding dataset EMGRight-cognionics.emgright-values.data from 20000
+2022-07-26 15:35:08.826362 [logger]   [debug] : Expanding dataset EMGRight-cognionics.emgright-values.time_s from 20000
+2022-07-26 15:35:08.826362 [logger]   [debug] : Expanding dataset EMGRight-cognionics.emgright-values.time_str from 20000
+2022-07-26 15:35:08.827359 [logger]   [debug] : Logged 4953 new entries for stream EMGRight-cognionics.emgright-values
+2022-07-26 15:35:08.827359 [logger]   [debug] : Stream-logging finished write
+2022-07-26 15:35:08.827359 [logger]   [debug] : Stream-logging finished flushing
+2022-07-26 15:35:08.831123 [logger]   [normal]: Closing HDF5 writer
+2022-07-26 15:35:08.854517 [logger]   [debug] : DataLogger stopped
+2022-07-26 15:35:10.871051 [manager]  [normal]: 
+2022-07-26 15:35:10.871051 [manager]  [normal]: SensorManager successfully stopped!

@@ -1,0 +1,26 @@
+2022-07-26 15:29:35.962335 [manager]  [normal]: SensorManager starting the multiprocessing manager
+2022-07-26 15:29:36.746781 [manager]  [normal]: SensorManager creating sensor streamers
+2022-07-26 15:29:36.760773 [control]  [debug] : Adding stream experiment-calibration.body: type S80 | size [6] | sampling None Hz | solidification 2
+2022-07-26 15:29:36.761776 [control]  [debug] : Adding stream experiment-calibration.arms: type S80 | size [8] | sampling None Hz | solidification 2
+2022-07-26 15:29:36.761776 [control]  [debug] : Adding stream experiment-calibration.hand_poses: type S80 | size [5] | sampling None Hz | solidification 2
+2022-07-26 15:29:36.761776 [control]  [debug] : Adding stream experiment-calibration.gaze: type S80 | size [5] | sampling None Hz | solidification 2
+2022-07-26 15:29:36.762780 [control]  [debug] : Adding stream experiment-calibration.tactile_gloves: type S80 | size [5] | sampling None Hz | solidification 2
+2022-07-26 15:29:36.762780 [control]  [debug] : Adding stream experiment-calibration.third_party: type S80 | size [7] | sampling None Hz | solidification 2
+2022-07-26 15:29:36.762780 [control]  [debug] : Adding stream experiment-activities.activities: type S500 | size [4] | sampling None Hz | solidification 2
+2022-07-26 15:29:36.762780 [control]  [debug] : Adding stream experiment-notes.notes: type S500 | size [1] | sampling None Hz | solidification 0
+2022-07-26 15:29:36.765732 [control]  [debug] : Adding stream experiment-calibration.body: type S80 | size [6] | sampling None Hz | solidification 2
+2022-07-26 15:29:36.766728 [control]  [debug] : Adding stream experiment-calibration.arms: type S80 | size [8] | sampling None Hz | solidification 2
+2022-07-26 15:29:36.766728 [control]  [debug] : Adding stream experiment-calibration.hand_poses: type S80 | size [5] | sampling None Hz | solidification 2
+2022-07-26 15:29:36.766728 [control]  [debug] : Adding stream experiment-calibration.gaze: type S80 | size [5] | sampling None Hz | solidification 2
+2022-07-26 15:29:36.766728 [control]  [debug] : Adding stream experiment-calibration.tactile_gloves: type S80 | size [5] | sampling None Hz | solidification 2
+2022-07-26 15:29:36.766728 [control]  [debug] : Adding stream experiment-calibration.third_party: type S80 | size [7] | sampling None Hz | solidification 2
+2022-07-26 15:29:36.766728 [control]  [debug] : Adding stream experiment-activities.activities: type S500 | size [4] | sampling None Hz | solidification 2
+2022-07-26 15:29:36.766728 [control]  [debug] : Adding stream experiment-notes.notes: type S500 | size [1] | sampling None Hz | solidification 0
+2022-07-26 15:29:36.768724 [CogEMG]   [debug] : Adding stream EMGLeft-cognionics.emgleft-values: type float32 | size [23] | sampling 50 Hz | solidification 0
+2022-07-26 15:29:36.768724 [CogEMG]   [debug] : Adding stream EMGRight-cognionics.emgright-values: type float32 | size [23] | sampling 50 Hz | solidification 0
+2022-07-26 15:29:36.771715 [manager]  [normal]: SensorManager creating data loggers
+2022-07-26 15:29:36.771715 [manager]  [normal]: SensorManager creating a data visualizer
+2022-07-26 15:29:36.771715 [manager]  [normal]: 
+2022-07-26 15:29:36.771715 [manager]  [normal]: SensorManager connecting streamer 1/2 (class ExperimentControlStreamer)
+2022-07-26 15:29:36.771715 [manager]  [normal]: 
+2022-07-26 15:29:36.771715 [manager]  [normal]: SensorManager connecting streamer 2/2 (class AutoProxy[CognionicsEMGStreamer_mp])

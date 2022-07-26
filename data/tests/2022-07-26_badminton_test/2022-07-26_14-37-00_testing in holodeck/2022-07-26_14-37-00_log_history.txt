@@ -1,0 +1,77 @@
+2022-07-26 14:37:05.516471 [manager]  [normal]: SensorManager starting the multiprocessing manager
+2022-07-26 14:37:05.837656 [manager]  [normal]: SensorManager creating sensor streamers
+2022-07-26 14:37:05.837656 [control]  [debug] : Adding stream experiment-calibration.body: type S80 | size [6] | sampling None Hz | solidification 2
+2022-07-26 14:37:05.837656 [control]  [debug] : Adding stream experiment-calibration.arms: type S80 | size [8] | sampling None Hz | solidification 2
+2022-07-26 14:37:05.838653 [control]  [debug] : Adding stream experiment-calibration.hand_poses: type S80 | size [5] | sampling None Hz | solidification 2
+2022-07-26 14:37:05.838653 [control]  [debug] : Adding stream experiment-calibration.gaze: type S80 | size [5] | sampling None Hz | solidification 2
+2022-07-26 14:37:05.838653 [control]  [debug] : Adding stream experiment-calibration.tactile_gloves: type S80 | size [5] | sampling None Hz | solidification 2
+2022-07-26 14:37:05.838653 [control]  [debug] : Adding stream experiment-calibration.third_party: type S80 | size [7] | sampling None Hz | solidification 2
+2022-07-26 14:37:05.838653 [control]  [debug] : Adding stream experiment-activities.activities: type S500 | size [4] | sampling None Hz | solidification 2
+2022-07-26 14:37:05.838653 [control]  [debug] : Adding stream experiment-notes.notes: type S500 | size [1] | sampling None Hz | solidification 0
+2022-07-26 14:37:05.840720 [control]  [debug] : Adding stream experiment-calibration.body: type S80 | size [6] | sampling None Hz | solidification 2
+2022-07-26 14:37:05.840720 [control]  [debug] : Adding stream experiment-calibration.arms: type S80 | size [8] | sampling None Hz | solidification 2
+2022-07-26 14:37:05.840720 [control]  [debug] : Adding stream experiment-calibration.hand_poses: type S80 | size [5] | sampling None Hz | solidification 2
+2022-07-26 14:37:05.840720 [control]  [debug] : Adding stream experiment-calibration.gaze: type S80 | size [5] | sampling None Hz | solidification 2
+2022-07-26 14:37:05.840720 [control]  [debug] : Adding stream experiment-calibration.tactile_gloves: type S80 | size [5] | sampling None Hz | solidification 2
+2022-07-26 14:37:05.841717 [control]  [debug] : Adding stream experiment-calibration.third_party: type S80 | size [7] | sampling None Hz | solidification 2
+2022-07-26 14:37:05.841717 [control]  [debug] : Adding stream experiment-activities.activities: type S500 | size [4] | sampling None Hz | solidification 2
+2022-07-26 14:37:05.841717 [control]  [debug] : Adding stream experiment-notes.notes: type S500 | size [1] | sampling None Hz | solidification 0
+2022-07-26 14:37:05.841717 [CogEMG]   [debug] : Adding stream EMGLeft-cognionics.emgleft-values: type float32 | size [23] | sampling 50 Hz | solidification 0
+2022-07-26 14:37:05.841717 [CogEMG]   [debug] : Adding stream EMGRight-cognionics.emgright-values: type float32 | size [23] | sampling 50 Hz | solidification 0
+2022-07-26 14:37:05.844816 [manager]  [normal]: SensorManager creating data loggers
+2022-07-26 14:37:05.844816 [manager]  [normal]: SensorManager creating a data visualizer
+2022-07-26 14:37:05.844816 [manager]  [normal]: 
+2022-07-26 14:37:05.844816 [manager]  [normal]: SensorManager connecting streamer 1/2 (class ExperimentControlStreamer)
+2022-07-26 14:37:05.844816 [manager]  [normal]: 
+2022-07-26 14:37:05.844816 [manager]  [normal]: SensorManager connecting streamer 2/2 (class AutoProxy[CognionicsEMGStreamer_mp])
+2022-07-26 14:37:06.857576 [manager]  [normal]: SensorManager starting external recordings via logger 1/1
+2022-07-26 14:37:06.858573 [manager]  [normal]: SensorManager chose a time for streamers to start: 3.00 seconds from now (at 2022-07-26_14-37-09)
+2022-07-26 14:37:06.858573 [manager]  [normal]: SensorManager starting streamer 2/2 in its own process (AutoProxy[CognionicsEMGStreamer_mp])
+2022-07-26 14:37:06.861566 [manager]  [normal]: SensorManager starting streamer 1/2 in the main process
+2022-07-26 14:37:06.861566 [control]  [normal]: Starting to run!
+2022-07-26 14:37:07.059036 [CogEMG]   [normal]: Starting to run!
+2022-07-26 14:37:09.913957 [manager]  [normal]: SensorManager waiting for streamer 1/2 to start (ExperimentControlStreamer)
+2022-07-26 14:37:09.914953 [manager]  [normal]: SensorManager waiting for streamer 2/2 to start (AutoProxy[CognionicsEMGStreamer_mp])
+2022-07-26 14:37:09.914953 [manager]  [normal]: SensorManager starting data logger 1/1
+2022-07-26 14:37:09.914953 [logger]   [normal]: DataLogger running
+2022-07-26 14:37:09.914953 [logger]   [normal]: Opening HDF5 writer
+2022-07-26 14:37:09.923944 [logger]   [debug] : DataLogger starting stream-logging
+2022-07-26 14:37:09.924889 [manager]  [normal]: SensorManager running streaming data visualizer and waiting until streaming is complete
+2022-07-26 14:37:09.924889 [logger]   [normal]: Starting stream-logging thread
+2022-07-26 14:37:09.924889 [logger]   [debug] : Stream-logging thread waiting for next write time
+2022-07-26 14:37:09.924889 [logger]   [normal]: Stream-logging finished waiting for write time
+2022-07-26 14:37:09.928916 [logger]   [error] : 
+2022-07-26 14:37:09.928916 [logger]   [error] : 
+2022-07-26 14:37:09.928916 [logger]   [error] : 
+2022-07-26 14:37:09.928916 [logger]   [error] : 
+2022-07-26 14:37:09.928916 [logger]   [error] : 
+2022-07-26 14:37:09.928916 [logger]   [error] : 
+2022-07-26 14:37:09.928916 [logger]   [error] : 
+2022-07-26 14:37:09.928916 [logger]   [error] : 
+2022-07-26 14:37:09.928916 [logger]   [error] : 
+2022-07-26 14:37:09.928916 [logger]   [error] : 
+2022-07-26 14:37:09.928916 [logger]   [error] : ***ERROR DURING DATA LOGGING:
+2022-07-26 14:37:09.928916 [logger]   [error] : Traceback (most recent call last):
+2022-07-26 14:37:09.928916 [logger]   [error] :   File "D:\Github\ActionNet\recording_data\sensor_streamer_handlers\DataLogger.py", line 706, in _log_data
+2022-07-26 14:37:09.928916 [logger]   [error] :     self._write_data_HDF5(streamer_index, device_name, stream_name, new_data)
+2022-07-26 14:37:09.928916 [logger]   [error] :   File "D:\Github\ActionNet\recording_data\sensor_streamer_handlers\DataLogger.py", line 435, in _write_data_HDF5
+2022-07-26 14:37:09.928916 [logger]   [error] :     dataset[starting_index:ending_index+1,:] = np.array(data_toWrite).reshape((-1, *dataset.shape[1:]))
+2022-07-26 14:37:09.928916 [logger]   [error] : ValueError: cannot reshape array of size 20 into shape (23)
+2022-07-26 14:37:09.928916 [logger]   [error] : 
+2022-07-26 14:37:09.928916 [logger]   [error] : 
+2022-07-26 14:37:09.928916 [logger]   [error] : 
+2022-07-26 14:37:09.928916 [logger]   [error] : 
+2022-07-26 14:37:09.928916 [logger]   [error] : 
+2022-07-26 14:37:09.928916 [logger]   [error] : 
+2022-07-26 14:37:09.928916 [logger]   [error] : 
+2022-07-26 14:37:09.928916 [logger]   [error] : 
+2022-07-26 14:37:09.928916 [logger]   [error] : 
+2022-07-26 14:37:09.928916 [logger]   [error] : 
+2022-07-26 14:37:09.928916 [logger]   [error] : 
+2022-07-26 14:37:09.929912 [logger]   [warn]  : 
+2022-07-26 14:37:09.929912 [logger]   [warn]  : The last attempted DataLogger fetch was for EMGLeft-cognionics.emgleft-values.
+2022-07-26 14:37:09.929912 [logger]   [warn]  : 
+2022-07-26 14:37:09.929912 [logger]   [normal]: DataLogger stopping
+2022-07-26 14:37:09.929912 [logger]   [debug] : DataLogger stopping stream-logging
+2022-07-26 14:37:09.929912 [logger]   [debug] : DataLogger joining stream-logging thread
+2022-07-26 14:37:09.933865 [logger]   [normal]: Closing HDF5 writer

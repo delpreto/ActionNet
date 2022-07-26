@@ -72,16 +72,17 @@ if __name__ == '__main__':
         ('ExperimentControlStreamer', True),  # A GUI to label activities/calibrations and enter notes
         ('NotesStreamer',             False),  # A command-line based way to submit notes during the experiment (but not label activities explicitly)
         # Sensors!
-        ('MyoStreamer',        True),  # One or more Myo EMG/IMU armbands
-        ('TouchStreamer',      False),  # Custom tactile sensors streaming via an Arduino
-        ('XsensStreamer',      True),  # The Xsens body tracking system (includes the Manus finger-tracking gloves if connected to Xsens)
-        ('EyeStreamer',        True),  # The Pupil Labs eye-tracking headset
-        ('E4Streamer',         True),  # Moticon insole pressure sensors
-        ('MoticonStreamer',    True),  # Moticon insole pressure sensors
-        ('ScaleStreamer',      False),  # The Dymo M25 digital postal scale
-        ('MicrophoneStreamer', False),  # One or more microphones
-        ('CameraStreamer',     True),  # One or more cameras
-        ('DummyStreamer',      False),  # Dummy data (no hardware required)
+        ('MyoStreamer',           False),  # One or more Myo EMG/IMU armbands
+        ('TouchStreamer',         False),  # Custom tactile sensors streaming via an Arduino
+        ('XsensStreamer',         False),  # The Xsens body tracking system (includes the Manus finger-tracking gloves if connected to Xsens)
+        ('EyeStreamer',           False),  # The Pupil Labs eye-tracking headset
+        ('E4Streamer',            False),  # E4 sensors
+        ('CognionicsEMGStreamer', True ),  # Cognioncis EMG sensors
+        ('MoticonStreamer',       False),  # Moticon insole pressure sensors
+        ('ScaleStreamer',         False),  # The Dymo M25 digital postal scale
+        ('MicrophoneStreamer',    False),  # One or more microphones
+        ('CameraStreamer',        False),  # One or more cameras
+        ('DummyStreamer',         False),  # Dummy data (no hardware required)
     ])
     sensor_streamer_specs = [
         # Allow the experimenter to label data and enter notes.
@@ -100,6 +101,11 @@ if __name__ == '__main__':
          },
         # Moticon insole pressure sensors.
         {'class': 'MoticonStreamer',
+         # Add any keyword arguments here that you added to __init__()
+         'print_debug': print_debug, 'print_status': print_status
+         },
+        # Cognionics EMG sensors.
+        {'class': 'CognionicsEMGStreamer',
          # Add any keyword arguments here that you added to __init__()
          'print_debug': print_debug, 'print_status': print_status
          },
@@ -130,7 +136,7 @@ if __name__ == '__main__':
         # Stream from the Pupil Labs eye tracker, including gaze and video data.
         {'class': 'EyeStreamer',
          'stream_video_world'    : False, # the world video
-         'stream_video_worldGaze': True, # the world video with gaze indication overlayed
+         'stream_video_worldGaze': False, # the world video with gaze indication overlayed
          'stream_video_eye'      : False, # video of the eye
          'print_debug': print_debug, 'print_status': print_status
          },
@@ -175,14 +181,14 @@ if __name__ == '__main__':
         log_dir = os.path.join(log_dir_root, log_subdir)
         datalogging_options = {
             'log_dir': log_dir, 'log_tag': log_tag,
-            'use_external_recording_sources': True,
+            'use_external_recording_sources': False,
             'videos_in_hdf5': False,
             'audio_in_hdf5': False,
             # Choose whether to periodically write data to files.
             'stream_hdf5': True,  # recommended over CSV since it creates a single file
             'stream_csv': False,  # will create a CSV per stream
-            'stream_video': True,
-            'stream_audio': True,
+            'stream_video': False,
+            'stream_audio': False,
             'stream_period_s': 15,  # how often to save streamed data to disk
             'clear_logged_data_from_memory': True,  # ignored if dumping is also enabled below
             # Choose whether to write all data at the end.
@@ -205,8 +211,8 @@ if __name__ == '__main__':
 
     # TODO: Configure visualization.
     composite_frame_size = (1800, 3000)  # height, width # (1800, 3000)
-    composite_col_width = int(composite_frame_size[1] / 3)
-    composite_row_height = int(composite_frame_size[0] / 4)
+    composite_col_width = int(composite_frame_size[1] / 2)
+    composite_row_height = int(composite_frame_size[0])
     visualization_options = {
         'visualize_streaming_data': True,
         'visualize_all_data_when_stopped': False,
@@ -218,27 +224,28 @@ if __name__ == '__main__':
       'composite_video_layout':
         [
           [ # row 0
-            {'device_name':'camera-usb',  'stream_name':'frame', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
-            {'device_name':'xsens-segments', 'stream_name':'position_cm', 'rowspan':2, 'colspan':1, 'width':composite_col_width, 'height': 2*composite_row_height},
-            {'device_name':'eye-tracking-video-worldGaze', 'stream_name':'frame', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
+            {'device_name':'EMGLeft-cognionics',  'stream_name':'emgleft-values', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
+            {'device_name': 'EMGRight-cognionics', 'stream_name': 'emgright-values', 'rowspan': 1, 'colspan': 1, 'width': composite_col_width, 'height': composite_row_height},
+            # {'device_name':'xsens-segments', 'stream_name':'position_cm', 'rowspan':2, 'colspan':1, 'width':composite_col_width, 'height': 2*composite_row_height},
+            # {'device_name':'eye-tracking-video-worldGaze', 'stream_name':'frame', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
           ],
-          [  # row  1
-            {'device_name': 'insole-moticon-left', 'stream_name': 'pressure_values_N_cm2', 'rowspan': 1, 'colspan': 1, 'width': composite_col_width, 'height': composite_row_height},
-            {'device_name':None, 'stream_name':None, 'rowspan':0, 'colspan':0, 'width':0, 'height': 0},
-            {'device_name': 'insole-moticon-right', 'stream_name': 'pressure_values_N_cm2', 'rowspan': 1, 'colspan': 1, 'width': composite_col_width, 'height': composite_row_height},
-    
-            # {'device_name': 'xsens-segments', 'stream_name': 'position_cm', 'rowspan': 1, 'colspan': 1, 'width': composite_col_width, 'height': composite_row_height},
-          ],
-          [ # row 2
-            {'device_name':'myo-left', 'stream_name':'emg',               'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':   composite_row_height},
-            {'device_name': 'ACC-empatica_e4', 'stream_name': 'acc-values', 'rowspan': 1, 'colspan': 1, 'width': composite_col_width, 'height': composite_row_height},
-            {'device_name':'myo-right', 'stream_name':'emg',              'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':   composite_row_height},
-          ],
-          [ # row 3
-            {'device_name': 'BVP-empatica_e4', 'stream_name': 'bvp-values', 'rowspan': 1, 'colspan': 1, 'width': composite_col_width, 'height': composite_row_height},
-            {'device_name': 'GSR-empatica_e4', 'stream_name': 'gsr-values', 'rowspan': 1, 'colspan': 1, 'width': composite_col_width, 'height': composite_row_height},
-            {'device_name': 'Tmp-empatica_e4', 'stream_name': 'tmp-values', 'rowspan': 1, 'colspan': 1, 'width': composite_col_width, 'height': composite_row_height},
-          ],
+          # [  # row  1
+          #   {'device_name': 'insole-moticon-left', 'stream_name': 'pressure_values_N_cm2', 'rowspan': 1, 'colspan': 1, 'width': composite_col_width, 'height': composite_row_height},
+          #   {'device_name':None, 'stream_name':None, 'rowspan':0, 'colspan':0, 'width':0, 'height': 0},
+          #   {'device_name': 'insole-moticon-right', 'stream_name': 'pressure_values_N_cm2', 'rowspan': 1, 'colspan': 1, 'width': composite_col_width, 'height': composite_row_height},
+          #
+          #   # {'device_name': 'xsens-segments', 'stream_name': 'position_cm', 'rowspan': 1, 'colspan': 1, 'width': composite_col_width, 'height': composite_row_height},
+          # ],
+          # [ # row 2
+          #   {'device_name':'myo-left', 'stream_name':'emg',               'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':   composite_row_height},
+          #   {'device_name': 'ACC-empatica_e4', 'stream_name': 'acc-values', 'rowspan': 1, 'colspan': 1, 'width': composite_col_width, 'height': composite_row_height},
+          #   {'device_name':'myo-right', 'stream_name':'emg',              'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':   composite_row_height},
+          # ],
+          # [ # row 3
+          #   {'device_name': 'BVP-empatica_e4', 'stream_name': 'bvp-values', 'rowspan': 1, 'colspan': 1, 'width': composite_col_width, 'height': composite_row_height},
+          #   {'device_name': 'GSR-empatica_e4', 'stream_name': 'gsr-values', 'rowspan': 1, 'colspan': 1, 'width': composite_col_width, 'height': composite_row_height},
+          #   {'device_name': 'Tmp-empatica_e4', 'stream_name': 'tmp-values', 'rowspan': 1, 'colspan': 1, 'width': composite_col_width, 'height': composite_row_height},
+          # ],
         ],
     }
 
@@ -259,7 +266,6 @@ if __name__ == '__main__':
     fps_start_num_timesteps = [0] * len(streamers_for_fps)
     fps_num_timesteps = [0] * len(streamers_for_fps)
     fps_last_print_time_s = 0
-
 
     def print_fps():
         global fps_start_time_s, fps_last_print_time_s, fps_start_num_timesteps, fps_num_timesteps

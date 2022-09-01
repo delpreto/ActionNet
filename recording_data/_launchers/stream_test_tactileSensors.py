@@ -59,8 +59,8 @@ if __name__ == '__main__':
   #   Configure settings for each class in sensor_streamer_specs.
   sensor_streamers_enabled = dict([
     # Use one of the following to control the experiment (enter notes, quit, etc)
-    ('ExperimentControlStreamer', False),  # A GUI to label activities/calibrations and enter notes
-    ('NotesStreamer',             True),  # A command-line based way to submit notes during the experiment (but not label activities explicitly)
+    ('ExperimentControlStreamer', True),  # A GUI to label activities/calibrations and enter notes
+    ('NotesStreamer',             False),  # A command-line based way to submit notes during the experiment (but not label activities explicitly)
     # Sensors!
     ('MyoStreamer',        False),  # One or more Myo EMG/IMU armbands
     ('TouchStreamer',      True),  # Custom tactile sensors streaming via an Arduino
@@ -154,7 +154,7 @@ if __name__ == '__main__':
       'videos_in_hdf5': False,
       'audio_in_hdf5': False,
       # Choose whether to periodically write data to files.
-      'stream_csv'  : True,
+      'stream_csv'  : False,
       'stream_hdf5' : True,
       'stream_video': True,
       'stream_audio': True,

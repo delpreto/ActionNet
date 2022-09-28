@@ -162,7 +162,7 @@ if __name__ == '__main__':
       'stream_hdf5' : True,
       'stream_video': True,
       'stream_audio': True,
-      'stream_period_s': 15,
+      'stream_period_s': 8,
       'clear_logged_data_from_memory': True, # ignored if dumping is also enabled
       # Choose whether to write all data at the end.
       'dump_csv'  : False,
@@ -230,7 +230,7 @@ if __name__ == '__main__':
         fps_start_num_timesteps[streamer_index] = num_timesteps
         fps_num_timesteps[streamer_index] = num_timesteps - fps_start_num_timesteps[streamer_index]
         fps_last_print_time_s = time.time()
-      elif time.time() - fps_last_print_time_s > 5:
+      elif time.time() - fps_last_print_time_s > 3:
         printed_fps = True
         fps_duration_s = time.time() - fps_start_time_s[streamer_index]
         fps_num_timesteps[streamer_index] = num_timesteps - fps_start_num_timesteps[streamer_index]

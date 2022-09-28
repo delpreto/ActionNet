@@ -83,6 +83,13 @@ class CameraStreamer(SensorStreamer):
     # A tag that can be used in log messages.
     self._log_source_tag = 'cameras'
     
+    # Note that if this streamer runs in its own process, there will be delays
+    #   sending video data to other processes via get_data().
+    #  For example, the delay when DataLogger fetches recent data caused this streamer to miss frames.
+    #   When streaming a camera at 30fps and 480x640 resolution, and logging every 15s, it took about 1.5s
+    #   between when get_data() called its return statement and when DataLogger received the returned data.
+    self._always_run_in_main_process = True
+    
     # Initialize general state.
     if cameras_to_stream is None:
       cameras_to_stream = {'default': 0}

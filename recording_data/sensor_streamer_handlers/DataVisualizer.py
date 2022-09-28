@@ -89,7 +89,8 @@ class DataVisualizer:
     self._log_history_filepath = log_history_filepath
     
     self._print_debug_extra = False # Print debugging information for visualizers that probably isn't needed during normal experiment logging
-
+    self._last_debug_updateTime_print_s = 0
+    
     self._visualizers = []
     
   # Initialize visualizers.
@@ -440,7 +441,9 @@ class DataVisualizer:
       else:
         self._update_composite_video_pyqtgraph(hidden=hide_composite, time_s=ending_time_s or self._last_update_time_s)
       if self._print_debug_extra: self._log_debug('Time to update composite visualization: \t \t \t \t%0.3f' % (time.time() - start_composite_update_time_s))
-    self._log_debug('Time to update visualizers and composite: %0.4f' % (time.time() - start_update_time_s))
+    if (time.time() - self._last_debug_updateTime_print_s > 5) or self._print_debug_extra:
+      self._log_debug('Time to update visualizers and composite: %0.4f' % (time.time() - start_update_time_s))
+      self._last_debug_updateTime_print_s = time.time()
 
   # Visualize all data currently in the streamers' memory.
   # This is meant to be called at the end of an experiment.

@@ -69,8 +69,11 @@ class EyeStreamer(SensorStreamer):
     self._log_source_tag = 'eye'
     
     # Run this streamer on the main process, since otherwise it seems like
-    #  RAM usage continues to grow even if the videos are periodically saved
-    #  to disk and the data buffers are correspondingly cleared.
+    #   RAM usage continues to grow even if the videos are periodically saved
+    #   to disk and the data buffers are correspondingly cleared.
+    #  This may be related to an issue observed with CameraStreamer, namely that
+    #   get_data() caused delays and incurred missed frames due to the time taken
+    #   to transfer the large data between processes.
     self._always_run_in_main_process = True
     
     self._stream_video_world = stream_video_world

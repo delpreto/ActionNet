@@ -84,7 +84,7 @@ class SensorStreamer(ABC):
     self._print_debug = print_debug
     self._log_source_tag = type(self).__name__
     self._log_history_filepath = log_history_filepath
-
+    
     # Record whether existing data logs will be replayed instead of streaming from sensors.
     if log_player_options is not None:
       self._replaying_data_logs = True
@@ -365,21 +365,16 @@ class SensorStreamer(ABC):
         else:
           ending_index += 1 # since will use as a list index and thus exclude the specified index
       # Update default starting/ending indexes.
-      return_all_data = (starting_index is None and ending_index is None)
       if starting_index is None:
         starting_index = 0
       if ending_index is None:
         ending_index = self.get_num_timesteps(device_name, stream_name)
-
+      
       # Use streaming logs or existing logs as needed.
       if not self._replaying_data_logs:
         # Get the desired subset of data.
-        if return_all_data:
-          # Return all data (avoid the overhead of creating a new dict)
-          res = self._data[device_name][stream_name]
-        else:
-          # Return a desired amount of most recent data
-          res = dict([(key, values[starting_index:ending_index]) for (key, values) in self._data[device_name][stream_name].items()])
+        # Note that this also creates a copy of each array, so the returned data remains static as new data is collected.
+        res = dict([(key, values[starting_index:ending_index]) for (key, values) in self._data[device_name][stream_name].items()])
       else:
         # Use existing logs.
         # Create a data array that mimics a streaming log,
@@ -409,7 +404,7 @@ class SensorStreamer(ABC):
             res['data'].append(frame)
             res['time_s'].append(time_s)
             res['time_str'].append(get_time_str(time_s, format='%Y-%m-%d %H:%M:%S.%f'))
-      
+        
       # Return the result
       if len(list(res.values())[0]) == 0:
         return None

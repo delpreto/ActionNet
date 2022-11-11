@@ -3,7 +3,7 @@ from ros_to_images import *
 # Script to loop through all bagfiles listed in "available_ros_files.txt",
 # parse the depth camera data, and save it to an hdf5 file
 
-data_dir = "C:/Users/2021l/Documents/UROP/test_depth_conversion/" #TODO modify based on lab computer
+data_dir = "C:/Users/DRL Public/Desktop/ActionNet/external_data/2022-06-07_experiment_S00/" #TODO modify based on lab computer
 
 with open("available_ros_files.txt", 'r') as f:
     files = f.read().split('\n')

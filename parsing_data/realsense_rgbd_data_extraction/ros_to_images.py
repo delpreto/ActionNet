@@ -59,9 +59,8 @@ def data_generation(bagfile, depth, start_offset=0, duration=None):
       for point in point_cloud2.read_points(msg, skip_nans=True):
         counter += 1
         # save point data
-        if counter % 5 == 0: #TODO remove before pushing
-          colors = np.append(colors, point[3])
-          points = np.append(points,[[*point[:3]]], axis = 0)
+        colors = np.append(colors, point[3])
+        points = np.append(points,[[*point[:3]]], axis = 0)
       print(counter)
       
       # extract rgb data

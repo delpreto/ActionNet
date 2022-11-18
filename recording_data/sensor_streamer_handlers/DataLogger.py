@@ -661,6 +661,7 @@ class DataLogger:
     last_log_time_s = None
     self._log_status('Starting stream-logging thread')
     try:
+      flushing_log = False
       while self._streamLogging or self._flush_log:
         # Wait until it is time to write new data, which is either:
         #  This is the first iteration,
@@ -682,6 +683,9 @@ class DataLogger:
         #   This would compound over time, leading to longer delays and more data to write each time.
         #   This becomes more severe as the write duration increases (e.g. videos).
         last_log_time_s = time.time()
+        # If the log should be flushed, record that it is happening during this iteration for all streamers.
+        if self._flush_log:
+          flushing_log = True
         # Write new data for each stream of each device of each streamer.
         for (streamer_index, streamer) in enumerate(self._streamers):
           for (device_name, streams_info) in streamer.get_all_stream_infos().items():
@@ -731,9 +735,14 @@ class DataLogger:
         self._log_debug('Stream-logging finished write')
         # If stream-logging is disabled, but a final flush had been requested,
         #  record that the flush is complete so streaming can really stop now.
-        if (not self._streamLogging) and self._flush_log:
+        # Note that it also checks whether the flush was configured to happen for all streamers during this iteration.
+        #  Especially if a lot of data was being written (such as with video data),
+        #  the self._flush_log flag may have been set sometime during the data writing.
+        #  In that case, all streamers would not have known to flush data and some data may be omitted.
+        if (not self._streamLogging) and self._flush_log and flushing_log:
           self._log_debug('Stream-logging finished flushing')
           self._flush_log = False
+      flushing_log = False
     except KeyboardInterrupt: # The program was likely terminated
       pass
     except:

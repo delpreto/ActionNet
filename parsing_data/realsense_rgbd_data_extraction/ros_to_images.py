@@ -132,15 +132,15 @@ def plot_3d_frame(frames, index, timestamps=None, xlim=(-1.5, 1.5), ylim=(-0.5,0
   ax.view_init(235, 270)
   
   title = f"Frame {index}/{frames.shape[0]}"
-  if timestamps:
+  if timestamps is not None:
     title = f"Timestamp: {timestamps[index].decode('utf-8')} ({title})"
   ax.set_title(title)
   plt.show()
   
 def get_snippet(hdf5_file, depth, start_offset, duration=None):
-  if depth:
+  if depth == 'depth':
     timestamps, timestrings, xyz, rgb = load_from_hdf5(hdf5_file, ['depth-data/time_s', 'depth-data/time_str', 'depth-data/xyz', 'depth-data/rgb'])
-    data = np.concatenate((xyz, rgb), axis=1)
+    data = np.concatenate((xyz, rgb), axis=2)
   else:
     timestamps, timestrings, data = load_from_hdf5(hdf5_file, ['depth-raw/time_s', 'depth-raw/time_str', 'depth-raw/rgb'])
     
@@ -189,7 +189,8 @@ def depth_video_from_frames(frames, video_dir, video_name, timestamps, save_inte
     
     if i == 0:
       frame = cv2.imread(filename)
-      height, width, layers = frame.shape
+      height = frame.shape[0]
+      width = frame.shape[1]
       if video_name[-3:] == 'mp4':
         video = cv2.VideoWriter(f'{video_dir}/{video_name}', cv2.VideoWriter_fourcc(*'mp4v'), 1, (width, height))
       else:
@@ -214,7 +215,7 @@ def raw_video_from_frames(frames, video_dir, video_name, timestamps=None, save_i
     os.mkdir(video_dir+'/intermediate_frames')
       
   for i, frame in enumerate(frames):
-    if timestamps:
+    if timestamps is not None:
       frame = cv2.putText(frame,
                           f"Timestamp: {timestamps[i].decode('utf-8')} (Frame {i}/{frames.shape[0]})",
                           (20,frames.shape[1]-20),
@@ -222,7 +223,8 @@ def raw_video_from_frames(frames, video_dir, video_name, timestamps=None, save_i
                           (0,0,0))
     
     if i == 0:
-      height, width, layers = frame.shape
+      height = frame.shape[0]
+      width = frame.shape[1]
       if video_name[-3:] == 'mp4':
         video = cv2.VideoWriter(f'{video_dir}/{video_name}', cv2.VideoWriter_fourcc(*'mp4v'), 1, (width, height))
       else:

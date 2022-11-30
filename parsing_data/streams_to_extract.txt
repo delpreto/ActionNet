@@ -1,0 +1,2 @@
+myo-left;emg;Slice a cucumber
+myo-right;emg;Slice a cucumber

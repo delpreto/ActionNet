@@ -1,2 +1,1 @@
-myo-left;emg;Slice a cucumber
-myo-right;emg;Slice a cucumber
+myo-left/emg,myo-right/emg,tactile-glove-left/tactile_data,tactile-glove-right/tactile_data;Slice a cucumber

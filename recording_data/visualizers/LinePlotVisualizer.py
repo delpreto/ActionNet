@@ -42,7 +42,7 @@ else:
 
 import numpy as np
 
-from utils.numpy_utils import *
+from utils.numpy_scipy_utils import *
 
 
 ################################################
@@ -303,9 +303,9 @@ class LinePlotVisualizer(Visualizer):
           else:
             self._plots[row][column].hideAxis('bottom')
           self._layout.setWindowTitle('%s: %s' % (device_name, stream_name))
-      # Update the plot window (yes, this works)
+      # Update the plot window
       if not self._hidden:
-        cv2.waitKey(1)
+        QtCore.QCoreApplication.processEvents()
 
     # Save state for future updates.
     self._plot_length = plot_length
@@ -400,7 +400,7 @@ class LinePlotVisualizer(Visualizer):
         self._fig.canvas.flush_events()
     else:
       if not self._hidden:
-        cv2.waitKey(1) # update the plot window (yes, this works)
+        QtCore.QCoreApplication.processEvents() # update the plot window (yes, this works)
 
   # Retrieve an image of the most updated visualization.
   # Should return a matrix in RGB format.

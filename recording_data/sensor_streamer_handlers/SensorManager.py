@@ -117,7 +117,7 @@ class SensorManager:
     self._log_history_filepath = log_history_filepath
 
     # Create streamer specs from an existing data log if desired.
-    if log_player_options is not None:
+    if log_player_options is not None and sensor_streamer_specs is None:
       sensor_streamer_specs = self.get_sensor_streamer_specs_from_log()
 
     # Validate the streamer specs, and make a list of them.

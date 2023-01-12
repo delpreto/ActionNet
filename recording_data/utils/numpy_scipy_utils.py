@@ -54,9 +54,19 @@ def get_matrix_str(matrix, column_delim='\t', row_delim='\n'):
 # Copy a matrix as a string so it can be pasted into Excel or a similar program.
 def copy_matrix(matrix, column_delim='\t', row_delim='\n'):
   pyperclip.copy(get_matrix_str(matrix, column_delim=column_delim, row_delim=row_delim))
-  
 
+# SciPy utils if SciPy is available
+try:
+  from scipy import signal
+  scipy_is_available = True
+except:
+  scipy_is_available = False
 
+# Perform a 2D convolution with a stride parameter.
+# Code from https://stackoverflow.com/a/49064179
+def convolve2d_strided(input_1, input_2, stride, mode='valid'):
+  assert scipy_is_available
+  return signal.convolve2d(input_1, input_2[::-1, ::-1], mode=mode)[::stride, ::stride]
 
 
 

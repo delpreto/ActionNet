@@ -151,6 +151,7 @@ class SerialStreamer(SensorStreamer):
     
     # Parse the streams and ensure that all values are numeric.
     data_row = data.split(self._value_delimiters[sensor_name])
+    data_row = [data_entry for data_entry in data_row if len(data_entry) > 0]
     try:
       data_row = [float(data_entry) for data_entry in data_row]
     except:
@@ -191,8 +192,8 @@ class SerialStreamer(SensorStreamer):
         processed_options[device_name].setdefault(stream_name,
                                                   {
                                                     'class': LinePlotVisualizer,
-                                                    'single_graph': False,
-                                                    'plot_duration_s': 30,
+                                                    'single_graph': True,
+                                                    'plot_duration_s': 60,
                                                     'downsample_factor': 1,
                                                   })
     

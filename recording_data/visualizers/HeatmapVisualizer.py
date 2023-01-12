@@ -137,6 +137,7 @@ class HeatmapVisualizer(Visualizer):
       x_i = int(mouse_point.x())
       y_i = int(mouse_point.y())
       if x_i >= 0 and x_i < self._data.shape[0] and y_i >= 0 and y_i < self._data.shape[1]:
+        y_i = (self._data.shape[0]-1) - y_i # since the matrix was flipped to put y=0 at the top of the heatmap
         self._layout.window().setToolTip('(y=%d, x=%d): %0.2f' %
                                           (y_i, x_i, self._data[y_i][x_i]))
         return
@@ -152,7 +153,10 @@ class HeatmapVisualizer(Visualizer):
   def update(self, new_data, visualizing_all_data):
     # Update the heatmap with the latest data.
     self._data = np.array(new_data['data'][-1]).reshape(self._sample_size)
-    self._heatmap.setImage(self._data.T) # index the image as (x, y) but numpy as (y, x)
+    image_data = self._data
+    self._heatmap.setImage(np.flipud(self._data).T) # Transpose since image is indexed as (x, y) but numpy as (y, x).
+                                                    # Flip so y=0 is at the top of the heatmap.
+                                        
     
     # Update the colorbar scale based on a buffer of recent colorbar levels.
     if self._auto_colorbar_levels:
@@ -178,7 +182,7 @@ class HeatmapVisualizer(Visualizer):
     
     # Update the figure to see the changes.
     if not self._hidden:
-      cv2.waitKey(1) # find a better way?
+      QtCore.QCoreApplication.processEvents()
   
   
   # Retrieve an image of the most updated visualization.

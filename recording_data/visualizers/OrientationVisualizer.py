@@ -343,7 +343,7 @@ class OrientationVisualizer(Visualizer):
         #     size=1, pxMode=False)
         # self._indicator_scatter.setGLOptions('translucent')
         # self._glWidget.addItem(self._indicator_scatter)
-        cv2.waitKey(1) # wait for it to actually draw
+        QtCore.QCoreApplication.processEvents() # wait for it to actually draw
         # Show or hide the figure.
         if not self._is_sub_layout:
           if not self._hidden:
@@ -371,7 +371,7 @@ class OrientationVisualizer(Visualizer):
       
       # Update the plot to see the changes.
       if not self._hidden and not self._is_sub_layout:
-        cv2.waitKey(1) # find a better way?
+        QtCore.QCoreApplication.processEvents()
   
   # Retrieve an image of the most updated visualization.
   # Should return a matrix in RGB format.

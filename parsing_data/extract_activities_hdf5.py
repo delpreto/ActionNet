@@ -169,7 +169,7 @@ def extract_streams_for_activities(hdf_file, requests_file):
       else:
         data, time_s = interpolate_stream(data, time_s, interp_master_times)
              
-      for activity in activities.split(','):
+      for activity in activities.split('|'): #can't use commas as some activity names have commas
         label_start_times, label_end_times = extract_activity_times(activity, labels, start_times, end_times)
         streams = stream_from_times(data, time_s, label_start_times, label_end_times)
         

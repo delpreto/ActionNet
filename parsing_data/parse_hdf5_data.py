@@ -55,16 +55,16 @@ def average_grid_dims(grid, new_dims):
   averaged_points = np.array(averaged_points).reshape(new_dims)    
   return averaged_points
 
-def butter_filter(data, times, version='scipy'):
+def butter_filter(data, times, cutoff_freq, version='scipy'):
   data_freq = (len(data)-1) / (times[-1] - times[0])
   
   if version == 'scipy':
     ## following scipy example
-    sos = signal.butter(5, 2/(data_freq/2), btype='lowpass', output='sos')
+    sos = signal.butter(5, cutoff_freq/(data_freq/2), btype='lowpass', output='sos')
     filtered = signal.sosfilt(sos, data)
   else:
     ## following matlab example
-    b,a = signal.butter(5, 2/(data_freq/2), btype='lowpass', output='ba')
+    b,a = signal.butter(5, cutoff_freq/(data_freq/2), btype='lowpass', output='ba')
     filtered = signal.lfilter(b, a, data)
   return filtered
 
@@ -81,38 +81,54 @@ def find_fingers(grid):
   return average_grid(grid, hand_coords)
 
 if __name__ == '__main__':
-  #### Currently testing with data from tactile-glove-right/tactile_data;Slice bread
   #### Code to load tactile data from testing_tactile.json and plot the data (filtered and unfiltered) for the index finger
   with open('testing_tactile.json') as json_file:
       data = json.load(json_file)
-  tactiles = data['S00']['tactile-glove-right']['tactile_data']['Slice bread']
-  times = data['S00']['time_s']['Slice bread']
+  tactiles = data['S00']['myo-right']['emg']['Slice a cucumber']
+  times = data['S00']['time_s']['Slice a cucumber']
   tactiles = tactiles[0] # + tactiles[1] + tactiles[2]
   times = times[0]
-  avg_tactiles = [find_fingers(frame) for frame in tactiles]
-  
-  avg_tactiles_by_finger = list(zip(*avg_tactiles))
-  
-  plt.plot(times, avg_tactiles_by_finger[1])
-  filtered1 = butter_filter(avg_tactiles_by_finger[1], times) #scipy example
-  filtered2 = butter_filter(avg_tactiles_by_finger[1], times, version='matlab') #matlab example  
+  avg_tactiles = np.absolute(np.average(np.array(tactiles), 1))
+      
+  plt.plot(times, avg_tactiles)
+  filtered1 = butter_filter(avg_tactiles, times, 0.5) #scipy example
+  filtered2 = butter_filter(avg_tactiles, times, 0.5, version='matlab') #matlab example  
   plt.plot(times, filtered1)
   plt.plot(times, filtered2)
-  plt.xlim(left=1654641154.59)
-  plt.ylim((560, 580))
   plt.show()
+    
+  # #### Currently testing with data from tactile-glove-right/tactile_data;Slice bread
+  # #### Code to load tactile data from testing_tactile.json and plot the data (filtered and unfiltered) for the index finger
+  # with open('testing_tactile.json') as json_file:
+  #     data = json.load(json_file)
+  # tactiles = data['S00']['tactile-glove-right']['tactile_data']['Slice a cucumber']
+  # times = data['S00']['time_s']['Slice a cucumber']
+  # tactiles = tactiles[0] # + tactiles[1] + tactiles[2]
+  # times = times[0]
+  # avg_tactiles = [find_fingers(frame) for frame in tactiles]
   
-  #### To visualize ^ all fingers
-  for y in avg_tactiles_by_finger:
-    plt.plot(times, y)
-    filt1 = butter_filter(y, times) #scipy example
-    filt2 = butter_filter(y, times, version='matlab') #matlab example  
-    plt.plot(times, filt1)
-    plt.plot(times, filt2)
-    plt.legend(["Finger", "Scipy", "Matlab"])
-    plt.xlim(left=1654641154.59)
-    plt.ylim((560, 580))    
-    plt.show()
+  # avg_tactiles_by_finger = list(zip(*avg_tactiles))
+  
+  # plt.plot(times, avg_tactiles_by_finger[1])
+  # filtered1 = butter_filter(avg_tactiles_by_finger[1], times, 2) #scipy example
+  # filtered2 = butter_filter(avg_tactiles_by_finger[1], times, 2, version='matlab') #matlab example  
+  # plt.plot(times, filtered1)
+  # plt.plot(times, filtered2)
+  # # plt.xlim(left=1654641154.59)
+  # # plt.ylim((560, 580))
+  # plt.show()
+  
+  # #### To visualize ^ all fingers
+  # for y in avg_tactiles_by_finger:
+  #   plt.plot(times, y)
+  #   filt1 = butter_filter(y, times, 2) #scipy example
+  #   filt2 = butter_filter(y, times, 2, version='matlab') #matlab example  
+  #   plt.plot(times, filt1)
+  #   plt.plot(times, filt2)
+  #   plt.legend(["Finger", "Scipy", "Matlab"])
+  #   plt.xlim(left=1654641154.59)
+  #   plt.ylim((560, 580))    
+  #   plt.show()
 
   ##### Testing averaging functions
   # z = np.array([[[1,2,3],[4,5,6],[7,8,9]],[[-2,-3,-4],[-5,-6,-7],[-8,-9,-10]],[[3,4,5],[6,7,8],[9,10,11]]])

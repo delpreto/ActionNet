@@ -1,8 +1,10 @@
 import h5py
 import numpy as np
-from scipy import interpolate # for the resampling example
-import json
+from scipy import interpolate, signal # for the resampling example
+import ujson
 import os
+import yaml
+from yaml.loader import SafeLoader
 
 def extract_stream(filepath, device_name, stream_name):
   # Open the file.
@@ -127,10 +129,7 @@ def interpolate_stream_by_rate(interp_data, interp_times, sampling_rate):
                                   )
   
   sampling_period = 1.0/sampling_rate
-  # time_s_resampled = np.linspace(interp_times[0],interp_times[-1],int((interp_times[-1]-interp_times[0])//sampling_period))
-  # print(time_s_resampled) Decided not to use linspace bc the output looked sus
   time_s_resampled = np.arange(interp_times[0],interp_times[-1],sampling_period)
-  print(time_s_resampled)
   data_resampled = fn_interpolate(time_s_resampled)
   
   print('Original Data:')
@@ -144,62 +143,89 @@ def interpolate_stream_by_rate(interp_data, interp_times, sampling_rate):
   
   return data_resampled, time_s_resampled
 
+def butter_filter(data, times, cutoff_freq, version='scipy'):
+  data_freq = (len(data)-1) / (times[-1] - times[0])
+    
+  if version == 'scipy':
+    ## following scipy example
+    sos = signal.butter(5, cutoff_freq/(data_freq/2), btype='lowpass', output='sos')
+    filtered = signal.sosfilt(sos, data)
+  else:
+    ## following matlab example
+    b,a = signal.butter(5, cutoff_freq/(data_freq/2), btype='lowpass', output='ba')
+    filtered = signal.lfilter(b, a, data)
+  return filtered
 
-def extract_streams_for_activities(hdf_file, requests_file):
-  with open(requests_file, 'r') as f:
-      requests = f.read().split('\n')
-      
+def extract_streams_for_activities(hdf_file, requests_file):      
+  with open(requests_file) as f:
+    requests = yaml.load(f, Loader=SafeLoader)
+          
   labels, start_times, end_times = extract_label_data(hdf_file)
   
   extracted_streams = {"time_s":{}}
-  interp_master_times = None
-  for request in requests:
-    try:
-      devices, activities = request.split(';')
-    except:
-      print(f"{request} not formatted correctly.")
-      pass
-    for stream_path in devices.split(','):
-      device_name, stream_name = stream_path.split('/')
-              
-      data, time_s = extract_stream(hdf_file, device_name, stream_name)
+  devices = requests['devices']
+  
+  min_time = None
+  max_time = None
+  for device in devices.keys():
+    time_s = extract_stream(hdf_file, device, devices[device]['stream'])[1]
+    print(min_time, time_s[0], max_time, time_s[-1])
+    if min_time is None or time_s[0] > min_time:
+      min_time = time_s[0]
+    if max_time is None or time_s[-1] < max_time:
+      max_time = time_s[-1]
       
-      if interp_master_times is None:
-        interp_master_times = time_s
-      else:
-        data, time_s = interpolate_stream(data, time_s, interp_master_times)
-             
-      for activity in activities.split('|'): #can't use commas as some activity names have commas
-        label_start_times, label_end_times = extract_activity_times(activity, labels, start_times, end_times)
-        streams = stream_from_times(data, time_s, label_start_times, label_end_times)
+  interp_master_times = None
+  if 'sampling_freq' in requests and requests['sampling_freq'] is not None:
+    interp_master_times = interpolate_stream_by_rate([1,1], [min_time,max_time], requests['sampling_freq'])[1]
+  
+  for device in devices.keys():
+    data, time_s = extract_stream(hdf_file, device, devices[device]['stream'])
+    
+    if devices[device]['absolute_value']:
+      data = abs(data)
+    
+    if devices[device]['cutoff_freq'] is not None:
+      data = list(zip(*data))
+      for i, stream in enumerate(data):
+        data[i] = butter_filter(stream, time_s, devices[device]['cutoff_freq'])
+      data = list(zip(*data))
+
+    if interp_master_times is None:
+      interp_master_times = time_s
+    data, time_s = interpolate_stream(data, time_s, interp_master_times)
+            
+    for activity in requests['activities'].split('|'): #can't use commas as some activity names have commas
+      label_start_times, label_end_times = extract_activity_times(activity, labels, start_times, end_times)
+      streams = stream_from_times(data, time_s, label_start_times, label_end_times)
+      
+      for i in range(len(streams)):
+        for j in range(len(streams[i])):
+          if isinstance(streams[i][j], np.ndarray):
+            streams[i][j] = streams[i][j].tolist()
+        streams[i] = streams[i][:2]
         
-        for i in range(len(streams)):
-          for j in range(len(streams[i])):
-            if isinstance(streams[i][j], np.ndarray):
-              streams[i][j] = streams[i][j].tolist()
-          streams[i] = streams[i][:2]
-          
-        activity_data, activity_time_s = list(zip(*streams))
-          
-        if activity not in extracted_streams['time_s']:
-          extracted_streams['time_s'][activity] = activity_time_s
+      activity_data, activity_time_s = list(zip(*streams))
         
-        if device_name not in extracted_streams:
-          extracted_streams[device_name] = {}
-        if stream_name not in extracted_streams[device_name]:
-          extracted_streams[device_name][stream_name] = {}
-        extracted_streams[device_name][stream_name][activity] = activity_data
+      if activity not in extracted_streams['time_s']:
+        extracted_streams['time_s'][activity] = activity_time_s
+      
+      if device not in extracted_streams:
+        extracted_streams[device] = {}
+      if devices[device]['stream'] not in extracted_streams[device]:
+        extracted_streams[device][devices[device]['stream']] = {}
+      extracted_streams[device][devices[device]['stream']][activity] = activity_data
       
   return extracted_streams
 
 if __name__ == '__main__':
   data_dir = "C:/Users/2021l/Documents/UROP/data/"
-  requests_file = 'streams_to_extract.txt'
+  requests_file = 'request_yamls/all_streams.yaml'
   extracted_streams = {}
   for file in os.listdir(data_dir):
     if file[-4:] == "hdf5":
       subj_stream = extract_streams_for_activities(data_dir+file, requests_file)
       extracted_streams[file[-8:-5]] = subj_stream
 
-  with open('extracted_streams.json', 'w') as f:
-    f.write(json.dumps(extracted_streams))
+  with open('all_streams.json', 'w') as f:
+    f.write(ujson.dumps(extracted_streams))

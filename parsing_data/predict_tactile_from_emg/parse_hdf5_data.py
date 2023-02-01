@@ -1,5 +1,4 @@
 import numpy as np
-from scipy import signal
 import json
 from extract_activities_hdf5 import *
 import matplotlib.pyplot as plt 
@@ -54,19 +53,6 @@ def average_grid_dims(grid, new_dims):
 
   averaged_points = np.array(averaged_points).reshape(new_dims)    
   return averaged_points
-
-def butter_filter(data, times, cutoff_freq, version='scipy'):
-  data_freq = (len(data)-1) / (times[-1] - times[0])
-  
-  if version == 'scipy':
-    ## following scipy example
-    sos = signal.butter(5, cutoff_freq/(data_freq/2), btype='lowpass', output='sos')
-    filtered = signal.sosfilt(sos, data)
-  else:
-    ## following matlab example
-    b,a = signal.butter(5, cutoff_freq/(data_freq/2), btype='lowpass', output='ba')
-    filtered = signal.lfilter(b, a, data)
-  return filtered
 
 def find_fingers(grid):
   '''

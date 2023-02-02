@@ -64,7 +64,8 @@ if __name__ == '__main__':
     # Sensors!
     ('MyoStreamer',        False),  # One or more Myo EMG/IMU armbands
     ('TouchStreamer',      False),  # Custom tactile sensors streaming via an Arduino
-    ('TouchShearStreamer', True),  # Custom tactile sensors streaming via an Arduino
+    ('TouchShearStreamerESP',  False),  # Custom tactile sensors streaming via an Arduino
+    ('TouchShearStreamerFPGA', True),  # Custom tactile sensors streaming via an Arduino
     ('XsensStreamer',      False),  # The Xsens body tracking system (includes the Manus finger-tracking gloves if connected to Xsens)
     ('EyeStreamer',        False),  # The Pupil Labs eye-tracking headset
     ('MoticonStreamer',    False),  # Moticon insole pressure sensors
@@ -85,11 +86,18 @@ if __name__ == '__main__':
      'print_debug': print_debug, 'print_status': print_status
      },
     # Stream from one or more tactile shear sensors.
-    {'class': 'TouchShearStreamer',
+    {'class': 'TouchShearStreamerFPGA',
      'sensor_names': [
        'shear-sensor'
      ],
      'downsampling_factor': 10,
+     'print_debug': print_debug, 'print_status': print_status
+     },
+    # Stream from one or more tactile shear sensors.
+    {'class': 'TouchShearStreamerESP',
+     'com_ports': {
+       'shear-sensor': 'COM14', # None
+     },
      'print_debug': print_debug, 'print_status': print_status
      },
     # Allow the experimenter to record timestamped notes at any time.
@@ -130,7 +138,7 @@ if __name__ == '__main__':
     # Stream from one or more cameras.
     {'class': 'CameraStreamer',
      'cameras_to_stream': { # map camera names (usable as device names in the HDF5 file) to capture device indexes
-       'video': 1,
+       'video': 0,
      },
      'print_debug': print_debug, 'print_status': print_status
      },
@@ -203,7 +211,7 @@ if __name__ == '__main__':
         [ # row  0
           # {'device_name':'dummy', 'stream_name':'nothing', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
           {'device_name':'video', 'stream_name':'frame', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
-          {'device_name':'shear-sensor', 'stream_name':'tactile_raw', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
+          {'device_name':'shear-sensor', 'stream_name':'tactile_data', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
         ],
         [ # row  1
           {'device_name':'shear-sensor', 'stream_name':'tactile_tiled', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},

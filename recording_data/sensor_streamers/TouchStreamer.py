@@ -73,7 +73,7 @@ class TouchStreamer(SensorStreamer):
     # Configurations that should match settings in Arduino code.
     self._sensor_waits_for_request = True # Should match setting in Arduino code
     self._sensor_sends_debug_values = False # Should match setting in Arduino code
-    self._sensor_bitshift = 5
+    self._sensor_bitshift = 5 # NOTE: set this to 6 for the ESP and 5 for the Arduino (according to the USING_ARDUINO and USING_ESP flags in read_send_tactile_data.ino)
     self._sensor_streams_rows = not self._sensor_waits_for_request # whether each message is a row of data or the entire matrix of data
     self._baud_rate_bps = 1000000
     self._sensor_sample_size = (32, 32) # (height, width)

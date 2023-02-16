@@ -186,10 +186,11 @@ def extract_streams_for_activities(hdf_file, requests_file):
       data = abs(data)
     
     if devices[device]['cutoff_freq'] is not None:
-      data = list(zip(*data))
+      orig_shape = data.shape
+      data = data.reshape(orig_shape[0], -1).transpose()
       for i, stream in enumerate(data):
         data[i] = butter_filter(stream, time_s, devices[device]['cutoff_freq'])
-      data = list(zip(*data))
+      data = data.transpose().reshape(orig_shape)
 
     if interp_master_times is None:
       interp_master_times = time_s

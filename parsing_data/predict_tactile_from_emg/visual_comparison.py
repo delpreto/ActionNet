@@ -28,7 +28,7 @@ if not os.path.exists(save_dir):
 #     f.write(ujson.dumps(extracted_streams))
 
 # Plot all channels
-with open('short.json') as json_file:
+with open('all_streams.json') as json_file:
     data = ujson.load(json_file)['S00']
     activities = data['time_s'].keys()
     
@@ -61,11 +61,8 @@ for act in activities:
         ax2.plot(times[50:], avg_emg_rh[50:], 'k')
         
         for i in range(len(avg_tact_lh)):
-            filtered1 = butter_filter(avg_tact_lh[i], times, 2)
-            filtered2 = butter_filter(avg_tact_rh[i], times, 2)
-
-            ax3.plot(times[50:], filtered1[50:])
-            ax4.plot(times[50:], filtered2[50:])
+            ax3.plot(times[50:], avg_tact_lh[i][50:])
+            ax4.plot(times[50:], avg_tact_rh[i][50:])
 
         # plt.show()
         act = act.replace(':', '')

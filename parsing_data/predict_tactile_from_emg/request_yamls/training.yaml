@@ -1,0 +1,19 @@
+devices:
+  myo-left:
+    stream: emg
+    cutoff_freq: 2
+    absolute_value: True
+  myo-right:
+    stream: emg
+    cutoff_freq: 2
+    absolute_value: True
+  tactile-glove-left:
+    stream: tactile_data
+    cutoff_freq: 
+    absolute_value: False
+  tactile-glove-right:
+    stream: tactile_data
+    cutoff_freq:
+    absolute_value: False
+activities: "Clean a plate with a towel|Peel a potato|Peel a cucumber|Clean a pan with a towel|Slice a potato|Clean a pan with a sponge|Slice a cucumber|Slice bread|Clean a plate with a sponge"
+sampling_freq: 50.0

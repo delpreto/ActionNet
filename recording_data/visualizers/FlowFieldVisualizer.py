@@ -130,8 +130,8 @@ class FlowFieldVisualizer(Visualizer):
         self._layout.hide()
     
     # Compute x and y coordinates for the center of each tile plot.
-    self._sample_size_x = self._sample_size[0]
-    self._sample_size_y = self._sample_size[1]
+    self._sample_size_x = self._sample_size[1]
+    self._sample_size_y = self._sample_size[0]
     self._sample_size_n = np.prod(self._sample_size)
     self._plotPoints_x0 = np.tile(np.arange(self._sample_size_x), (self._sample_size_y, 1))
     self._plotPoints_y0 = np.flipud(np.tile(np.atleast_2d(np.arange(self._sample_size_y)).T, (1, self._sample_size_x)))

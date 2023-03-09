@@ -89,31 +89,69 @@ if __name__ == '__main__':
     sensor_manager.connect()
 
     # Visualize!
-    frame_size = (760, 1280) # height, width # (1800, 3000)
-    composite_col_width = int(frame_size[1] / 3)
-    composite_row_height = int(frame_size[0] / 3)
+    frame_size = (1520, 2560) # height, width # (1800, 3000)
+    composite_col_width_xsens = int(frame_size[1]*0.4)
+    composite_col_widths = [composite_col_width_xsens, frame_size[1] - composite_col_width_xsens]
+    composite_row_height = int(frame_size[0] / 2)
     visualizer = DataVisualizer(sensor_streamers=sensor_manager.get_streamers(),
-                                update_period_s = 0.1,
+                                update_period_s = 0.05,
                                 use_composite_video=True,
                                 composite_video_layout = [
-                                  [ # row 0
-                                    {'device_name':'tactile-glove-left', 'stream_name':'tactile_data',    'rowspan':1, 'colspan':1, 'width':col_width, 'height':row_height},
-                                    {'device_name':'eye-tracking-video-worldGaze', 'stream_name':'frame', 'rowspan':1, 'colspan':1, 'width':col_width, 'height':row_height},
-                                    {'device_name':'tactile-glove-right', 'stream_name':'tactile_data',   'rowspan':1, 'colspan':1, 'width':col_width, 'height':row_height},
+                                  [ # row  0
+                                    {'device_name':'xsens-segments', 'stream_name':'position_cm', 'rowspan':1, 'colspan':1, 'width':composite_col_widths[0], 'height': composite_row_height},
+                                    {'device_name':'shear-shoe-right', 'stream_name':'tactile_data', 'rowspan':1, 'colspan':1, 'width':composite_col_widths[1], 'height':composite_row_height},
                                   ],
                                   [ # row  1
-                                    {'device_name':'myo-left', 'stream_name':'emg',               'rowspan':1, 'colspan':1, 'width':col_width, 'height':   row_height},
-                                    {'device_name':'xsens-segments', 'stream_name':'position_cm', 'rowspan':2, 'colspan':1, 'width':col_width, 'height': 2*row_height},
-                                    {'device_name':'myo-right', 'stream_name':'emg',              'rowspan':1, 'colspan':1, 'width':col_width, 'height':   row_height},
-                                  ],
-                                  [ # row 2
-                                    {'device_name':'myo-left', 'stream_name':'acceleration_g',  'rowspan':1, 'colspan':1, 'width':col_width, 'height': row_height},
-                                    {'device_name':None, 'stream_name':None,                    'rowspan':0, 'colspan':0, 'width':        0, 'height':          0},
-                                    {'device_name':'myo-right', 'stream_name':'acceleration_g', 'rowspan':1, 'colspan':1, 'width':col_width, 'height': row_height},
+                                    {'device_name':'shear-shoe-right', 'stream_name':'tactile_tiled', 'rowspan':1, 'colspan':1, 'width':composite_col_widths[0], 'height':composite_row_height},
+                                    {'device_name':'shear-shoe-right', 'stream_name':'force_vector', 'rowspan':1, 'colspan':1, 'width':composite_col_widths[1], 'height':composite_row_height},
+                                    # {'device_name':'dummy', 'stream_name':'nothing', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
                                   ],
                                 ],
+                                # composite_video_layout = [
+                                #   [ # row  0
+                                #     {'device_name':'xsens-segments', 'stream_name':'position_cm', 'rowspan':1, 'colspan':1, 'width':composite_col_widths[0], 'height': composite_row_height},
+                                #     {'device_name':'tactile-shoe-right', 'stream_name':'tactile_data',    'rowspan':1, 'colspan':1, 'width':composite_col_widths[1], 'height':composite_row_height},
+                                #   ],
+                                # ],
+                                # composite_video_layout = [
+                                #   [ # row  0
+                                #     # {'device_name':'dummy', 'stream_name':'nothing', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
+                                #     {'device_name':'video', 'stream_name':'frame', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
+                                #     {'device_name':'shear-sensor', 'stream_name':'tactile_data', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
+                                #   ],
+                                #   [ # row  1
+                                #     {'device_name':'shear-sensor', 'stream_name':'tactile_tiled', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
+                                #     {'device_name':'shear-sensor', 'stream_name':'force_vector', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
+                                #     # {'device_name':'dummy', 'stream_name':'nothing', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
+                                #   ],
+                                # ],
                                 composite_video_filepath=composite_video_filepath,
                                 print_status=print_status, print_debug=print_debug)
+    # frame_size = (760, 1280) # height, width # (1800, 3000)
+    # composite_col_width = int(frame_size[1] / 3)
+    # composite_row_height = int(frame_size[0] / 3)
+    # visualizer = DataVisualizer(sensor_streamers=sensor_manager.get_streamers(),
+    #                             update_period_s = 0.1,
+    #                             use_composite_video=True,
+    #                             composite_video_layout = [
+    #                               [ # row 0
+    #                                 {'device_name':'tactile-glove-left', 'stream_name':'tactile_data',    'rowspan':1, 'colspan':1, 'width':col_width, 'height':row_height},
+    #                                 {'device_name':'eye-tracking-video-worldGaze', 'stream_name':'frame', 'rowspan':1, 'colspan':1, 'width':col_width, 'height':row_height},
+    #                                 {'device_name':'tactile-glove-right', 'stream_name':'tactile_data',   'rowspan':1, 'colspan':1, 'width':col_width, 'height':row_height},
+    #                               ],
+    #                               [ # row  1
+    #                                 {'device_name':'myo-left', 'stream_name':'emg',               'rowspan':1, 'colspan':1, 'width':col_width, 'height':   row_height},
+    #                                 {'device_name':'xsens-segments', 'stream_name':'position_cm', 'rowspan':2, 'colspan':1, 'width':col_width, 'height': 2*row_height},
+    #                                 {'device_name':'myo-right', 'stream_name':'emg',              'rowspan':1, 'colspan':1, 'width':col_width, 'height':   row_height},
+    #                               ],
+    #                               [ # row 2
+    #                                 {'device_name':'myo-left', 'stream_name':'acceleration_g',  'rowspan':1, 'colspan':1, 'width':col_width, 'height': row_height},
+    #                                 {'device_name':None, 'stream_name':None,                    'rowspan':0, 'colspan':0, 'width':        0, 'height':          0},
+    #                                 {'device_name':'myo-right', 'stream_name':'acceleration_g', 'rowspan':1, 'colspan':1, 'width':col_width, 'height': row_height},
+    #                               ],
+    #                             ],
+    #                             composite_video_filepath=composite_video_filepath,
+    #                             print_status=print_status, print_debug=print_debug)
     visualizer.visualize_logged_data(start_offset_s=start_offset_s, end_offset_s=end_offset_s,
                                      duration_s=None,
                                      hide_composite=False, realtime=False)

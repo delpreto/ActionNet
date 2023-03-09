@@ -87,11 +87,13 @@ if __name__ == '__main__':
      },
     # Stream from one or more tactile shear sensors.
     {'class': 'TouchShearStreamerFPGA',
-     'sensor_names': [
-       'shear-sensor'
-     ],
-     'downsampling_factor': 10,
-     'print_debug': print_debug, 'print_status': print_status
+      'fpga_addresses': { # a dictionary mapping sensor names to (ip_address, port)
+        'shear-sensor-left':  ('', 10000),
+        'shear-sensor-right': ('', 10001),
+      },
+      'downsampling_factor': 10,
+      'tactile_sample_size': (32,32), # (height, width)
+      'print_debug': print_debug, 'print_status': print_status
      },
     # Stream from one or more tactile shear sensors.
     {'class': 'TouchShearStreamerESP',
@@ -197,7 +199,7 @@ if __name__ == '__main__':
   
   # TODO: Configure visualization.
   composite_frame_size = (1800, 3000) # height, width # (1800, 3000)
-  composite_col_width = int(composite_frame_size[1]/2)
+  composite_col_width = int(composite_frame_size[1]/3)
   composite_row_height = int(composite_frame_size[0]/2)
   visualization_options = {
     'visualize_streaming_data'       : True,
@@ -209,16 +211,26 @@ if __name__ == '__main__':
     'composite_video_layout':
       [
         [ # row  0
-          # {'device_name':'dummy', 'stream_name':'nothing', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
-          {'device_name':'video', 'stream_name':'frame', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
-          {'device_name':'shear-sensor', 'stream_name':'tactile_data', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
+          {'device_name':'shear-sensor-left', 'stream_name':'tactile_data', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
+          {'device_name':'xsens-segments', 'stream_name':'position_cm', 'rowspan':2, 'colspan':1, 'width':composite_col_width, 'height': 2*composite_row_height},
+          {'device_name':'shear-sensor-right', 'stream_name':'tactile_data', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
         ],
         [ # row  1
-          {'device_name':'shear-sensor', 'stream_name':'tactile_tiled', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
-          {'device_name':'shear-sensor', 'stream_name':'force_vector', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
-          # {'device_name':'dummy', 'stream_name':'nothing', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
+          {'device_name':'shear-sensor-left', 'stream_name':'force_vector', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
+          {'device_name':None, 'stream_name':None, 'rowspan':0, 'colspan':0, 'width': 0, 'height': 0},
+          {'device_name':'shear-sensor-right', 'stream_name':'force_vector', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
         ],
       ],
+      # [
+      #   [ # row  0
+      #     {'device_name':'video', 'stream_name':'frame', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
+      #     {'device_name':'shear-sensor', 'stream_name':'tactile_data', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
+      #   ],
+      #   [ # row  1
+      #     {'device_name':'shear-sensor', 'stream_name':'tactile_tiled', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
+      #     {'device_name':'shear-sensor', 'stream_name':'force_vector', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
+      #   ],
+      # ],
     'composite_video_filepath': os.path.join(log_dir, 'composite_visualization') if log_dir is not None else None,
   }
   

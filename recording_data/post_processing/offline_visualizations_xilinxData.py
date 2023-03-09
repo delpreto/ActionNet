@@ -51,8 +51,8 @@ if __name__ == '__main__':
     data_dir = os.path.realpath(os.path.join(script_dir, '..', '..', 'data'))
     experiments_dir = os.path.join(data_dir, 'tests')
     log_dirs = [
-      os.path.join(experiments_dir, '2023-01-10_tactileShear_testing', '2023-01-10_20-07-25_tactileShear_testing'),
-      # os.path.join(experiments_dir, '2023-01-10_tactileShear_testing', 'test_data_fromXilinx'),
+      # os.path.join(experiments_dir, '2023-01-10_tactileShear_testing', '2023-01-10_20-07-25_tactileShear_testing'),
+      os.path.join(experiments_dir, '2023-01-10_tactileShear_testing', 'test_data_fromXilinx'),
     ]
   else:
     log_dirs = sys.argv[1:]

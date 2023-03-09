@@ -68,7 +68,7 @@ class SerialStreamer(SensorStreamer):
     self._com_ports = com_ports
     self._sampling_rates_hz = sampling_rates_hz
     self._sensors_send_debug_values = sensors_send_debug_values
-    if isinstance(self._sensors_send_debug_values, bool):
+    if isinstance(self._sensors_send_debug_values, bool) and self._com_ports is not None:
       self._sensors_send_debug_values = dict([(sensor_name, self._sensors_send_debug_values) for sensor_name in self._com_ports])
     
     # Configurations that should match settings in Arduino code.
@@ -77,7 +77,7 @@ class SerialStreamer(SensorStreamer):
     self._value_delimiters = value_delimiters
     
     # Initialize state.
-    self._sensor_names = list(self._com_ports.keys())
+    self._sensor_names = list(self._com_ports.keys()) if self._com_ports is not None else []
     self._sensor_names_active = []
     self._sensor_serials = {}
     self._run_threads = {}

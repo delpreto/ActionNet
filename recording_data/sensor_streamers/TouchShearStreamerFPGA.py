@@ -50,7 +50,11 @@ class TouchShearStreamer(SensorStreamer):
   
   def __init__(self, streams_info=None,
                log_player_options=None, visualization_options=None,
-               sensor_names=None, downsampling_factor=1,
+               fpga_addresses=None, # a dictionary mapping sensor names to (ip_address, port)
+               downsampling_factor=1,
+               tactile_sample_size=(32,32), # (height, width)
+               sensor_waits_for_request=False, # Should match setting in Xilinx code
+               sensor_sends_debug_values=False, # Should match setting in Xilinx code
                print_status=True, print_debug=False, log_history_filepath=None):
     SensorStreamer.__init__(self, streams_info,
                             log_player_options=log_player_options,
@@ -61,15 +65,20 @@ class TouchShearStreamer(SensorStreamer):
     self._log_source_tag = 'shear'
     
     # Define the connected sensors.
-    if sensor_names is not None:
-      self._sensor_sockets = OrderedDict([(sensor_name, None) for sensor_name in sensor_names])
+    if fpga_addresses is None:
+      self._fpga_addresses = None
+      self._sensor_names = []
+      self._sensor_sockets = OrderedDict()
     else:
-      self._sensor_sockets = {'shear-sensor': None}
-    # Configurations that should match settings in Arduino code.
-    self._sensor_waits_for_request = False # Should match setting in Xilinx code
-    self._sensor_sends_debug_values = False # Should match setting in Xilinx code
+      self._fpga_addresses = fpga_addresses
+      self._sensor_names = list(self._fpga_addresses.keys())
+      self._sensor_sockets = OrderedDict([(sensor_name, None) for sensor_name in self._sensor_names])
+      
+    # Configurations that should match settings in Xilinx code.
+    self._sensor_waits_for_request = sensor_waits_for_request # Should match setting in Xilinx code
+    self._sensor_sends_debug_values = sensor_sends_debug_values # Should match setting in Xilinx code
     self._sensor_streams_rows = False # whether each message is a row of data or the entire matrix of data
-    self._tactile_sample_size = (32, 32) # (height, width)
+    self._tactile_sample_size = tactile_sample_size # (height, width)
     self._tiled_sample_size = tuple([x // 2 for x in self._tactile_sample_size]) # (height, width)
     self._sensor_header_length = 12
     self._data_length_expected_perMatrix = int(2 * (np.prod(self._tactile_sample_size)) + self._sensor_header_length) # each uint16 byte will be sent as two consecutive uint8 bytes
@@ -81,8 +90,7 @@ class TouchShearStreamer(SensorStreamer):
     
     # Initialize state.
     self._downsampling_factor = downsampling_factor
-    self._downsampling_counters = dict([(sensor_name, 0) for sensor_name in sensor_names])
-    self._sensor_names = list(self._sensor_sockets.keys())
+    self._downsampling_counters = dict([(sensor_name, 0) for sensor_name in self._sensor_names])
     self._sensor_names_active = []
     self._matrix_indexes = {}
     self._run_threads = {}
@@ -96,7 +104,7 @@ class TouchShearStreamer(SensorStreamer):
       try:
         self._sensor_sockets[sensor_name] = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         self._sensor_sockets[sensor_name].setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self._sensor_sockets[sensor_name].bind(('', 10000))
+        self._sensor_sockets[sensor_name].bind(self._fpga_addresses[sensor_name])
         self.add_stream(device_name=sensor_name,
                         stream_name='tactile_data',
                         data_type='float32',
@@ -161,7 +169,7 @@ class TouchShearStreamer(SensorStreamer):
   ###### INTERFACE WITH THE SENSOR ######
   #######################################
   
-  # Helper to switch between data transfer paradigms that the Arduino might use.
+  # Helper to switch between data transfer paradigms that the FPGA might use.
   def _read_sensor(self, sensor_name, suppress_printing=False):
     if self._sensor_waits_for_request:
       return self._read_sensor_requestParadigm(sensor_name, suppress_printing=suppress_printing)
@@ -169,8 +177,7 @@ class TouchShearStreamer(SensorStreamer):
       return self._read_sensor_streamParadigm(sensor_name, suppress_printing=suppress_printing)
   
   # Read from the sensor using the stream paradigm,
-  #  in which the Arduino constantly sends newline-terminated data lines.
-  #  Each row of data will be sent as a new line, with the format [matrix_index][row_index][row_data][\n].
+  #  in which the FPGA constantly sends data without waiting for requests.
   def _read_sensor_streamParadigm(self, sensor_name, suppress_printing=False):
     sensor_socket = self._sensor_sockets[sensor_name]
     if sensor_socket is None:
@@ -213,7 +220,6 @@ class TouchShearStreamer(SensorStreamer):
   
   # Read from the sensor using the request paradigm,
   #  in which this program explicitly requests every sample.
-  #  The whole matrix of data will be sent as a single line, with the format [matrix_index][matrix_data][\n].
   def _read_sensor_requestParadigm(self, sensor_name, suppress_printing=False):
     raise AssertionError('Request paradigm is not implemented for FPGA-based shear sensors')
   
@@ -279,8 +285,8 @@ class TouchShearStreamer(SensorStreamer):
   def _run_for_sensor(self, sensor_name):
     try:
       # Note that warnings will be suppressed for the first few reads, since they
-      #  typically contain a few incomplete data lines before the reading becomes
-      #  aligned with the Arduino streaming cadence.
+      #  may contain a few incomplete data lines before the reading becomes
+      #  aligned with the streaming cadence.
       count = 0
       while self._running:
         try:
@@ -338,8 +344,11 @@ if __name__ == '__main__':
   duration_s = 7200
   
   # Connect to the device(s).
-  touchShear_streamer = TouchShearStreamer(sensor_names=['shear-sensor'],
+  touchShear_streamer = TouchShearStreamer(fpga_addresses={'shear-sensor': ('', 10000)}, # a dictionary mapping sensor names to (ip_address, port)
                                            downsampling_factor=10,
+                                           tactile_sample_size=(32,32), # (height, width)
+                                           sensor_waits_for_request=False, # Should match setting in Xilinx code
+                                           sensor_sends_debug_values=False, # Should match setting in Xilinx code
                                            print_status=True, print_debug=False)
   touchShear_streamer.connect()
   

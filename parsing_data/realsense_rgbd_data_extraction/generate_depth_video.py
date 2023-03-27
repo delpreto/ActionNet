@@ -4,7 +4,7 @@ from ros_to_images import *
 # with the proper format (filename, depth/raw, start offset in seconds, duration in seconds)
 # saves the video in specified directory
 
-data_dir = "C:/Users/2021l/Documents/UROP/test_depth_conversion/" #TODO modify based on lab computer
+data_dir = "C:/Users/2021l/Documents/UROP/test_depth_conversion/old attempts/" #TODO modify based on lab computer
 video_dir = data_dir+'videos/'
 
 with open("convert_to_video.txt", 'r') as f:

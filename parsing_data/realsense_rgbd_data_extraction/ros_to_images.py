@@ -3,14 +3,41 @@ import rospy
 import os
 import cv2
 import h5py
+import h5py_cache
 import numpy as np
 import matplotlib.pyplot as plt
-from sensor_msgs import point_cloud2
+from sensor_msgs.msg import PointCloud2
 from rosbags import image
 from mpl_toolkits import mplot3d
 from datetime import datetime
+import ros_numpy
+import time
 
-def data_generation(bagfile, depth, start_offset=0, duration=None):
+def make_parsing_chunks(bagfile, depth=True, start_offset=0, duration=None, chunk_time=180):
+  bag = rosbag.Bag(bagfile)
+  
+  # convert start_offset and duration to ROS Time objects
+  start_time = rospy.Time.from_sec(bag.get_start_time())
+  start_offset_s = start_time + rospy.Duration.from_sec(start_offset)
+  if duration is None:
+    duration = bag.get_end_time() - bag.get_start_time()
+  duration_s = rospy.Duration.from_sec(duration)
+        
+  parsing_chunks = np.arange(start_offset, start_offset+duration, chunk_time)
+  
+  if depth:
+    longest_frame = 0
+    
+    topics = "/kitchen_depth/depth/color/points"
+    for topic, msg, t in bag.read_messages(topics=topics, start_time=start_offset_s, end_time=start_offset_s+duration_s):
+      if (msg.width > longest_frame):
+        longest_frame = msg.width
+    
+    return parsing_chunks, chunk_time, longest_frame
+    
+  return parsing_chunks, chunk_time
+
+def data_generation(bagfile, depth, longest_frame, start_offset=0, duration=None):
   '''
   Extract depth data (xyz points w/ rgb values, timestamps) from a ROS bagfile
   Parameters:
@@ -21,9 +48,9 @@ def data_generation(bagfile, depth, start_offset=0, duration=None):
       duration: duration (in sec) of bagfile stream to save depth data from
                 None by default (parse the whole file)
   Returns:
-      xyz: for depth only, 3d, float-32 numpy array w/ dims (frames, points in frame, 3 - xyz points)
-      rgb: for depth only, 3d, uint8 numpy array w/ dims (frames, points in frame, 3 - rgb values)
-      frames: for raw only, 4d, uint8 numpy array w/ dims (frames, (dims of image), 3 - rgb values)
+      xyz: for depth only, 3d, float-32 numpy array w/ dims (# frames, # points in frame, 3 xyz points)
+      rgb: for depth only, 3d, uint8 numpy array w/ dims (# frames, # points in frame, 3 rgb values)
+      frames: for raw only, 4d, uint8 numpy array w/ dims (# frames, (dims of image), 3 rgb values)
       time_stamps: 1d, float-64 numpy array with epoch timestamps
       time_stamp_strs: 1d, numpy byte array with timestamps in form "YYYY-mm-dd HH:MM:SS.ffffff"
   '''
@@ -36,16 +63,19 @@ def data_generation(bagfile, depth, start_offset=0, duration=None):
     duration_s = rospy.Duration.from_sec(bag.get_end_time() - bag.get_start_time())
   else:
     duration_s = rospy.Duration.from_sec(duration)
-    
+        
   frames = []
-  longest_frame = 0  
   time_stamps = np.array([])
   time_stamp_strs = np.array([])
   
   # use correct topics title for each type of bag file (depth vs. raw)
   topics = "/kitchen_depth/depth/color/points" if depth else "/kitchen_depth/color/image_raw"
-
+  count = 0
+  start = time.perf_counter()
   for topic, msg, t in bag.read_messages(topics=topics, start_time=start_offset_s, end_time=start_offset_s+duration_s):
+    count += 1
+    if count%100 == 0:
+      print(count)
     # save timestamp information
     time_stamp = msg.header.stamp.secs + (msg.header.stamp.nsecs/1000000000.0)
     time_stamp_str = datetime.utcfromtimestamp(time_stamp)
@@ -53,47 +83,61 @@ def data_generation(bagfile, depth, start_offset=0, duration=None):
     time_stamp_strs = np.append(time_stamp_strs, bytes(time_stamp_str.strftime("%Y-%m-%d %H:%M:%S.%f"), 'utf-8'))
     
     if depth:
-      counter = 0
-      points = np.array([[0, 0, 0]])
-      colors = np.array([])
-      for point in point_cloud2.read_points(msg, skip_nans=True):
-        counter += 1
-        # save point data
-        colors = np.append(colors, point[3])
-        points = np.append(points,[[*point[:3]]], axis = 0)
-      print(counter)
+      msg.__class__ = PointCloud2
+      pc = ros_numpy.numpify(msg)
+      points = np.zeros((pc.shape[0],3))
+      points[:,0]=pc['x']
+      points[:,1]=pc['y']
+      points[:,2]=pc['z']   
       
+      colors = pc['rgb'] 
+            
       # extract rgb data
       packed = colors.astype('>f').tobytes()
       unpacked = np.frombuffer(packed, dtype='>l')
       colors = unpacked.astype('int32')   
       unpacked_colors = ((colors & 0x00FF0000)>> 16, (colors & 0x0000FF00)>> 8, (colors & 0x000000FF))
       rgbs = np.dstack(unpacked_colors)[0]
-      points = points[1:]
-      
-      # look for frame with the most points, for standardizing array dimensions later 
-      if points.shape[0] > longest_frame:
-        longest_frame = points.shape[0]
-      
-      frames.append(np.concatenate((points,rgbs), axis=1))
+            
+      xyzrgb = np.concatenate((points,rgbs), axis=1)
+      frames.append(np.pad(xyzrgb, [(0,(int)(longest_frame-xyzrgb.shape[0])),(0,0)], mode='constant', constant_values=0).astype('float32'))
     else:
       # save image array (converted to bgr8 for opencv)
       img = image.message_to_cvimage(msg, 'bgr8')
       frames.append(img)
-        
-  # add rows of 0s as padding to standardize array dimensions for depth arrays
+  print("Loop done", time.perf_counter() - start)
+  start = time.perf_counter()
+  # # add rows of 0s as padding to standardize array dimensions for depth arrays
   if depth:
-    for i, frame in enumerate(frames):
-      frames[i] = np.pad(frame, [(0,longest_frame-frame.shape[0]),(0,0)], mode='constant', constant_values=0)
+  #   for i, frame in enumerate(frames):
+  #     frames[i] = np.pad(frame, [(0,longest_frame-frame.shape[0]),(0,0)], mode='constant', constant_values=0)
   
-    # save as smaller datatypes to save space
-    frames = np.stack(frames, axis=0)
-    xyz = frames[:,:,:3].astype('float32')
+    # TODO see if there's a time sink here
+    if len(frames) == 0:
+      return None
+    # frames = np.stack(frames, axis=0)
+    frames = np.array(frames)
+    print("array made", time.perf_counter() - start)
+    start = time.perf_counter()
+    np.delete(frames, 0, 0)
+    xyz = frames[:,:,:3]
+    print("32 float", time.perf_counter() - start)
+    start = time.perf_counter()
     rgb = frames[:,:,3:].astype('uint8')
+    print("8 int", time.perf_counter() - start)
+    start = time.perf_counter()
     return xyz,rgb,time_stamps,time_stamp_strs
   else:
+    if len(frames) == 0:
+      return None
     frames = np.stack(frames, axis=0)       
     return frames,time_stamps,time_stamp_strs
+  
+def save_timestrings(file):
+  times = load_from_hdf5(file, ['/depth-data/time_s'])
+  times = list(np.squeeze(np.array(times)))
+  time_strs = [bytes(datetime.utcfromtimestamp(time_stamp).strftime("%Y-%m-%d %H:%M:%S.%f"), 'utf-8') for time_stamp in times]
+  save_to_hdf5(file, ['/depth-data/time_str'], [time_strs])
 
 def save_to_hdf5(file, dataset_names, data, compression_level=9):
   '''
@@ -107,9 +151,19 @@ def save_to_hdf5(file, dataset_names, data, compression_level=9):
   Returns:
       None
   '''
-  f = h5py.File(file, 'a')
+  start = time.perf_counter()
+  f = h5py_cache.File(file, 'a', chunk_cache_mem_size=200*1024**2)
   for name, arr in zip(dataset_names, data):
-    f.create_dataset(name, data=arr, compression='gzip', compression_opts=compression_level)
+    if name not in f:
+      # try to fix chunk sizes to speed this up
+      f.create_dataset(name, shape=(0,*arr.shape[1:]), maxshape=(None,*arr.shape[1:]), dtype=arr.dtype, chunks=True, compression='gzip', compression_opts=compression_level)
+    print("about to save", time.perf_counter() - start)
+    dset = f[name]
+    print("loaded dataset", time.perf_counter() - start)
+    dset.resize(dset.shape[0]+len(arr), axis=0)
+    print("resized", time.perf_counter() - start)
+    dset[-len(arr):] = arr # TODO PROBLEM LINE
+    print("saved data", time.perf_counter() - start)
   f.close()
   
 def load_from_hdf5(file, dataset_names):
@@ -139,11 +193,12 @@ def plot_3d_frame(frames, index, timestamps=None, xlim=(-1.5, 1.5), ylim=(-0.5,0
   
 def get_snippet(hdf5_file, depth, start_offset, duration=None):
   if depth == 'depth':
-    timestamps, timestrings, xyz, rgb = load_from_hdf5(hdf5_file, ['depth-data/time_s', 'depth-data/time_str', 'depth-data/xyz', 'depth-data/rgb'])
+    timestamps, timestrings, xyz, rgb = load_from_hdf5(hdf5_file, ['/depth-data/time_s', '/depth-data/time_str', '/depth-data/xyz', '/depth-data/rgb'])
     data = np.concatenate((xyz, rgb), axis=2)
   else:
-    timestamps, timestrings, data = load_from_hdf5(hdf5_file, ['depth-raw/time_s', 'depth-raw/time_str', 'depth-raw/rgb'])
+    timestamps, timestrings, data = load_from_hdf5(hdf5_file, ['/depth-raw/time_s', '/depth-raw/time_str', '/depth-raw/rgb'])
     
+  timestamps = np.squeeze(np.array(timestamps))
   # convert start_offset and duration to ROS Time objects
   # start_time = timestamps[0]
   start_time = timestamps[0] + start_offset
@@ -239,11 +294,12 @@ def raw_video_from_frames(frames, video_dir, video_name, timestamps=None, save_i
     
 if __name__ == '__main__':
   pass
-  data_dir = "C:/Users/2021l/Documents/UROP/test_depth_conversion/"
-  filename3d = "kitchen_depth-depth_2022-06-07-17-31-35.bag"
+  # data_dir = "C:/Users/2021l/Documents/UROP/test_depth_conversion/"
+  # filename3d = "kitchen_depth-depth_2022-06-07-17-31-35.bag"
+  # # save_timestrings(data_dir+filename3d)
   # filename2d = "kitchen_depth-raw_2022-06-07-17-31-35.bag"
-  # frames = data_generation(data_dir+filename3d, True, 100, 2)
-  # save_to_hdf5(data_dir+filename3d[:-4]+'_cameras.hdf5', ['depth-data/xyz', 'depth-data/rgb', 'depth-data/time_s', 'depth-data/time_str'], frames)
+  # frames = data_generation(data_dir+filename3d, True, duration=120)
+  # save_to_hdf5(data_dir+filename3d[:-4]+'_test_fast.hdf5', ['depth-data/xyz', 'depth-data/rgb', 'depth-data/time_s', 'depth-data/time_str'], frames)
   # frames = data_generation(data_dir+filename2d, False, 100, 2)
   # save_to_hdf5(data_dir+filename3d[:-4]+'_cameras.hdf5', ['depth-raw/rgb', 'depth-raw/time_s', 'depth-raw/time_str'], frames)
   # xyz, rgb, timestamps = load_from_hdf5(data_dir+filename3d[:-4]+'_cameras.hdf5', ['depth-data/xyz', 'depth-data/rgb', 'depth-data/time_str'])

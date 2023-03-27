@@ -1,7 +1,7 @@
 
 # Realsense RGBD Depth Camera Data Extraction
 
-See [https://action-net.csail.mit.edu](https://action-net.csail.mit.edu) for more information about the ActionSense project and dataset.
+See [https://action-sense.csail.mit.edu](https://action-net.csail.mit.edu) for more information about the ActionSense project and dataset.
 
 ## About the Files
 

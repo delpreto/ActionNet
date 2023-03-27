@@ -1,13 +1,10 @@
 from ros_to_images import *
-import sys
+
 # Script to loop through all hdf5 files listed in 'convert_to_video.txt'
 # with the proper format (filename, depth/raw, start offset in seconds, duration in seconds)
 # saves the video in specified directory
 
-try:
-    data_dir = sys.argv[1]
-except:
-    print("Please run this script with the absolute path to a directory that contaings .hdf5 files")
+data_dir = "C:/Users/2021l/Documents/UROP/test_depth_conversion/old attempts/" #TODO modify based on lab computer
 video_dir = data_dir+'videos/'
 
 with open("convert_to_video.txt", 'r') as f:

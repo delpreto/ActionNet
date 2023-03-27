@@ -8,6 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sensor_msgs.msg import PointCloud2
 from rosbags import image
+from mpl_toolkits import mplot3d
 from datetime import datetime
 import ros_numpy
 import time
@@ -38,11 +39,10 @@ def make_parsing_chunks(bagfile, depth=True, start_offset=0, duration=None, chun
 
 def data_generation(bagfile, depth, longest_frame, start_offset=0, duration=None):
   '''
-  Extract depth data (xyz points potentially w/ rgb values, timestamps) from a ROS bagfile
+  Extract depth data (xyz points w/ rgb values, timestamps) from a ROS bagfile
   Parameters:
       bagfile: absolute path to the bagfile
       depth (bool): True for parsing depth-depth 3d images, False for parsing depth-raw 2d images
-      longest_frame (int): greatest number of points in a frame (run make_parsing_chunks to obtain this)
       start_offset: time (in sec) after start of bagfile to start saving depth data from
                     0sec by default (start from the beginning of the file)
       duration: duration (in sec) of bagfile stream to save depth data from
@@ -70,14 +70,18 @@ def data_generation(bagfile, depth, longest_frame, start_offset=0, duration=None
   
   # use correct topics title for each type of bag file (depth vs. raw)
   topics = "/kitchen_depth/depth/color/points" if depth else "/kitchen_depth/color/image_raw"
+  count = 0
+  start = time.perf_counter()
   for topic, msg, t in bag.read_messages(topics=topics, start_time=start_offset_s, end_time=start_offset_s+duration_s):
+    count += 1
+    if count%100 == 0:
+      print(count)
     # save timestamp information
     time_stamp = msg.header.stamp.secs + (msg.header.stamp.nsecs/1000000000.0)
     time_stamp_str = datetime.utcfromtimestamp(time_stamp)
     time_stamps = np.append(time_stamps, time_stamp)
     time_stamp_strs = np.append(time_stamp_strs, bytes(time_stamp_str.strftime("%Y-%m-%d %H:%M:%S.%f"), 'utf-8'))
     
-    # parse depth points for each timeframe
     if depth:
       msg.__class__ = PointCloud2
       pc = ros_numpy.numpify(msg)
@@ -101,17 +105,32 @@ def data_generation(bagfile, depth, longest_frame, start_offset=0, duration=None
       # save image array (converted to bgr8 for opencv)
       img = image.message_to_cvimage(msg, 'bgr8')
       frames.append(img)
-        
-  # some durations of video may not have any frames within it, so return None
-  if len(frames) == 0:
-    return None
-  frames = np.array(frames)
-
+  print("Loop done", time.perf_counter() - start)
+  start = time.perf_counter()
+  # # add rows of 0s as padding to standardize array dimensions for depth arrays
   if depth:
+  #   for i, frame in enumerate(frames):
+  #     frames[i] = np.pad(frame, [(0,longest_frame-frame.shape[0]),(0,0)], mode='constant', constant_values=0)
+  
+    # TODO see if there's a time sink here
+    if len(frames) == 0:
+      return None
+    # frames = np.stack(frames, axis=0)
+    frames = np.array(frames)
+    print("array made", time.perf_counter() - start)
+    start = time.perf_counter()
+    np.delete(frames, 0, 0)
     xyz = frames[:,:,:3]
+    print("32 float", time.perf_counter() - start)
+    start = time.perf_counter()
     rgb = frames[:,:,3:].astype('uint8')
+    print("8 int", time.perf_counter() - start)
+    start = time.perf_counter()
     return xyz,rgb,time_stamps,time_stamp_strs
   else:
+    if len(frames) == 0:
+      return None
+    frames = np.stack(frames, axis=0)       
     return frames,time_stamps,time_stamp_strs
   
 def save_timestrings(file):
@@ -132,14 +151,19 @@ def save_to_hdf5(file, dataset_names, data, compression_level=9):
   Returns:
       None
   '''
+  start = time.perf_counter()
   f = h5py_cache.File(file, 'a', chunk_cache_mem_size=200*1024**2)
   for name, arr in zip(dataset_names, data):
     if name not in f:
       # try to fix chunk sizes to speed this up
       f.create_dataset(name, shape=(0,*arr.shape[1:]), maxshape=(None,*arr.shape[1:]), dtype=arr.dtype, chunks=True, compression='gzip', compression_opts=compression_level)
+    print("about to save", time.perf_counter() - start)
     dset = f[name]
+    print("loaded dataset", time.perf_counter() - start)
     dset.resize(dset.shape[0]+len(arr), axis=0)
-    dset[-len(arr):] = arr
+    print("resized", time.perf_counter() - start)
+    dset[-len(arr):] = arr # TODO PROBLEM LINE
+    print("saved data", time.perf_counter() - start)
   f.close()
   
 def load_from_hdf5(file, dataset_names):

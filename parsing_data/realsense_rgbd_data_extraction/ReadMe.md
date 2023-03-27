@@ -15,12 +15,19 @@ The text files in this directory are passed in as parameters to the python funct
 
 
 ### .py Files
-```
-generate_depth_video.py
-parse_ros_depth_data.py
-ros_to_images.py
-```
+#### generate_depth_video.py
+This file takes in one argument: the absolute path to a folder containing the .hdf5 files that you would like to make videos from. In order to specify what videos will actually get made (including the type of video, duration, file that the data comes from), please input the relevant arguments (as described above) into the ``convert_to_video.txt`` file.
 
+This file will create small enough chunks of data for parsing, parse each file in the instructions .txt file, and cumulatively save the data titled {.bag file name}_cameras.hdf5.
+
+
+#### parse_ros_depth_data.py
+This file takes in one argument: the absolute path to a folder containing the .bag files that you would like to parse. In order to specify which .bag files will actually get parsed, please input the filenames and whether they contain raw or depth camera data into the ``available_ros_files.txt`` file.
+
+This file will create small enough chunks of data for parsing, parse each file in the instructions .txt file, and cumulatively save the data titled {.bag file name}_cameras.hdf5.
+
+#### ros_to_images.py
+This file contains many of the helper functions used in the generate_depth_video.py and parse_ros_depth_data.py scripts. Deleting or modifying anything in this file may cause the two main scripts to stop working.
 
 ### previous_iterations
 ```

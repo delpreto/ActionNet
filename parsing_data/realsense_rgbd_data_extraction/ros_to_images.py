@@ -12,7 +12,7 @@ from datetime import datetime
 import ros_numpy
 import time
 
-def make_parsing_chunks(bagfile, depth=True, start_offset=0, duration=None, chunk_time=180):
+def make_parsing_chunks(bagfile, depth=True, start_offset=0, duration=None, chunk_time=150):
   bag = rosbag.Bag(bagfile)
   
   # convert start_offset and duration to ROS Time objects
@@ -22,6 +22,7 @@ def make_parsing_chunks(bagfile, depth=True, start_offset=0, duration=None, chun
     duration = bag.get_end_time() - bag.get_start_time()
   duration_s = rospy.Duration.from_sec(duration)
         
+  chunk_time = min(chunk_time, duration)
   parsing_chunks = np.arange(start_offset, start_offset+duration, chunk_time)
   
   if depth:

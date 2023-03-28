@@ -6,10 +6,11 @@ import sys
 
 try:
     data_dir = sys.argv[1]
+    video_dir = data_dir+'videos/'
 except:
-    print("Please run this script with the absolute path to a directory that contaings .hdf5 files")
-video_dir = data_dir+'videos/'
-
+    print("Please run this script with the absolute path to a directory that contains .hdf5 files ending with a backslash (/)")
+    sys.exit()
+    
 with open("convert_to_video.txt", 'r') as f:
     jobs = f.read().split('\n')
     

@@ -34,3 +34,5 @@ While not required, this lightweight tool is great for exploring HDF5 data.  The
 The code is based around the abstract **SensorStreamer** class, which provides methods for streaming data.  Each streamer can have one or more *devices*, and each device can have one or more data *streams*.  Data streams can have arbitrary sampling rates, data types, and dimensions.  Each subclass specifies the expected streams and their data types.
 
 Each stream has a few channels that are created automatically: the data itself, a timestamp as seconds since epoch, and the timestamp formatted as a string.  Subclasses can also add extra channels if desired.  Timestamps are always created by using `time.time()` when data arrives.
+
+![Sensor Integration Framework](https://user-images.githubusercontent.com/79134282/231628977-416bb261-404a-48b7-8a83-ff472885b9df.jpg)

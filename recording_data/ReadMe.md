@@ -26,8 +26,6 @@ A brief summary of the required software and the currently tested versions is be
 
 While not required, this lightweight tool is great for exploring HDF5 data.  The official download page is at https://www.hdfgroup.org/downloads/hdfview, and it can also be downloaded without an account from https://www.softpedia.com/get/Others/Miscellaneous/HDFView.shtml.
 
-# Running
-
 # Code and Usage Overview
 
 ## Streaming Data

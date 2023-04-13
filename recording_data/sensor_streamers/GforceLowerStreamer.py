@@ -29,23 +29,21 @@ from visualizers.LinePlotVisualizer import LinePlotVisualizer
 from visualizers.HeatmapVisualizer import HeatmapVisualizer
 
 import socket
-
+import pandas as pd
 import numpy as np
 import time
+import random
 from collections import OrderedDict
 import traceback
-import pylsl
-from pylsl import StreamInlet, resolve_stream
 
 from utils.print_utils import *
-
 
 ################################################
 ################################################
 # A template class for implementing a new sensor.
 ################################################
 ################################################
-class CognionicsEMGStreamer(SensorStreamer):
+class GforceLowerStreamer(SensorStreamer):
 
     ########################
     ###### INITIALIZE ######
@@ -83,46 +81,36 @@ class CognionicsEMGStreamer(SensorStreamer):
         ## TODO: Add a tag here for your sensor that can be used in log messages.
         #        Try to keep it under 10 characters long.
         #        For example, 'myo' or 'scale'.
-        self._log_source_tag = 'CogEMG'
+        self._log_source_tag = 'Gforce'
 
         ## TODO: Initialize any state that your sensor needs.
         # Initialize counts
-        self._num_segments = None
+        self._num_segments = None  # Moticon sensor에서 사용하려는 segment 개수 정의함
 
         # Initialize state
         self._buffer = b''
-        self._buffer_read_size = 4096
-        self._LSLstream = None
-        self._Inlet = None
-        self._CogEMG_sample_index = None  # The current Moticon timestep being processed (each timestep will send multiple messages)
-        self._CogEMG_message_start_time_s = None  # When a Cognionics message was first received
-        self._CogEMG_timestep_receive_time_s = None  # When the first Cognionics message for a Cognionics timestep was received
-        # self._device_id = 'D931CD'
+        self._buffer_read_size = 2048
+        self._socket = None
+        self._socket2 = None
+        self._gforce_sample_index = None  # The current Moticon timestep being processed (each timestep will send multiple messages)
+        self._gforce_message_start_time_s = None  # When a Moticon message was first received
+        self._gforce_timestep_receive_time_s = None  # When the first Moticon message for a Moticon timestep was received
 
-        # Specify the Moticon streaming configuration.
-        self._CogEMG_network_protocol = 'LSL' #LabStreamingLayer
-        # self._CogEMG_network_ip = '127.0.0.1'
-        # self._CogEMG_network_port = 50000
+        # Specify the Moticon streaming configuration.6
+        self._gforce_network_protocol = 'udp'
+        self._gforce_network_ip = "192.168.1.23"
+        self._gforce_network_port = 5558
 
         ## TODO: Add devices and streams to organize data from your sensor.
         #        Data is organized as devices and then streams.
         #        For example, a Myo device may have streams for EMG and Acceleration.
         #        If desired, this could also be done in the connect() method instead.
-<<<<<<< Updated upstream
-        self.add_stream(device_name='EMGLeft-cognionics',
-                        stream_name='emgleft-values',
+        self.add_stream(device_name='armband-gforce-lowerarm',
+                        stream_name='pressure_values_N_cm2',
                         data_type='float32',
-                        sample_size=[1],
+                        sample_size=[8],
                         # the size of data saved for each timestep; here, we expect a 2-element vector per timestep
-                        sampling_rate_hz=50,  # the expected sampling rate for the stream
-=======
-        self.add_stream(device_name='EMG-DominantLeg-cognionics',
-                        stream_name='emg-values',
-                        data_type='float32',
-                        sample_size=[4],
-                        # the size of data saved for each timestep; here, we expect a 2-element vector per timestep
-                        sampling_rate_hz=500,  # the expected sampling rate for the stream
->>>>>>> Stashed changes
+                        sampling_rate_hz=200,  # the expected sampling rate for the stream
                         extra_data_info={},
                         # can add extra information beyond the data and the timestamp if needed (probably not needed, but see MyoStreamer for an example if desired)
                         # Notes can add metadata about the stream,
@@ -131,20 +119,19 @@ class CognionicsEMGStreamer(SensorStreamer):
                         #  describe the headings for each entry in a timestep's data.
                         #  For example - if the data was saved in a spreadsheet with a row per timestep, what should the column headings be.
                         data_notes=OrderedDict([
-<<<<<<< Updated upstream
-                            ('Description', 'EMG data from EMGLeft-cognionics.'
+                            ('Description', 'Pressure data from the lower arm.'
                              ),
-                            ('Units', ''),
+                            ('Units', 'N/cm2'),
                             (SensorStreamer.metadata_data_headings_key,
-                             ['emg_left']),
+                             ['lower_Channel_1', 'lower_Channel_2', 'lower_Channel_3', 'lower_Channel_4',
+                              'lower_Channel_5', 'lower_Channel_6', 'lower_Channel_7', 'lower_Channel_8', ]),
                         ]))
-
-        self.add_stream(device_name='EMGRight-cognionics',
-                        stream_name='emgright-values',
+        self.add_stream(device_name='armband-gforce-lowerarm',
+                        stream_name='Window Unix Time',
                         data_type='float32',
                         sample_size=[1],
                         # the size of data saved for each timestep; here, we expect a 2-element vector per timestep
-                        sampling_rate_hz=50,  # the expected sampling rate for the stream
+                        sampling_rate_hz=200,  # the expected sampling rate for the stream
                         extra_data_info={},
                         # can add extra information beyond the data and the timestamp if needed (probably not needed, but see MyoStreamer for an example if desired)
                         # Notes can add metadata about the stream,
@@ -153,39 +140,85 @@ class CognionicsEMGStreamer(SensorStreamer):
                         #  describe the headings for each entry in a timestep's data.
                         #  For example - if the data was saved in a spreadsheet with a row per timestep, what should the column headings be.
                         data_notes=OrderedDict([
-                            ('Description', 'EMG data from EMGRight-cognionics.'
+                            ('Description', 'Pressure data from the lower arm.'
                              ),
-                            ('Units', ''),
+                            ('Units', 'second'),
                             (SensorStreamer.metadata_data_headings_key,
-                             ['emg_right']),
+                             ['Window Unix Time']),
                         ]))
+        # self.add_stream(device_name='armband-gforce-lowerarm',
+        #                 stream_name='imu-acc-values',
+        #                 data_type='float32',
+        #                 sample_size=[3],
+        #                 # the size of data saved for each timestep; here, we expect a 2-element vector per timestep
+        #                 sampling_rate_hz=500,  # the expected sampling rate for the stream
+        #                 extra_data_info={},
+        #                 # can add extra information beyond the data and the timestamp if needed (probably not needed, but see MyoStreamer for an example if desired)
+        #                 # Notes can add metadata about the stream,
+        #                 #  such as an overall description, data units, how to interpret the data, etc.
+        #                 # The SensorStreamer.metadata_data_headings_key is special, and is used to
+        #                 #  describe the headings for each entry in a timestep's data.
+        #                 #  For example - if the data was saved in a spreadsheet with a row per timestep, what should the column headings be.
+        #                 data_notes=OrderedDict([
+        #                     ('Description', 'Pressure data from the lower arm.'
+        #                      ),
+        #                     ('Units', 'N/cm2'),
+        #                     (SensorStreamer.metadata_data_headings_key,
+        #                      ['Acc_X', 'Acc_Y', 'Acc_Z']),
+        #                 ]))
+        # self.add_stream(device_name='armband-gforce-lowerarm',
+        #                 stream_name='imu-gyro-values',
+        #                 data_type='float32',
+        #                 sample_size=[3],
+        #                 # the size of data saved for each timestep; here, we expect a 2-element vector per timestep
+        #                 sampling_rate_hz=500,  # the expected sampling rate for the stream
+        #                 extra_data_info={},
+        #                 # can add extra information beyond the data and the timestamp if needed (probably not needed, but see MyoStreamer for an example if desired)
+        #                 # Notes can add metadata about the stream,
+        #                 #  such as an overall description, data units, how to interpret the data, etc.
+        #                 # The SensorStreamer.metadata_data_headings_key is special, and is used to
+        #                 #  describe the headings for each entry in a timestep's data.
+        #                 #  For example - if the data was saved in a spreadsheet with a row per timestep, what should the column headings be.
+        #                 data_notes=OrderedDict([
+        #                     ('Description', 'Pressure data from the lower arm.'
+        #                      ),
+        #                     ('Units', 'N/cm2'),
+        #                     (SensorStreamer.metadata_data_headings_key,
+        #                      ['Gyro_X', 'Gyro_Y', 'Gyro_Z']),
+        #                 ]))
+        # self.add_stream(device_name='armband-gforce-lowerarm',
+        #                 stream_name='imu-quaternion-values',
+        #                 data_type='float32',
+        #                 sample_size=[4],
+        #                 # the size of data saved for each timestep; here, we expect a 2-element vector per timestep
+        #                 sampling_rate_hz=500,  # the expected sampling rate for the stream
+        #                 extra_data_info={},
+        #                 # can add extra information beyond the data and the timestamp if needed (probably not needed, but see MyoStreamer for an example if desired)
+        #                 # Notes can add metadata about the stream,
+        #                 #  such as an overall description, data units, how to interpret the data, etc.
+        #                 # The SensorStreamer.metadata_data_headings_key is special, and is used to
+        #                 #  describe the headings for each entry in a timestep's data.
+        #                 #  For example - if the data was saved in a spreadsheet with a row per timestep, what should the column headings be.
+        #                 data_notes=OrderedDict([
+        #                     ('Description', 'Pressure data from the lower arm.'
+        #                      ),
+        #                     ('Units', 'N/cm2'),
+        #                     (SensorStreamer.metadata_data_headings_key,
+        #                      ['Quat_X', 'Quat_Y', 'Quat_Z', 'Quat_W']),
+        #                 ]))
 
-
-=======
-                            ('Description', 'EMG data from cognionics.'
-                             ),
-                            ('Units', ''),
-                            (SensorStreamer.metadata_data_headings_key,
-                             ['channel-1', 'channel-2', 'channel-3', 'channel-4']),
-                        ]))
-
->>>>>>> Stashed changes
     #######################################
     # Connect to the sensor.
     # @param timeout_s How long to wait for the sensor to respond.
     def _connect(self, timeout_s=10):
-
+        # Open a socket to the Moticon network stream
         ## TODO: Add code for connecting to your sensor.
         #        Then return True or False to indicate whether connection was successful.
-        self._LSLstream = resolve_stream()
-        self._Inlet = StreamInlet(self._LSLstream[0])
-        # self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        # self._socket.settimeout(3)
-
-        # print("Connecting to server")
-        # self._socket.connect((self._CogEMG_network_ip, self._CogEMG_network_port))
-        # print("Connected to server\n")
-
+        self._socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self._socket.settimeout(
+            5)  # timeout for all socket operations, such as receiving if the Xsens network stream is inactive
+        self._socket.bind((self._gforce_network_ip, self._gforce_network_port))
+        self._log_status('Successfully connected to the gforce streamer.')
         return True
 
     #######################################
@@ -200,36 +233,60 @@ class CognionicsEMGStreamer(SensorStreamer):
         # For example, may want to return the data for the timestep
         #  and the time at which it was received.
         try:
-            # print("Starting LSL streaming")
+            bytesAddressPair = self._socket.recvfrom(self._buffer_read_size)
 
-            # first resolve an EEG stream on the lab network
-            # print("looking for an EEG stream...")
+            message = bytesAddressPair[0].decode("utf-8")
+            data = message.split(',')
 
-            time_s = time.time()
-            sample, timestamp = self._Inlet.pull_sample()
-<<<<<<< Updated upstream
-            data_left = sample[0]
-            data_right = sample[1]
-            # print('Unix Time: ', time_s, ', EMG Left : ', sample[0], ', EMG Right : ', sample[1])
+            if len(data) == 8:
+                time_s_1 = time.time()
+                device1_EMG_list = [-1, -1, -1, -1, -1, -1, -1, -1]
+            else:
+                # print(data)
+                # print(data)
+                # for i in range(len(data)):
+                #     print(data[i])
+                device1_EMG_list = []
+                device1_Acc_list = []
+                device1_Quat_list = []
+                device1_Gyro_list = []
+                time_s_1 = float(data[0].split("[")[1])
 
+                if data[1].split("'")[1] == 'EMG':
+                    for i in range(8):
+                        if i == 7:
+                            device1_EMG_list.append(float(data[i + 2].split(']')[0]))
+                        else:
+                            device1_EMG_list.append(float(data[i+2]))
 
-            return (time_s, data_left, data_right)
-=======
-            data = sample[0:4]
-            # print(data)
-            # print('Unix Time: ', time_s, ', EMG Left : ', sample[0], ', EMG Right : ', sample[1])
+                elif data[1].split("'")[1] == 'ACC':
+                    device1_Acc_list.append(float(data[2].split("(")[1]))
+                    device1_Acc_list.append(float(data[3]))
+                    device1_Acc_list.append(float(data[4].split("(")[0]))
 
-            return (time_s, data)
->>>>>>> Stashed changes
+                elif data[1].split("'")[1] == 'GYRO':
+                    device1_Gyro_list.append(float(data[2].split("(")[1]))
+                    device1_Gyro_list.append(float(data[3]))
+                    device1_Gyro_list.append(float(data[4].split("(")[0]))
+
+                elif data[1].split("'")[1] == 'QUAT':
+                    device1_Quat_list.append(float(data[2].split("(")[1]))
+                    device1_Quat_list.append(float(data[3]))
+                    device1_Quat_list.append(float(data[4]))
+                    device1_Quat_list.append(float(data[5].split(")")[0]))
+
+            return (time_s_1, device1_EMG_list)
+
 
         except:
-            self._log_error('\n\n***ERROR reading from E4Streamer:\n%s\n' % traceback.format_exc())
+            self._log_error('\n\n***ERROR reading from GforceStreamer:\n%s\n' % traceback.format_exc())
             time.sleep(1)
-<<<<<<< Updated upstream
-            return (None, None, None)
-=======
+            # time_s = time.time()
+            # device1 = [-1, -1, -1, -1, -1, -1, -1, -1]
+            # print('type', type(device1))
+            # device2 = [-1, -1, -1, -1, -1, -1, -1, -1]
+
             return (None, None)
->>>>>>> Stashed changes
 
     #####################
     ###### RUNNING ######
@@ -241,34 +298,42 @@ class CognionicsEMGStreamer(SensorStreamer):
     #  call self.append_data(device_name, stream_name, time_s, data).
     def _run(self):
         try:
-            print("Streaming...")
             while self._running:
-<<<<<<< Updated upstream
+                # Read and store data for stream 1.
+                (time_s_1, device1_EMG_list) = self._read_data()
 
-                # Read and store data for stream 1.
-                (time_s, data_left, data_right) = self._read_data()
-                if time_s is not None:
-                    self.append_data('EMGLeft-cognionics', 'emgleft-values', time_s, data_left)
-                    self.append_data('EMGRight-cognionics', 'emgright-values', time_s, data_right)
-=======
-                # Read and store data for stream 1.
-                (time_s, data) = self._read_data()
-                if time_s is not None:
-                    self.append_data('EMG-DominantLeg-cognionics', 'emg-values', time_s, data)
->>>>>>> Stashed changes
+                timess = time.time()
+                df = pd.DataFrame(device1_EMG_list)
+                # print(type(df.isnull().sum()).value())
+                d = df.isnull().sum().to_numpy()
+                # print(d)
+                # print(sum(d))
+                # print(device1_EMG_list)
+
+                if (sum(d) == 0) and (device1_EMG_list is not None) and (len(device1_EMG_list) > 0) :
+                    self.append_data('armband-gforce-lowerarm', 'pressure_values_N_cm2', time_s_1, device1_EMG_list)
+                    self.append_data('armband-gforce-lowerarm', 'Window Unix Time', time_s_1, timess)
+                    # print('Device 1 EMG List : ', device1_EMG_list)
+                    # print('1')
+                    # self.append_data('armband-gforce-lowerarm', 'imu-acc-values', time_s_1, device1_Acc_list)
+                    # self.append_data('armband-gforce-lowerarm', 'imu-gyro-values', time_s_1, device1_Gyro_list)
+                    # self.append_data('armband-gforce-lowerarm', 'imu-quaternion-values', time_s_1, device1_Quat_list)
+
         except KeyboardInterrupt:  # The program was likely terminated
+            self._socket.close()
             pass
         except:
-            self._log_error('\n\n***ERROR RUNNING E4Streamer:\n%s\n' % traceback.format_exc())
+            self._socket.close()
+            self._log_error('\n\n***ERROR RUNNING MoticonStreamer:\n%s\n' % traceback.format_exc())
         finally:
             ## TODO: Disconnect from the sensor if desired.
-            self._log_debug('Keyboard Interrupted ')
+            self._socket.close()
 
     # Clean up and quit
     def quit(self):
         ## TODO: Add any desired clean-up code.
-        self._log_debug('E4Streamer quitting')
-        # self._socket.close()
+        self._log_debug('GforceStreamer quitting')
+        self._socket.close()
         SensorStreamer.quit(self)
 
     ###########################
@@ -292,29 +357,13 @@ class CognionicsEMGStreamer(SensorStreamer):
         #        Examples of a line plot and a heatmap are below.
         #        To not visualize data, simply omit the following code and just leave each streamer mapped to the None class as shown above.
         # Use a line plot to visualize the weight.
-<<<<<<< Updated upstream
-        processed_options['EMGLeft-cognionics']['emgleft-values'] = \
-            {'class': LinePlotVisualizer, #HeatmapVisualizer
-             'single_graph': True,   # Whether to show each dimension on a subplot or all on the same plot.
+        processed_options['armband-gforce-lowerarm']['pressure_values_N_cm2'] = \
+            {'class': LinePlotVisualizer,
+             'single_graph': False,   # Whether to show each dimension on a subplot or all on the same plot.
              'plot_duration_s': 15,  # The timespan of the x axis (will scroll as more data is acquired).
              'downsample_factor': 1, # Can optionally downsample data before visualizing to improve performance.
              }
 
-        processed_options['EMGRight-cognionics']['emgright-values'] = \
-            {'class': LinePlotVisualizer,  # HeatmapVisualizer
-             'single_graph': True,  # Whether to show each dimension on a subplot or all on the same plot.
-             'plot_duration_s': 15,  # The timespan of the x axis (will scroll as more data is acquired).
-             'downsample_factor': 1,  # Can optionally downsample data before visualizing to improve performance.
-             }
-
-=======
-        processed_options['EMG-DominantLeg-cognionics']['emg-values'] = \
-            {'class': LinePlotVisualizer,
-             'single_graph': False,  # Whether to show each dimension on a subplot or all on the same plot.
-             'plot_duration_s': 15,  # The timespan of the x axis (will scroll as more data is acquired).
-             'downsample_factor': 1,  # Can optionally downsample data before visualizing to improve performance.
-             }
->>>>>>> Stashed changes
         # Override the above defaults with any provided options.
         if isinstance(visualization_options, dict):
             for (device_name, device_info) in self._streams_info.items():
@@ -333,26 +382,25 @@ class CognionicsEMGStreamer(SensorStreamer):
 #####################
 if __name__ == '__main__':
     # Configuration.
-    duration_s = 30
+    duration_s = 40
 
     # Connect to the device(s).
-    CognionicsEMG_streamer = CognionicsEMGStreamer(print_status=True, print_debug=False)
-    CognionicsEMG_streamer.connect()
+    gforce_streamer = GforceLowerStreamer(print_status=True, print_debug=False)
+    gforce_streamer.connect()
 
     # Run for the specified duration and periodically print the sample rate.
     print('\nRunning for %gs!' % duration_s)
-    CognionicsEMG_streamer.run()
-    print("Streamer Running Start")
+    gforce_streamer.run()
     start_time_s = time.time()
     try:
         while time.time() - start_time_s < duration_s:
             time.sleep(2)
             # Print the sampling rates.
             msg = ' Duration: %6.2fs' % (time.time() - start_time_s)
-            for device_name in CognionicsEMG_streamer.get_device_names():
-                stream_names = CognionicsEMG_streamer.get_stream_names(device_name=device_name)
+            for device_name in gforce_streamer.get_device_names():
+                stream_names = gforce_streamer.get_stream_names(device_name=device_name)
                 for stream_name in stream_names:
-                    num_timesteps = CognionicsEMG_streamer.get_num_timesteps(device_name, stream_name)
+                    num_timesteps = gforce_streamer.get_num_timesteps(device_name, stream_name)
                     msg += ' | %s-%s: %6.2f Hz (%4d Timesteps)' % \
                            (device_name, stream_name, ((num_timesteps) / (time.time() - start_time_s)), num_timesteps)
             print(msg)
@@ -360,7 +408,7 @@ if __name__ == '__main__':
         pass
 
     # Stop the streamer.
-    CognionicsEMG_streamer.stop()
+    gforce_streamer.stop()
     print('\n' * 2)
     print('=' * 75)
     print('Done!')

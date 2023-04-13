@@ -25,7 +25,6 @@
 ############
 
 from sensor_streamer_handlers.SensorManager import SensorManager
-
 import time
 import os
 import traceback
@@ -37,7 +36,6 @@ if __name__ == '__main__':
     # Configure printing and logging.
     print_status = True
     print_debug = False
-
 
     # Helper methods for logging/printing.
     def _log_status(msg, *extra_msgs, **kwargs):
@@ -77,21 +75,33 @@ if __name__ == '__main__':
         ('XsensStreamer',         False),  # The Xsens body tracking system (includes the Manus finger-tracking gloves if connected to Xsens)
         ('EyeStreamer',           False),  # The Pupil Labs eye-tracking headset
         ('E4Streamer',            False),  # E4 sensors
+<<<<<<< Updated upstream:recording_data/_launchers/stream_badmintonExperiments.py
         ('CognionicsEMGStreamer', True ),  # Cognioncis EMG sensors
         ('MoticonStreamer',       False),  # Moticon insole pressure sensors
         ('ScaleStreamer',         False),  # The Dymo M25 digital postal scale
         ('MicrophoneStreamer',    False),  # One or more microphones
         ('CameraStreamer',        False),  # One or more cameras
+=======
+        ('PnsStreamer', True),  # Perception Neuron Studio sensors
+        ('TobiiStreamer', False),  # Tobii Glasses 3 sensors
+        ('GforceUpperStreamer',        True),  # Gforce EMG Armband sensors
+        ('GforceLowerStreamer', True),  # Gforce EMG Armband sensors
+        ('CognionicsEMGStreamer', True ),  # Coagnioncis EMG sensors
+        ('MoticonStreamer',       True),  # Moticon insole pressure sensors
+        ('ScaleStreamer',         False),  # The Dymo M25 digital postal scale
+        ('MicrophoneStreamer',    False),  # One or more microphones
+        ('PupilStreamer', True),  # Pupil Invisible sensors
+        ('CameraStreamer',        True),  # One or more cameras
+>>>>>>> Stashed changes:recording_data/_launchers/stream_moticonExperiments.py
         ('DummyStreamer',         False),  # Dummy data (no hardware required)
     ])
     sensor_streamer_specs = [
         # Allow the experimenter to label data and enter notes.
         {'class': 'ExperimentControlStreamer',
          'activities': [ # TODO: Enter your activities that you want to label
-             'Smashing (with birdie)',
-             'Smashing (no birdie)',
-             'Backhand',
-             'Forehand',
+             'Overhead Clear',
+             'Backhand Driving',
+             'Overhead Serve',
          ],
          'print_debug': print_debug, 'print_status': print_status
          },
@@ -99,11 +109,26 @@ if __name__ == '__main__':
         {'class': 'NotesStreamer',
          'print_debug': print_debug, 'print_status': print_status
          },
+        {'class': 'TobiiStreamer',
+         'print_debug': print_debug, 'print_status': print_status
+         },
         # Moticon insole pressure sensors.
         {'class': 'MoticonStreamer',
          # Add any keyword arguments here that you added to __init__()
          'print_debug': print_debug, 'print_status': print_status
          },
+<<<<<<< Updated upstream:recording_data/_launchers/stream_badmintonExperiments.py
+=======
+        # GForce EMG arm band sensors.3
+        {'class': 'GforceUpperStreamer',
+         # Add any keyword arguments here that you added to __init__()
+         'print_debug': print_debug, 'print_status': print_status
+         },
+        {'class': 'GforceLowerStreamer',
+         # Add any keyword arguments here that you added to __init__()
+         'print_debug': print_debug, 'print_status': print_status
+         },
+>>>>>>> Stashed changes:recording_data/_launchers/stream_moticonExperiments.py
         # Cognionics EMG sensors.
         {'class': 'CognionicsEMGStreamer',
          # Add any keyword arguments here that you added to __init__()
@@ -111,6 +136,11 @@ if __name__ == '__main__':
          },
         # The E4 smart watch.
         {'class': 'E4Streamer',
+         # Add any keyword arguments here that you added to __init__()
+         'print_debug': print_debug, 'print_status': print_status
+         },
+        # The Perception Neuron Studio -> IMU-based skeleton Tracking Sensor
+        {'class': 'PnsStreamer',
          # Add any keyword arguments here that you added to __init__()
          'print_debug': print_debug, 'print_status': print_status
          },
@@ -141,6 +171,7 @@ if __name__ == '__main__':
          'print_debug': print_debug, 'print_status': print_status
          },
         # Stream from the Dymo M25 scale.
+
         {'class': 'ScaleStreamer',
          'print_debug': print_debug, 'print_status': print_status
          },
@@ -149,10 +180,15 @@ if __name__ == '__main__':
          'device_names_withAudioKeywords': {'microphone_conference': 'USB audio CODEC'},
          'print_debug': print_debug, 'print_status': print_status
          },
+        # Stream from pupil invisible.
+        {'class': 'PupilStreamer',
+         'print_debug': print_debug, 'print_status': print_status
+         },
         # Stream from one or more cameras.
         {'class': 'CameraStreamer',
          'cameras_to_stream': { # map camera names (usable as device names in the HDF5 file) to capture device indexes
-           'camera-usb': 1,
+           'camera-usb-front': 4,
+            'camera-usb-side': 2,
          },
          'print_debug': print_debug, 'print_status': print_status
         },
@@ -166,14 +202,13 @@ if __name__ == '__main__':
     sensor_streamer_specs = [spec for spec in sensor_streamer_specs
                              if spec['class'] in sensor_streamers_enabled
                              and sensor_streamers_enabled[spec['class']]]
-
     # TODO: Configure where and how to save sensor data.
     #       Adjust enable_data_logging, log_tag, and log_dir_root as desired.
     enable_data_logging = True # If False, no data will be logged and the below directory settings will be ignored
     if enable_data_logging:
         script_dir = os.path.dirname(os.path.realpath(__file__))
         (log_time_str, log_time_s) = get_time_str(return_time_s=True)
-        log_tag = 'testing in holodeck'
+        log_tag = 'badminton-wearables_S06'
         log_dir_root = os.path.join(script_dir, '..', '..', 'data',
                                     'tests', # recommend 'tests' and 'experiments' for testing vs "real" data
                                     '%s_badminton_test' % get_time_str(format='%Y-%m-%d'))
@@ -186,7 +221,11 @@ if __name__ == '__main__':
             'audio_in_hdf5': False,
             # Choose whether to periodically write data to files.
             'stream_hdf5': True,  # recommended over CSV since it creates a single file
+<<<<<<< Updated upstream:recording_data/_launchers/stream_badmintonExperiments.py
             'stream_csv': False,  # will create a CSV per stream
+=======
+            'stream_csv': True,  # will create a CSV per stream
+>>>>>>> Stashed changes:recording_data/_launchers/stream_moticonExperiments.py
             'stream_video': False,
             'stream_audio': False,
             'stream_period_s': 15,  # how often to save streamed data to disk
@@ -194,7 +233,7 @@ if __name__ == '__main__':
             # Choose whether to write all data at the end.
             'dump_csv': False,
             'dump_hdf5': False,
-            'dump_video': False,
+            'dump_video': True,
             'dump_audio': False,
             # Additional configuration.
             'videos_format': 'avi',  # mp4 occasionally gets openCV errors about a tag not being supported?
@@ -210,19 +249,27 @@ if __name__ == '__main__':
         datalogging_options = None
 
     # TODO: Configure visualization.
+<<<<<<< Updated upstream:recording_data/_launchers/stream_badmintonExperiments.py
     composite_frame_size = (1800, 3000)  # height, width # (1800, 3000)
     composite_col_width = int(composite_frame_size[1] / 2)
     composite_row_height = int(composite_frame_size[0])
+=======
+    composite_frame_size = (800, 800)  # height, width # (1800, 3000)
+    composite_col_width = int(composite_frame_size[1] / 3)
+    composite_row_height = int(composite_frame_size[0] / 4)
+>>>>>>> Stashed changes:recording_data/_launchers/stream_moticonExperiments.py
     visualization_options = {
         'visualize_streaming_data': True,
         'visualize_all_data_when_stopped': False,
-        'wait_while_visualization_windows_open': False,
-        'update_period_s': 0.5,
-        # 'classes_to_visualize': ['TemplateStreamer']
+        'wait_while_visualization_windows_open': True,
+        'update_period_s': 0.25,
+        # 'classes_to_visualize': ['Template
+        # Streamer']
         'use_composite_video': True,
         'composite_video_filepath': os.path.join(log_dir, 'composite_visualization') if log_dir is not None else None,
-      'composite_video_layout':
+        'composite_video_layout':
         [
+<<<<<<< Updated upstream:recording_data/_launchers/stream_badmintonExperiments.py
           [ # row 0
             {'device_name':'EMGLeft-cognionics',  'stream_name':'emgleft-values', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
             {'device_name': 'EMGRight-cognionics', 'stream_name': 'emgright-values', 'rowspan': 1, 'colspan': 1, 'width': composite_col_width, 'height': composite_row_height},
@@ -236,6 +283,32 @@ if __name__ == '__main__':
           #
           #   # {'device_name': 'xsens-segments', 'stream_name': 'position_cm', 'rowspan': 1, 'colspan': 1, 'width': composite_col_width, 'height': composite_row_height},
           # ],
+=======
+            [  # row 0
+                {'device_name': 'camera-usb-front', 'stream_name': 'frame', 'rowspan': 1, 'colspan': 1,
+                 'width': composite_col_width, 'height': composite_row_height},
+                {'device_name': 'camera-usb-side', 'stream_name': 'frame', 'rowspan': 1, 'colspan': 1,
+                 'width': composite_col_width, 'height': composite_row_height},
+                {'device_name': 'armband-gforce-upperarm', 'stream_name': 'pressure_values_N_cm2', 'rowspan': 1,
+                 'colspan': 1, 'width': composite_col_width, 'height': composite_row_height},
+            ],
+            [  # row  1
+                {'device_name': 'EMG-DominantLeg-cognionics', 'stream_name': 'emg-values', 'rowspan': 1, 'colspan': 1,
+                 'width': composite_col_width, 'height': composite_row_height},
+                {'device_name': 'pns-joint-position', 'stream_name': 'cm-values', 'rowspan': 1, 'colspan': 1,
+                 'width': composite_col_width, 'height': composite_row_height},
+                {'device_name': 'armband-gforce-lowerarm', 'stream_name': 'pressure_values_N_cm2', 'rowspan': 1,
+                 'colspan': 1, 'width': composite_col_width, 'height': composite_row_height},
+            ],
+            [  # row 2
+                {'device_name': 'insole-moticon-left-pressure', 'stream_name': 'pressure_values_N_cm2', 'rowspan': 1,
+                 'colspan': 1, 'width': composite_col_width, 'height': composite_row_height},
+                {'device_name': 'eye-gaze', 'stream_name': 'gaze', 'rowspan': 1, 'colspan': 1,
+                 'width': composite_col_width, 'height': composite_row_height},
+                {'device_name': 'insole-moticon-right-pressure', 'stream_name': 'pressure_values_N_cm2', 'rowspan': 1,
+                 'colspan': 1, 'width': composite_col_width, 'height': composite_row_height},
+            ],
+>>>>>>> Stashed changes:recording_data/_launchers/stream_moticonExperiments.py
           # [ # row 2
           #   {'device_name':'myo-left', 'stream_name':'emg',               'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':   composite_row_height},
           #   {'device_name': 'ACC-empatica_e4', 'stream_name': 'acc-values', 'rowspan': 1, 'colspan': 1, 'width': composite_col_width, 'height': composite_row_height},
@@ -250,12 +323,12 @@ if __name__ == '__main__':
     }
 
     # Create a sensor manager.
+
     sensor_manager = SensorManager(sensor_streamer_specs=sensor_streamer_specs,
                                    data_logger_options=datalogging_options,
                                    data_visualizer_options=visualization_options,
                                    print_status=print_status, print_debug=print_debug,
                                    log_history_filepath=log_history_filepath)
-
     # Define a callback to print FPS for a certain device.
     # print_fps = False # Use this to disable FPS printing
     classes_to_exclude_for_fps = ['ExperimentControlStreamer', 'NotesStreamer']
@@ -269,7 +342,7 @@ if __name__ == '__main__':
 
     def print_fps():
         global fps_start_time_s, fps_last_print_time_s, fps_start_num_timesteps, fps_num_timesteps
-        printed_fps = False
+        printed_fps = True
         for (streamer_index, streamer) in enumerate(streamers_for_fps):
             device_for_fps = streamer.get_device_names()[0]
             stream_for_fps = streamer.get_stream_names(device_for_fps)[0]
@@ -295,7 +368,6 @@ if __name__ == '__main__':
     try:
         control_streamer = sensor_manager.get_streamers(class_name='ExperimentControlStreamer')[0]
 
-
         def check_if_user_quit():
             if callable(print_fps):
                 print_fps()
@@ -303,8 +375,6 @@ if __name__ == '__main__':
     except:
         try:
             notes_streamer = sensor_manager.get_streamers(class_name='NotesStreamer')[0]
-
-
             def check_if_user_quit():
                 last_notes = notes_streamer.get_last_notes()
                 if last_notes is not None:
@@ -315,6 +385,7 @@ if __name__ == '__main__':
         except:
             def check_if_user_quit():
                 return False
+
 
     # Run!
     sensor_manager.connect()

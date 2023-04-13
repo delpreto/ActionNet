@@ -29,6 +29,7 @@ from visualizers.LinePlotVisualizer import LinePlotVisualizer
 from visualizers.HeatmapVisualizer import HeatmapVisualizer
 
 import socket
+import pandas as pd
 import numpy as np
 import time
 from collections import OrderedDict
@@ -103,7 +104,7 @@ class MoticonStreamer(SensorStreamer):
         #        Data is organized as devices and then streams.
         #        For example, a Myo device may have streams for EMG and Acceleration.
         #        If desired, this could also be done in the connect() method instead.
-        self.add_stream(device_name='insole-moticon-left',
+        self.add_stream(device_name='insole-moticon-left-pressure',
                         stream_name='pressure_values_N_cm2',
                         data_type='float32',
                         sample_size=[16],
@@ -125,7 +126,67 @@ class MoticonStreamer(SensorStreamer):
                               'Left_10',
                               'Left_11', 'Left_12', 'Left_13', 'Left_14', 'Left_15', 'Left_16']),
                         ]))
-        self.add_stream(device_name='insole-moticon-right',
+        self.add_stream(device_name='insole-moticon-left-acceleration',
+                        stream_name='acceleration',
+                        data_type='float32',
+                        sample_size=[3],
+                        # the size of data saved for each timestep; here, we expect a 2-element vector per timestep
+                        sampling_rate_hz=25,  # the expected sampling rate for the stream
+                        extra_data_info={},
+                        # can add extra information beyond the data and the timestamp if needed (probably not needed, but see MyoStreamer for an example if desired)
+                        # Notes can add metadata about the stream,
+                        #  such as an overall description, data units, how to interpret the data, etc.
+                        # The SensorStreamer.metadata_data_headings_key is special, and is used to
+                        #  describe the headings for each entry in a timestep's data.
+                        #  For example - if the data was saved in a spreadsheet with a row per timestep, what should the column headings be.
+                        data_notes=OrderedDict([
+                            ('Description', 'Acceleration data from the left shoe.'
+                             ),
+                            ('Units', 'g'),
+                            (SensorStreamer.metadata_data_headings_key,
+                             ['Left_X', 'Left_Y', 'Left_Z']),
+                        ]))
+        self.add_stream(device_name='insole-moticon-left-angular',
+                        stream_name='angular',
+                        data_type='float32',
+                        sample_size=[3],
+                        # the size of data saved for each timestep; here, we expect a 2-element vector per timestep
+                        sampling_rate_hz=25,  # the expected sampling rate for the stream
+                        extra_data_info={},
+                        # can add extra information beyond the data and the timestamp if needed (probably not needed, but see MyoStreamer for an example if desired)
+                        # Notes can add metadata about the stream,
+                        #  such as an overall description, data units, how to interpret the data, etc.
+                        # The SensorStreamer.metadata_data_headings_key is special, and is used to
+                        #  describe the headings for each entry in a timestep's data.
+                        #  For example - if the data was saved in a spreadsheet with a row per timestep, what should the column headings be.
+                        data_notes=OrderedDict([
+                            ('Description', 'Angular velocity data from the left shoe.'
+                             ),
+                            ('Units', 'degree/s'),
+                            (SensorStreamer.metadata_data_headings_key,
+                             ['Left_X', 'Left_Y', 'Left_Z']),
+                        ]))
+        self.add_stream(device_name='insole-moticon-left-totalForce',
+                        stream_name='totalForce',
+                        data_type='float32',
+                        sample_size=[1],
+                        # the size of data saved for each timestep; here, we expect a 2-element vector per timestep
+                        sampling_rate_hz=25,  # the expected sampling rate for the stream
+                        extra_data_info={},
+                        # can add extra information beyond the data and the timestamp if needed (probably not needed, but see MyoStreamer for an example if desired)
+                        # Notes can add metadata about the stream,
+                        #  such as an overall description, data units, how to interpret the data, etc.
+                        # The SensorStreamer.metadata_data_headings_key is special, and is used to
+                        #  describe the headings for each entry in a timestep's data.
+                        #  For example - if the data was saved in a spreadsheet with a row per timestep, what should the column headings be.
+                        data_notes=OrderedDict([
+                            ('Description', 'Total Force data from the left shoe.'
+                             ),
+                            ('Units', 'N'),
+                            (SensorStreamer.metadata_data_headings_key,
+                             ['Left']),
+                        ]))
+        self.add_stream(device_name='insole-moticon-right-pressure',
                         stream_name='pressure_values_N_cm2',
                         data_type='float32',
                         sample_size=[16],
@@ -139,11 +200,93 @@ class MoticonStreamer(SensorStreamer):
                         #  describe the headings for each entry in a timestep's data.
                         #  For example - if the data was saved in a spreadsheet with a row per timestep, what should the column headings be.
                         data_notes=OrderedDict([
-                            ('Description', 'Pressure data from the right shoe.'
+                            ('Description', 'Pressure data from the left shoe.'
                              ),
                             ('Units', 'N/cm2'),
-                            (SensorStreamer.metadata_data_headings_key, ['Right_1', 'Right_2','Right_3','Right_4','Right_5','Right_6','Right_7','Right_8','Right_9','Right_10',
-                                                                         'Right_11','Right_12','Right_13','Right_14','Right_15','Right_16']),
+                            (SensorStreamer.metadata_data_headings_key,
+                             ['right_1', 'right_2', 'right_3', 'right_4', 'right_5', 'right_6', 'right_7', 'right_8', 'right_9',
+                              'right_10',
+                              'right_11', 'right_12', 'right_13', 'right_14', 'right_15', 'right_16']),
+                        ]))
+        self.add_stream(device_name='insole-moticon-right-acceleration',
+                        stream_name='acceleration',
+                        data_type='float32',
+                        sample_size=[3],
+                        # the size of data saved for each timestep; here, we expect a 2-element vector per timestep
+                        sampling_rate_hz=25,  # the expected sampling rate for the stream
+                        extra_data_info={},
+                        # can add extra information beyond the data and the timestamp if needed (probably not needed, but see MyoStreamer for an example if desired)
+                        # Notes can add metadata about the stream,
+                        #  such as an overall description, data units, how to interpret the data, etc.
+                        # The SensorStreamer.metadata_data_headings_key is special, and is used to
+                        #  describe the headings for each entry in a timestep's data.
+                        #  For example - if the data was saved in a spreadsheet with a row per timestep, what should the column headings be.
+                        data_notes=OrderedDict([
+                            ('Description', 'Acceleration data from the right shoe.'
+                             ),
+                            ('Units', 'g'),
+                            (SensorStreamer.metadata_data_headings_key,
+                             ['Right_X', 'Right_Y', 'Right_Z']),
+                        ]))
+        self.add_stream(device_name='insole-moticon-right-angular',
+                        stream_name='angular',
+                        data_type='float32',
+                        sample_size=[3],
+                        # the size of data saved for each timestep; here, we expect a 2-element vector per timestep
+                        sampling_rate_hz=25,  # the expected sampling rate for the stream
+                        extra_data_info={},
+                        # can add extra information beyond the data and the timestamp if needed (probably not needed, but see MyoStreamer for an example if desired)
+                        # Notes can add metadata about the stream,
+                        #  such as an overall description, data units, how to interpret the data, etc.
+                        # The SensorStreamer.metadata_data_headings_key is special, and is used to
+                        #  describe the headings for each entry in a timestep's data.
+                        #  For example - if the data was saved in a spreadsheet with a row per timestep, what should the column headings be.
+                        data_notes=OrderedDict([
+                            ('Description', 'Pressure data from the left shoe.'
+                             ),
+                            ('Units', 'degree/s'),
+                            (SensorStreamer.metadata_data_headings_key,
+                             ['Right_X', 'Right_Y', 'Right_Z']),
+                        ]))
+        self.add_stream(device_name='insole-moticon-cop',
+                        stream_name='cop',
+                        data_type='float32',
+                        sample_size=[4],
+                        # the size of data saved for each timestep; here, we expect a 2-element vector per timestep
+                        sampling_rate_hz=25,  # the expected sampling rate for the stream
+                        extra_data_info={},
+                        # can add extra information beyond the data and the timestamp if needed (probably not needed, but see MyoStreamer for an example if desired)
+                        # Notes can add metadata about the stream,
+                        #  such as an overall description, data units, how to interpret the data, etc.
+                        # The SensorStreamer.metadata_data_headings_key is special, and is used to
+                        #  describe the headings for each entry in a timestep's data.
+                        #  For example - if the data was saved in a spreadsheet with a row per timestep, what should the column headings be.
+                        data_notes=OrderedDict([
+                            ('Description', 'Center of Pressure data from the both shoe.'
+                             ),
+                            ('Units', 'percent of insole length/width'),
+                            (SensorStreamer.metadata_data_headings_key,
+                             ['Left_X', 'Left_Y', 'right_X', 'right_Y']),
+                        ]))
+        self.add_stream(device_name='insole-moticon-right-totalForce',
+                        stream_name='totalForce',
+                        data_type='float32',
+                        sample_size=[1],
+                        # the size of data saved for each timestep; here, we expect a 2-element vector per timestep
+                        sampling_rate_hz=25,  # the expected sampling rate for the stream
+                        extra_data_info={},
+                        # can add extra information beyond the data and the timestamp if needed (probably not needed, but see MyoStreamer for an example if desired)
+                        # Notes can add metadata about the stream,
+                        #  such as an overall description, data units, how to interpret the data, etc.
+                        # The SensorStreamer.metadata_data_headings_key is special, and is used to
+                        #  describe the headings for each entry in a timestep's data.
+                        #  For example - if the data was saved in a spreadsheet with a row per timestep, what should the column headings be.
+                        data_notes=OrderedDict([
+                            ('Description', 'Total Force data from the right shoe.'
+                             ),
+                            ('Units', 'N'),
+                            (SensorStreamer.metadata_data_headings_key,
+                             ['right']),
                         ]))
 
     #######################################
@@ -182,53 +325,38 @@ class MoticonStreamer(SensorStreamer):
         # clientIP = "Client IP Address:{}".format(address)
 
         data = clientMsg.split()
+        # print(data)
+        # print(len(data))
         
         # Extract the device timestamp.
         time_s = float(data[0])
 
+        # Acceleration data
+        data_left_acceleration = [float(x) for x in data[1:4]]
+        data_right_acceleration = [float(x) for x in data[26:29]]
+
+        # Angular data
+        data_left_angular = [float(x) for x in data[4:7]]
+        data_right_angular = [float(x) for x in data[29:32]]
+
+        # COP data
+
+        data_cop = [float(x) for x in data[7:9]]
+        data_cop.append(float(data[32]))
+        data_cop.append(float(data[33]))
+        # print(data_cop)
+        # data_right_cop = [float(x) for x in data[32:34]]
+
+        # Total Force data
+        data_left_totalForce = float(data[25])
+        data_right_totalForce = float(data[50])
+
         # Parse the pressure data.
-        data_left = [float(x) for x in data[1:17]]
-        data_right = [float(x) for x in data[17:33]]
+        data_left_pressure = [float(x) for x in data[9:25]]
+        data_right_pressure = [float(x) for x in data[34:50]]
 
-        return (time_s, data_left, data_right)
-
-        # # Left Insole Pressure data
-        # LeftPressure_0 = data[1]
-        # LeftPressure_1 = data[2]
-        # LeftPressure_2 = data[3]
-        # LeftPressure_3 = data[4]
-        # LeftPressure_4 = data[5]
-        # LeftPressure_5 = data[6]
-        # LeftPressure_6 = data[7]
-        # LeftPressure_7 = data[8]
-        # LeftPressure_8 = data[9]
-        # LeftPressure_9 = data[10]
-        # LeftPressure_10 = data[11]
-        # LeftPressure_11 = data[12]
-        # LeftPressure_12 = data[13]
-        # LeftPressure_13 = data[14]
-        # LeftPressure_14 = data[15]
-        # LeftPressure_15 = data[16]
-        #
-        # # Right Insole Pressure data
-        #
-        # RightPressure_0 = data[17]
-        # RightPressure_1 = data[18]
-        # RightPressure_2 = data[19]
-        # RightPressure_3 = data[20]
-        # RightPressure_4 = data[21]
-        # RightPressure_5 = data[22]
-        # RightPressure_6 = data[23]
-        # RightPressure_7 = data[24]
-        # RightPressure_8 = data[25]
-        # RightPressure_9 = data[26]
-        # RightPressure_10 = data[27]
-        # RightPressure_11 = data[28]
-        # RightPressure_12 = data[29]
-        # RightPressure_13 = data[30]
-        # RightPressure_14 = data[31]
-        # RightPressure_15 = data[32]
-
+        return (time_s, data_left_acceleration, data_left_angular, data_cop, data_left_pressure, data_left_totalForce,
+                data_right_acceleration, data_right_angular, data_right_pressure, data_right_totalForce)
 
     #####################
     ###### RUNNING ######
@@ -242,10 +370,24 @@ class MoticonStreamer(SensorStreamer):
         try:
             while self._running:
                 # Read and store data for stream 1.
-                (time_s, data_left, data_right) = self._read_data()
-                if time_s is not None:
-                    self.append_data('insole-moticon-left', 'pressure_values_N_cm2', time_s, data_left)
-                    self.append_data('insole-moticon-right', 'pressure_values_N_cm2', time_s, data_right)
+                (time_s, data_left_acceleration, data_left_angular, data_cop, data_left_pressure, data_left_totalForce,
+                data_right_acceleration, data_right_angular, data_right_pressure, data_right_totalForce) = self._read_data()
+
+                df = pd.DataFrame(data_left_pressure)
+                # print(type(df.isnull().sum()).value())
+                d = df.isnull().sum().to_numpy()
+
+                if (sum(d) == 0) and (data_left_pressure is not None) and (len(data_left_pressure) > 0):
+                    self.append_data('insole-moticon-left-acceleration', 'acceleration', time_s, data_left_acceleration)
+                    self.append_data('insole-moticon-left-angular', 'angular', time_s, data_left_angular)
+                    self.append_data('insole-moticon-cop', 'cop', time_s, data_cop)
+                    self.append_data('insole-moticon-left-pressure', 'pressure_values_N_cm2', time_s, data_left_pressure)
+                    self.append_data('insole-moticon-left-totalForce', 'totalForce', time_s, data_left_totalForce)
+                    self.append_data('insole-moticon-right-acceleration', 'acceleration', time_s, data_right_acceleration)
+                    self.append_data('insole-moticon-right-angular', 'angular', time_s, data_right_angular)
+                    # self.append_data('insole-moticon-right-cop', 'cop', time_s, data_right_cop)
+                    self.append_data('insole-moticon-right-pressure', 'pressure_values_N_cm2', time_s, data_right_pressure)
+                    self.append_data('insole-moticon-right-totalForce', 'totalForce', time_s, data_right_totalForce)
         except KeyboardInterrupt:  # The program was likely terminated
             pass
         except:
@@ -282,17 +424,23 @@ class MoticonStreamer(SensorStreamer):
         #        Examples of a line plot and a heatmap are below.
         #        To not visualize data, simply omit the following code and just leave each streamer mapped to the None class as shown above.
         # Use a line plot to visualize the weight.
-        processed_options['insole-moticon-left']['pressure_values_N_cm2'] = \
+        processed_options['insole-moticon-left-pressure']['pressure_values_N_cm2'] = \
             {'class': HeatmapVisualizer,
              'colorbar_levels': 'auto',  # The range of the colorbar.
              # Can be a 2-element list [min, max] to use hard-coded bounds,
              # or 'auto' to determine them dynamically based on a buffer of the data.
              }
-        processed_options['insole-moticon-right']['pressure_values_N_cm2'] = \
+        processed_options['insole-moticon-right-pressure']['pressure_values_N_cm2'] = \
             {'class': HeatmapVisualizer,
              'colorbar_levels': 'auto',  # The range of the colorbar.
              # Can be a 2-element list [min, max] to use hard-coded bounds,
              # or 'auto' to determine them dynamically based on a buffer of the data.
+             }
+        processed_options['insole-moticon-cop']['cop'] = \
+            {'class': LinePlotVisualizer,
+             'single_graph': False,  # Whether to show each dimension on a subplot or all on the same plot.
+             'plot_duration_s': 15,  # The timespan of the x axis (will scroll as more data is acquired).
+             'downsample_factor': 1,  # Can optionally downsample data before visualizing to improve performance.
              }
 
         # Override the above defaults with any provided options.

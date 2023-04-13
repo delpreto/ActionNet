@@ -79,60 +79,49 @@ class ExperimentControlStreamer(SensorStreamer):
       ])
     self._target_names = list(self._target_positions_cm.keys())
     self._arm_poses = [
-      'Upper arm down, forearm straight out, palm facing in',
-      'Straight down, palms inward (N pose)',
-      'Straight out, palms downward (T pose)',
-      'Straight up, palms inward',
+      # 'Upper arm down, forearm straight out, palm facing in',
+      # 'Upper arm down, forearm straight out, palm facing out',
+      # 'Straight down, palms inward (N pose)',
+      # 'Straight out, palms downward (T pose)',
+      # 'Straight up, palms inward',
+      'Lower arm inward',
+      'Lower arm outward',
+      'Upper arm inward',
+      'Leg forced',
+      'squat',
       ]
-    self._hand_poses = [
-      'Fist',
-      'Spread fingers',
-      'Wave in',
-      'Wave out',
-      ]
-    self._scale_scenarios = [
-      'Flat hand on scale',
-      'Flat hand on bumps on scale',
-      'Single fingers on scale',
-      'Mug (by handle)',
-      'Pan (by handle)',
-      'Plate (from side)',
-      'Knife (by handle)',
-      'Jar (full side grasp)',
-      ]
-    self._thirdparty_calibrations = [
-      'Xsens: N-Pose with Walking',
-      'Xsens: T-Pose with Walking',
-      'Xsens: N-Pose without Walking',
-      'Xsens: T-Pose without Walking',
-      'PupilLabs: Target Grid',
-      'PupilLabs: Single Target',
-      'Manus: IMUs',
-      'Manus: Poses Left',
-      'Manus: Poses Right',
-      ]
+    # self._hand_poses = [
+    #   'Fist',
+    #   'Spread fingers',
+    #   'Wave in',
+    #   'Wave out',
+    #   ]
+    # self._scale_scenarios = [
+    #   'Flat hand on scale',
+    #   'Flat hand on bumps on scale',
+    #   'Single fingers on scale',
+    #   'Mug (by handle)',
+    #   'Pan (by handle)',
+    #   'Plate (from side)',
+    #   'Knife (by handle)',
+    #   'Jar (full side grasp)',
+    #   ]
+    # self._thirdparty_calibrations = [
+    #   'Xsens: N-Pose with Walking',
+    #   'Xsens: T-Pose with Walking',
+    #   'Xsens: N-Pose without Walking',
+    #   'Xsens: T-Pose without Walking',
+    #   'PupilLabs: Target Grid',
+    #   'PupilLabs: Single Target',
+    #   'Manus: IMUs',
+    #   'Manus: Poses Left',
+    #   'Manus: Poses Right',
+    #   ]
     if activities is None:
       self._activities = [
-        'Get/replace items from refrigerator/cabinets/drawers',
-        'Clear cutting board',
-        'Peel a cucumber',
-        'Slice a cucumber',
-        'Peel a potato',
-        'Slice a potato',
-        'Slice bread',
-        'Spread almond butter on a bread slice',
-        'Spread jelly on a bread slice',
-        'Open/close a jar of almond butter',
-        'Pour water from a pitcher into a glass',
-        'Clean a plate with a sponge',
-        'Clean a plate with a towel',
-        'Clean a pan with a sponge',
-        'Clean a pan with a towel',
-        'Get items from cabinets: 3 each large/small plates, bowls, mugs, glasses, sets of utensils',
-        'Set table: 3 each large/small plates, bowls, mugs, glasses, sets of utensils',
-        'Stack on table: 3 each large/small plates, bowls',
-        'Load dishwasher: 3 each large/small plates, bowls, mugs, glasses, sets of utensils',
-        'Unload dishwasher: 3 each large/small plates, bowls, mugs, glasses, sets of utensils',
+         'Overhead Clear',
+         'Backhand Driving',
+         # 'Overhead Serve',
         ]
     else:
       self._activities = activities
@@ -142,77 +131,77 @@ class ExperimentControlStreamer(SensorStreamer):
     max_notes_length = 75
     self._calibration_device_name = 'experiment-calibration'
     self._calibration_streams = OrderedDict([
-      ('body', {
-               'description': 'Periods when the person assumed a known '
-                              'body pose, location, and orientation.  '
-                              'Useful for calibrating IMU-based orientations such as the Xsens.',
-               'data_type': 'S%d' % ((int(max([len(x) for x in self._target_names] + [max_notes_length])/10)+1)*10),
-               'tab_label': 'Body',
-               'inputs': [
-                  {'label': 'Location', 'type': 'combo', 'values': self._target_names,        'name': None},
-                  {'label': 'Facing',   'type': 'combo', 'values': self._target_names,        'name': None},
-                  {'label': 'Pose',     'type': 'combo', 'values': ['T-Pose', 'N-Pose'], 'name': None},
-                ]
-               }),
-      ('arms', {
+      # ('body', {
+      #          'description': 'Periods when the person assumed a known '
+      #                         'body pose, location, and orientation.  '
+      #                         'Useful for calibrating IMU-based orientations such as the Xsens.',
+      #          'data_type': 'S%d' % ((int(max([len(x) for x in self._target_names] + [max_notes_length])/10)+1)*10),
+      #          'tab_label': 'Body',
+      #          'inputs': [
+      #             {'label': 'Location', 'type': 'combo', 'values': self._target_names,        'name': None},
+      #             {'label': 'Facing',   'type': 'combo', 'values': self._target_names,        'name': None},
+      #             {'label': 'Pose',     'type': 'combo', 'values': ['T-Pose', 'N-Pose'], 'name': None},
+      #           ]
+      #          }),
+      ('arms and legs', {
                'description': 'Periods when the person assumed a known '
                               'arm pose and pointing direction orientation.  '
                               'Useful for calibrating IMU-based orientations such as the Myos.',
                'data_type': 'S%d' % ((int(max([len(x) for x in self._target_names+self._arm_poses] + [max_notes_length])/10)+1)*10),
-               'tab_label': 'Arms',
+               'tab_label': 'Arms and Legs',
                'inputs': [
-                  {'label': 'Body location',             'type': 'combo', 'values': self._target_names,   'name': None},
-                  {'label': 'Left arm pose',             'type': 'combo', 'values': self._arm_poses, 'name': None},
-                  {'label': 'Left forearm pointing at',  'type': 'combo', 'values': self._target_names,   'name': None},
-                  {'label': 'Right arm pose',            'type': 'combo', 'values': self._arm_poses, 'name': None},
-                  {'label': 'Right forearm pointing at', 'type': 'combo', 'values': self._target_names,   'name': None},
+                  # {'label': 'Body location',             'type': 'combo', 'values': self._target_names,   'name': None},
+                  # {'label': 'Primary forearm pose',             'type': 'combo', 'values': self._arm_poses, 'name': None},
+                  # {'label': 'Primary forearm pointing at',  'type': 'combo', 'values': self._target_names,   'name': None},
+                  {'label': 'Primary pose',            'type': 'combo', 'values': self._arm_poses, 'name': None},
+                  # {'label': 'Primary arm pointing at', 'type': 'combo', 'values': self._target_names,   'name': None},
                 ]
                }),
-      ('hand_poses', {
-               'description': 'Periods when the person assumed a known '
-                              'hand poses.  Useful for calibrating IMU-based orientations'
-                              'such as the Xsens gloves, how the Myo is worn, and forearm EMG levels.',
-               'data_type': 'S%d' % ((int(max([len(x) for x in self._hand_poses] + [max_notes_length])/10)+1)*10),
-               'tab_label': 'Hands',
-               'inputs': [
-                  {'label': 'Left hand pose',  'type': 'combo', 'values': self._hand_poses, 'name': None},
-                  {'label': 'Right hand pose', 'type': 'combo', 'values': self._hand_poses, 'name': None},
-                ]
-               }),
-      ('gaze', {
-               'description': 'Periods when the person assumed a known '
-                              'body position and gazed at a known target.  '
-                              'Useful for calibrating the eye tracking.',
-               'data_type': 'S%d' % ((int(max([len(x) for x in self._target_names] + [max_notes_length])/10)+1)*10),
-               'tab_label': 'Gaze',
-               'inputs': [
-                  {'label': 'Body location', 'type': 'combo', 'values': self._target_names, 'name': None},
-                  {'label': 'Gazing at',     'type': 'combo', 'values': self._target_names, 'name': None},
-                ]
-               }),
-      ('tactile_gloves', {
-               'description': 'Periods when the person exerted a known '
-                              'force against a known part of the glove.',
-        'data_type': 'S%d' % ((int(max([len('%10.6f' % 0)] + [max_notes_length])/10)+1)*10),
-               'tab_label': 'Tactile',
-               'inputs': [
-                  {'label': 'Left hand pose/object' , 'type': 'combo', 'values': self._scale_scenarios, 'name': None},
-                  {'label': 'Right hand pose/object', 'type': 'combo', 'values': self._scale_scenarios, 'name': None},
-                ]
-               }),
-      ('third_party', {
-               'description': 'Periods when calibration routines from '
-                              'third-party software was running, such as '
-                              'Xsens or PupilLabs.',
-               'data_type': 'S%d' % ((int(max([len(x) for x in self._thirdparty_calibrations+self._target_names] + [max_notes_length])/10)+1)*10),
-               'tab_label': 'Third-Party',
-               'inputs': [
-                  {'label': 'Calibration Type',       'type': 'combo', 'values': self._thirdparty_calibrations, 'name': None},
-                  {'label': 'Body starting location', 'type': 'combo', 'values': self._target_names,   'name': None},
-                  {'label': 'Body ending location',   'type': 'combo', 'values': self._target_names,   'name': None},
-                  {'label': 'Screen location with gaze targets', 'type': 'combo', 'values': self._target_names, 'name': None},
-                ]
-               }),
+      # ('hand_poses', {
+      #          'description': 'Periods when the person assumed a known '
+      #                         'hand poses.  Useful for calibrating IMU-based orientations'
+      #                         'such as the Xsens gloves, how the Myo is worn, and forearm EMG levels.',
+      #          'data_type': 'S%d' % ((int(max([len(x) for x in self._hand_poses] + [max_notes_length])/10)+1)*10),
+      #          'tab_label': 'Hands',
+      #          'inputs': [
+      #             {'label': 'Left hand pose',  'type': 'combo', 'values': self._hand_poses, 'name': None},
+      #             {'label': 'Right hand pose', 'type': 'combo', 'values': self._hand_poses, 'name': None},
+      #           ]
+      #          }),
+      # ('gaze', {
+      #          'description': 'Periods when the person assumed a known '
+      #                         'body position and gazed at a known target.  '
+      #                         'Useful for calibrating the eye tracking.',
+      #          'data_type': 'S%d' % ((int(max([len(x) for x in self._target_names] + [max_notes_length])/10)+1)*10),
+      #          'tab_label': 'Gaze',
+      #          'inputs': [
+      #             {'label': 'Body location', 'type': 'combo', 'values': self._target_names, 'name': None},
+      #             {'label': 'Gazing at',     'type': 'combo', 'values': self._target_names, 'name': None},
+      #           ]
+      #          }),
+      # ('tactile_gloves', {
+      #          'description': 'Periods when the person exerted a known '
+      #                         'force against a known part of the glove.',
+      #   'data_type': 'S%d' % ((int(max([len('%10.6f' % 0)] + [max_notes_length])/10)+1)*10),
+      #          'tab_label': 'Tactile',
+      #          'inputs': [
+      #             {'label': 'Left hand pose/object' , 'type': 'combo', 'values': self._scale_scenarios, 'name': None},
+      #             {'label': 'Right hand pose/object', 'type': 'combo', 'values': self._scale_scenarios, 'name': None},
+      #           ]
+      #          }),
+      # ('third_party', {
+      #          'description': 'Periods when calibration routines from '
+      #                         'third-party software was running, such as '
+      #                         'Xsens or PupilLabs.',
+      #          'data_type': 'S%d' % ((int(max([len(x) for x in self._thirdparty_calibrations+self._target_names] + [max_notes_length])/10)+1)*10),
+      #          'tab_label': 'Third-Party',
+      #          'inputs': [
+      #             {'label': 'Calibration Type',       'type': 'combo', 'values': self._thirdparty_calibrations, 'name': None},
+      #             {'label': 'Body starting location', 'type': 'combo', 'values': self._target_names,   'name': None},
+      #             {'label': 'Body ending location',   'type': 'combo', 'values': self._target_names,   'name': None},
+      #             {'label': 'Screen location with gaze targets', 'type': 'combo', 'values': self._target_names, 'name': None},
+      #           ]
+      #          }),
     ])
     self._last_calibration_times_s = OrderedDict([(calibration_type, None) for calibration_type in self._calibration_streams])
     
@@ -246,7 +235,7 @@ class ExperimentControlStreamer(SensorStreamer):
                       ]),
                       )
     self._activities_counts = OrderedDict([
-      (activity, {'Good':0, 'Maybe':0, 'Bad':0}) for activity in self._activities
+      (activity, {'Good':0, 'Normal':0, 'Bad':0}) for activity in self._activities
     ])
     
     # Define the notes stream.
@@ -267,9 +256,9 @@ class ExperimentControlStreamer(SensorStreamer):
     self._metadata.setdefault(self._activities_device_name, {})
     self._metadata[self._calibration_device_name]['Target Locations [cm]'] = self._target_positions_cm
     self._metadata[self._calibration_device_name]['Arm Poses'] = self._arm_poses
-    self._metadata[self._calibration_device_name]['Hand Poses'] = self._hand_poses
-    self._metadata[self._calibration_device_name]['Scale Scenarios'] = self._scale_scenarios
-    self._metadata[self._calibration_device_name]['Third-Party Calibrations'] = self._thirdparty_calibrations
+    # self._metadata[self._calibration_device_name]['Hand Poses'] = self._hand_poses
+    # self._metadata[self._calibration_device_name]['Scale Scenarios'] = self._scale_scenarios
+    # self._metadata[self._calibration_device_name]['Third-Party Calibrations'] = self._thirdparty_calibrations
     self._metadata[self._activities_device_name]['Activities'] = self._activities
     self._metadata[self._activities_device_name]['Target Locations [cm]'] = self._target_positions_cm
 
@@ -402,7 +391,7 @@ class ExperimentControlStreamer(SensorStreamer):
   def _button_callback_mark_calibration_good(self):
     self._button_callback_mark_calibration('Good')
   def _button_callback_mark_calibration_maybe(self):
-    self._button_callback_mark_calibration('Maybe')
+    self._button_callback_mark_calibration('Normal')
   def _button_callback_mark_calibration_bad(self):
     self._button_callback_mark_calibration('Bad')
   def _button_callback_mark_calibration(self, mark_status):
@@ -415,7 +404,7 @@ class ExperimentControlStreamer(SensorStreamer):
     self._data[self._calibration_device_name][self._last_calibration_type]['data'][-2][1] = mark_status
     self._data[self._calibration_device_name][self._last_calibration_type]['data'][-2][2] = calibration_notes
     # Update the last calibration time if it was marked as good.
-    if mark_status == 'Good':
+    if mark_status == 'Practice':
       self._last_calibration_times_s[self._last_calibration_type] = self._data[self._calibration_device_name][self._last_calibration_type]['time_s'][-1]
     # Update field states/formats.
     self._button_calibration_markGood['state'] = 'disabled'
@@ -488,7 +477,7 @@ class ExperimentControlStreamer(SensorStreamer):
   def _button_callback_mark_activity_good(self):
     self._button_callback_mark_activity('Good')
   def _button_callback_mark_activity_maybe(self):
-    self._button_callback_mark_activity('Maybe')
+    self._button_callback_mark_activity('Normal')
   def _button_callback_mark_activity_bad(self):
     self._button_callback_mark_activity('Bad')
   def _button_callback_mark_activity(self, mark_status):
@@ -543,7 +532,7 @@ class ExperimentControlStreamer(SensorStreamer):
   def _create_gui(self):
     # Create the root.
     self._tkinter_root = tkinter.Tk()
-    self._tkinter_root.title("Let's make an ActionNet!")
+    self._tkinter_root.title("Let's be a Badminton Expert!")
     # Create some room around all the internal frames
     self._tkinter_root['padx'] = 5
     self._tkinter_root['pady'] = 5
@@ -724,7 +713,7 @@ class ExperimentControlStreamer(SensorStreamer):
     self._button_activity_markGood['state'] = 'disabled'
     self._button_activity_markGood.grid(padx=5, pady=5, sticky=tkinter.W, **grid_positions['activities_button_markGood'])
     self._button_activity_markMaybe = ttk.Button(activities_frame,
-                                       text='Mark Maybe',
+                                       text='Mark Normal',
                                        name='button_activity_maybe',
                                        command=self._button_callback_mark_activity_maybe,
                                        )
@@ -744,7 +733,7 @@ class ExperimentControlStreamer(SensorStreamer):
       txt = 'Number of each activity performed [good/maybe/bad]:'
       for (activity, counts) in self._activities_counts.items():
         txt += '\n'
-        txt += ' %3d / %3d / %3d:  %s' % (counts['Good'], counts['Maybe'], counts['Bad'], activity)
+        txt += ' %3d / %3d / %3d:  %s' % (counts['Good'], counts['Normal'], counts['Bad'], activity)
       activities_counts_element['text'] = txt
     self._update_activities_counts_text = update_activities_counts_text
     self._update_activities_counts_text()

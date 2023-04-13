@@ -1,7 +1,7 @@
 
-# Wearable Sensor-Based Biomechanical Data Collection for Objective Evaluation of Badminton Performance Across Skill Levels
+# ActionNet - Badminton Stroke Data Collection
 
-See https://action-net.csail.mit.edu for more information about the ActionNet project and dataset.
+See https://action-net.csail.mit.edu for more information about the ActionNet Badminton project and dataset.
 
 ## Experiment Framework
 

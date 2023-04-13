@@ -1,11 +1,11 @@
 
-# ActionNet
+# Wearable Sensor-Based Biomechanical Data Collection for Objective Evaluation of Badminton Performance Across Skill Levels
 
 See https://action-net.csail.mit.edu for more information about the ActionNet project and dataset.
 
 ## Experiment Framework
 
-The folder `recording_data` contains the framework for streaming, recording, visualizing, and post-processing data from the suite of sensors used for the ActionNet experiments. It also includes a GUI for interactively labeling activities during experiments.
+The folder `recording_data` contains the framework for streaming, recording, visualizing data from the suite of sensors used for the ActionNet Badminton experiments. It also includes a GUI for interactively labeling activities during experiments.
 
 See the ReadMe file in that folder for more information and for installation/usage instructions.
 

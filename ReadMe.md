@@ -8,13 +8,7 @@ This project proposes a new dataset of biomechanical data for two essential stro
 
 ## Experiment Framework
 
-The folder `recording_data` contains the framework for streaming, recording, visualizing data from the suite of sensors used for the ActionNet Badminton experiments. It also includes a GUI for interactively labeling activities during experiments.
-
-See the ReadMe file in that folder for more information and for installation/usage instructions.
-
-## Using the Data
-
-The folder `parsing_data` contains example scripts for parsing data offered by the ActionNet Badminton dataset.
+![Sensor Integration Framework](https://user-images.githubusercontent.com/79134282/233350030-c72336d1-3696-4a35-a2fc-e173f8c6af67.jpg)
 
 ## Contact
 

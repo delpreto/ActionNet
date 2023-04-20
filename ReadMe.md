@@ -1,20 +1,35 @@
 
 # ActionNet - Badminton Stroke Data Collection
 
-See https://dailyminiii.github.io/ for more information about the ActionNet Badminton project and dataset.
+For dataset, you can refer to the site: XXX
 
-![Dataset Overview](https://user-images.githubusercontent.com/79134282/231628843-0d856a28-d777-47f9-a243-6ef592709db5.png)
-This project proposes a new dataset of biomechanical data for two essential strokes in badminton: the overhead clear and the backhand drive. The dataset comprises approximately 3750 instances of each stroke, collected using multiple wearable sensors, including eye tracking, body tracking, electromyography, and insole pressure sensors. Notably, the dataset includes annotations for stroke type, expert level, hitting sound, ball landing position, and hitting position, providing a comprehensive and accurate collection of data. The dataset was collected from a diverse range of skill levels, including twelve beginners, eight intermediates, and five experts, making it a valuable resource for coaches and players. It enables them to develop and enhance training and coaching techniques, as well as facilitate the development of more sophisticated analysis and training tools. Ultimately, the dataset has the potential to improve player performance and training outcomes, and provide a deeper understanding of the biomechanics of these fundamental strokes in badminton.
+While badminton performance relies heavily on the success of each stroke, there exists a notable scarcity of comprehensive badminton action dataset available for analysis and training feedback. This paper introduces a novel badminton action dataset, which provides a comprehensive and accurate collection of both biomechanical and physiological data for two fundamental strokes in badminton - the overhead clear and the backhand drive. The dataset includes 7,772 stroke instances from 25 participants in total, each of which comprising multiple wearable sensor data including eye tracking, body tracking, electromyography, and insole pressure. Moreover, the dataset is annotated in terms of stroke type, expert level, hitting sound, ball landing position, and hitting position. Our data were collected from twelve beginners, eight intermediates, and five experts, allowing for a diverse range of skill levels to be represented. The dataset provides a valuable resource to understand the biomechanics of fundamental badminton strokes and to develop computer-assisted tools for action analysis and training feedback. Its potential usefulness is validated by out proof-of-concept models to classify the stroke actions and expertise levels.
 
-## Experiment Framework
+## Sensors to use
 
-The folder `recording_data` contains the framework for streaming, recording, visualizing data from the suite of sensors used for the ActionNet Badminton experiments. It also includes a GUI for interactively labeling activities during experiments.
+![Sensors to use](https://user-images.githubusercontent.com/79134282/233352475-a961fe8a-ba6c-4d77-a83b-8449ddeea52e.jpg)
 
-See the ReadMe file in that folder for more information and for installation/usage instructions.
+## Data Collection Framework
 
-## Using the Data
+![Data Collection Framework](https://user-images.githubusercontent.com/79134282/233351724-3bba3af4-1cbf-442c-a77f-a836ac986298.jpg)
 
-The folder `parsing_data` contains example scripts for parsing data offered by the ActionNet Badminton dataset.
+## Environment
+
+![Environment](https://user-images.githubusercontent.com/79134282/233352857-31ca2d5e-73ab-4e29-b44b-ae304c2011ab.jpg)
+
+## Data Annotation
+
+![Data Annotation](https://user-images.githubusercontent.com/79134282/233352940-9f69c707-3154-4b1d-895c-544ca3766143.jpg)
+
+## Data Preprocessing
+
+![Data Preprocessing](https://user-images.githubusercontent.com/79134282/233353008-060aae23-26a0-4684-8337-97ab22ac88e7.jpg)
+
+## Network Architecture
+
+![Network Architecture](https://user-images.githubusercontent.com/79134282/233352749-cfac7fec-f370-4b53-a91e-d581793011a0.jpg)
+
+
 
 ## Contact
 

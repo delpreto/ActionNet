@@ -35,7 +35,8 @@ While badminton performance relies heavily on the success of each stroke, there 
 
 If you have any questions regarding the dataset, please feel free to contact me at seongminwoo@gm.gist.ac.kr.
 
-
+## Acknowledgement
+This work was supported by the GIST-MIT Research Collaboration grant funded by the GIST in 2023.
 
 
 

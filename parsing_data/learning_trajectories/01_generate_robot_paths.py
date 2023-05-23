@@ -27,6 +27,8 @@
 
 import h5py
 import numpy as np
+from scipy import interpolate
+import matplotlib.pyplot as plt
 import os
 script_dir = os.path.dirname(os.path.realpath(__file__))
 
@@ -36,6 +38,8 @@ data_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'results'
 trajectory_data_filepath_humans = os.path.join(data_dir, 'pouring_paths_humans.hdf5')
 # Specify the output file for robot trajectory data.
 trajectory_data_filepath_robots = os.path.join(data_dir, 'pouring_paths_robots.hdf5')
+
+plot_human_and_robot_hand_paths = False
 
 ###################################################################
 ###################################################################
@@ -126,18 +130,72 @@ for group_name in data_file_humans.keys():
     end_time_s = time_s[-1]
     sampling_times_s = time_s
     
-    # TODO Use real robot data instead.
-    body_segment_position_cm_robot = np.zeros(shape=(sampling_times_s.shape[0], # timesteps
-                                                     len(body_segment_names_robots),  # segments
-                                                     3 # xyz
-                                                     ))
-    body_segment_quaternion_robot = np.zeros(shape=(sampling_times_s.shape[0], # timesteps
-                                                    len(body_segment_names_robots),  # segments
-                                                    4 # xyzw
-                                                    ))
-    time_s_robot = sampling_times_s
+    # Use linear interpolation for now.
+    # TODO Use another planning method?
+    pour_duration_s = 2 # might want to match pour_position_variance_buffer_duration_s used when extracting human demonstrations?
+    time_s_robot = np.array([
+        start_time_s,
+        pour_time_s-pour_duration_s/2,
+        pour_time_s+pour_duration_s/2,
+        end_time_s
+      ])
+    body_segment_position_cm_robot = np.array([
+        start_positions_cm,
+        pour_positions_cm,
+        pour_positions_cm,
+        end_positions_cm
+      ])
+    body_segment_quaternion_robot = np.array([
+        start_quaternions,
+        pour_quaternions,
+        pour_quaternions,
+        end_quaternions
+      ])
+    fn_interpolate_data = interpolate.interp1d(
+        time_s_robot, # x values
+        body_segment_position_cm_robot,   # y values
+        axis=0,        # axis of the data along which to interpolate
+        kind='linear', # interpolation method, such as 'linear', 'zero', 'nearest', 'quadratic', 'cubic', etc.
+        fill_value='extrapolate' # how to handle x values outside the original range
+    )
+    body_segment_position_cm_robot = fn_interpolate_data(sampling_times_s)
+    fn_interpolate_data = interpolate.interp1d(
+        time_s_robot, # x values
+        body_segment_quaternion_robot,   # y values
+        axis=0,        # axis of the data along which to interpolate
+        kind='linear', # interpolation method, such as 'linear', 'zero', 'nearest', 'quadratic', 'cubic', etc.
+        fill_value='extrapolate' # how to handle x values outside the original range
+    )
+    body_segment_quaternion_robot = fn_interpolate_data(sampling_times_s)
     
-    # Save dummy robot data.
+    time_s_robot = sampling_times_s
+
+    # Only use select body segments for the interpolated robot paths.
+    # Should match body_segment_names_robots defined above.
+    body_segment_position_cm_robot = body_segment_position_cm_robot[:,[hand_index_humans, elbow_index_humans, shoulder_index_humans],:]
+    body_segment_quaternion_robot = body_segment_quaternion_robot[:,[hand_index_humans, elbow_index_humans, shoulder_index_humans],:]
+    
+    if plot_human_and_robot_hand_paths:
+      fig = plt.figure()
+      figManager = plt.get_current_fig_manager()
+      figManager.window.showMaximized()
+      fig.add_subplot(1, 1, 1, projection='3d')
+      ax = fig.get_axes()[0]
+      ax.view_init(16, 44)
+      ax.set_xlabel('X [cm]')
+      ax.set_ylabel('Y [cm]')
+      ax.set_zlabel('Z [cm]')
+      human_hand_path = np.squeeze(body_segment_position_cm[:,hand_index_humans,:])
+      print(human_hand_path.shape)
+      robot_hand_path = np.squeeze(body_segment_position_cm_robot[:,hand_index_robots,:])
+      ax.plot3D(human_hand_path[:, 0], human_hand_path[:, 1], human_hand_path[:, 2], alpha=1)
+      ax.plot3D(robot_hand_path[:, 0], robot_hand_path[:, 1], robot_hand_path[:, 2], alpha=1)
+      ax.set_box_aspect([ub - lb for lb, ub in (ax.get_xlim(), ax.get_ylim(), ax.get_zlim())])
+      ax.set_title('Subject %02d Trial %02d' % (subject_id, trial_id))
+      plt.show()
+    
+    
+    # Save robot data.
     # Make an analogous group for the robot trajectories.
     trial_group_robot = subject_group_robot.create_group(trial_name)
     trial_group_robot.create_dataset('body_segment_position_cm', data=body_segment_position_cm_robot)

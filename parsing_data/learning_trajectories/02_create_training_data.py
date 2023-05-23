@@ -28,6 +28,7 @@
 import h5py
 import numpy as np
 from scipy import interpolate
+import matplotlib.pyplot as plt
 import os
 script_dir = os.path.dirname(os.path.realpath(__file__))
 
@@ -44,6 +45,8 @@ training_data_filepath = os.path.join(data_dir, 'training_data.hdf5') # None to 
 #  then resample it to have the following number of samples.
 num_normalized_timesteps = 100
 normalized_timestamps = np.linspace(0, 1, num_normalized_timesteps)
+
+plot_hand_path_features = False
 
 ###################################################################
 ###################################################################
@@ -105,6 +108,22 @@ def add_training_segment(time_s, body_segment_position_cm, body_segment_quaterni
       fill_value='extrapolate' # how to handle x values outside the original range
   )
   feature_matrix_resampled = fn_interpolate_data(normalized_timestamps)
+
+  if plot_hand_path_features:
+    fig = plt.figure()
+    figManager = plt.get_current_fig_manager()
+    figManager.window.showMaximized()
+    fig.add_subplot(1, 1, 1, projection='3d')
+    ax = fig.get_axes()[0]
+    ax.view_init(16, 44)
+    ax.set_xlabel('X [cm]')
+    ax.set_ylabel('Y [cm]')
+    ax.set_zlabel('Z [cm]')
+    hand_path = np.squeeze(feature_matrix_resampled[:,0:3])
+    print(hand_path.shape)
+    ax.plot3D(hand_path[:, 0], hand_path[:, 1], hand_path[:, 2], alpha=1)
+    ax.set_box_aspect([ub - lb for lb, ub in (ax.get_xlim(), ax.get_ylim(), ax.get_zlim())])
+    plt.show()
   
   feature_matrices.append(feature_matrix_resampled)
   labels.append('human' if is_human else 'robot')

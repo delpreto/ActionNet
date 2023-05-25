@@ -79,7 +79,7 @@ class FlowFieldVisualizer(Visualizer):
     return {'scatter': (x0_1d, y0_1d), 'segments': (x, y)}
     
   # Initialize a visualization that plots data as a 2D heatmap.
-  def init(self, device_name, stream_name, stream_info):
+  def init(self, device_name, stream_name, stream_info, subplot_row=0, subplot_col=0):
     if self._print_debug: print('FlowFieldVisualizer initializing for %s %s' % (device_name, stream_name))
     
     # Get the size of each sample, and ensure it is at least 2D.
@@ -92,6 +92,7 @@ class FlowFieldVisualizer(Visualizer):
     self._visualizer_options.setdefault('magnitude_normalization_min', 0.01)
     self._visualizer_options.setdefault('magnitude_normalization_update_period_s', 10)
     self._visualizer_options.setdefault('magnitude_normalization_buffer_duration_s', 120)
+    self._visualizer_options.setdefault('linewidth', 1.5)
     # Get the plotting options.
     magnitude_normalization = self._visualizer_options['magnitude_normalization']
     magnitude_normalization_min = self._visualizer_options['magnitude_normalization_min']
@@ -142,17 +143,17 @@ class FlowFieldVisualizer(Visualizer):
     plotPoints = self._vector_to_plotPoints(data_magnitudes, data_angles_rad)
     self._data = np.stack((data_magnitudes, data_angles_rad), axis=0)
     
-    h_plot = self._layout.addPlot(0,0, 1,1, title=title) # row, col, rowspan, colspan
+    h_plot = self._layout.addPlot(subplot_row,subplot_col, 1,1, title=title) # row, col, rowspan, colspan
     scatter = pyqtgraph.ScatterPlotItem(pos=np.concatenate(plotPoints['scatter'], axis=0).T, size=0.25, pxMode=False)
     scatter.setBrush(color=np.array([1,1,1])*150)
     scatter.setPen(color=np.array([1,1,1])*150)
     path = pyqtgraph.arrayToQPath(*plotPoints['segments'], connect='pairs')
     path_item = pyqtgraph.QtGui.QGraphicsPathItem(path)
-    path_item.setPen(pyqtgraph.mkPen('k', width=1.5, pxMode=False))
+    path_item.setPen(pyqtgraph.mkPen('k', width=self._visualizer_options['linewidth'], pxMode=False))
     h_plot.addItem(scatter)
     h_plot.addItem(path_item)
-    h_plot.setXRange(0, self._sample_size_x-1, padding=0.5/(self._sample_size_x-1))
-    h_plot.setYRange(0, self._sample_size_y-1, padding=0.5/(self._sample_size_y-1))
+    h_plot.setXRange(0, self._sample_size_x-1, padding=0.5/(self._sample_size_x-1) if self._sample_size_x > 1 else 0.5)
+    h_plot.setYRange(0, self._sample_size_y-1, padding=0.5/(self._sample_size_y-1) if self._sample_size_y > 1 else 0.5)
     h_plot.setAspectLocked(ratio=1)
     
     # Create an exporter to grab an image of the plot.

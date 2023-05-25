@@ -32,6 +32,9 @@ from collections import OrderedDict
 import os
 import pyqtgraph
 from pyqtgraph.Qt import QtCore, QtGui
+import seaborn as sns
+import matplotlib.pyplot as plt
+import threading
 
 # NOTE: HDFView is a helpful program for exploring HDF5 contents.
 #   The official download page is at https://www.hdfgroup.org/downloads/hdfview.
@@ -43,15 +46,15 @@ filepath = os.path.join('P:/MIT/Lab/Wearativity/data/tests',
                         '2023-05-24_17-41-33_shoeAngle_testing_full',
                         '2023-05-24_17-41-53_streamLog_shoeAngle_testing.hdf5')
 
-# Choose what to plot.
-# Currently, only one really works at a time since the app isn't run in its own thread.
-# TODO: Manage the app execution thread better.
-plot_tactile_heatmaps = False
-plot_shear_flowfields = False
-plot_shear_average_flow = True
-
 # Specify the 8x24 submatrix to extract (including the first dimension of time)
 insole_submatrix_slice = np.s_[:, 24:32, 6:30] # starts are inclusive, ends are exclusive
+
+# Choose what to plot.
+plot_tactile_heatmaps = True
+plot_shear_flowfields = True
+plot_shear_average_flow = True
+plot_magnitude_box_plots = True
+plot_magnitudeAngle_scatter = True
 
 label_order_toPlot = [
   '45 toe-down',
@@ -153,7 +156,7 @@ print('Aggregating data by label')
 
 # Create a dictionary that maps label to
 #  a list of numpy matrices recorded for instances of that label.
-# Each entry in a list will be Tx8x24 where T is timesteps.
+# Each entry in a list will be Tx32x32 where T is timesteps.
 tactile_data_raw_byLabel = OrderedDict()
 for (label_index, activity_label) in enumerate(activities_labels):
   # Extract the data for this label segment.
@@ -166,7 +169,7 @@ for (label_index, activity_label) in enumerate(activities_labels):
   tactile_data_raw_byLabel[activity_label].append(data_forLabel)
 
 # Create a dictionary that maps label to
-#  an average 8x24 matrix recorded across all instances and timesteps for that label.
+#  an average 32x32 matrix recorded across all instances and timesteps for that label.
 tactile_data_average_byLabel = OrderedDict()
 for (label_index, activity_label) in enumerate(activities_labels):
   # Average the segments recorded with this label.
@@ -222,23 +225,32 @@ for (label_index, activity_label) in enumerate(activities_labels):
                                                                   axis=0)
 
 ###################################################################
+# Create variables that will be used for pyqtgraph plotting
+###################################################################
+
+pyqtgraph_app = QtGui.QApplication([])
+screen_width = pyqtgraph_app.primaryScreen().size().width()
+screen_height = pyqtgraph_app.primaryScreen().size().height()
+figure_width = int(screen_width*0.5)
+figure_height = int(figure_width/1.5)
+figure_size = (figure_width, figure_height)
+pyqtgraph.setConfigOption('background', 'w')
+pyqtgraph.setConfigOption('foreground', 'k')
+pyqtgraph_layouts = []
+flowfield_visualizers = []
+
+###################################################################
 # Plot a heatmap of tactile data for each label
 ###################################################################
 
 if plot_tactile_heatmaps:
   labels_to_exclude = ['unworn', 'flat']
-  app = QtGui.QApplication([])
-  screen_width = app.primaryScreen().size().width()
-  screen_height = app.primaryScreen().size().height()
-  figure_width = int(screen_width*0.5)
-  figure_height = int(figure_width/1.5)
-  figure_size = (figure_width, figure_height)
-  pyqtgraph.setConfigOption('background', 'w')
-  pyqtgraph.setConfigOption('foreground', 'k')
+  
   layout = pyqtgraph.GraphicsLayoutWidget(show=True)
+  pyqtgraph_layouts.append(layout)
   layout.setGeometry(10, 10, *figure_size)
   layout.setWindowTitle('Average Calibrated Tactile Data')
-  num_labels_toPlot = len(set(activities_labels))-len(labels_to_exclude)
+  num_labels_toPlot = len(label_order_toPlot)
   num_cols = 3
   num_rows = np.ceil(num_labels_toPlot/num_cols)
   subplot_row = 0
@@ -294,7 +306,6 @@ if plot_tactile_heatmaps:
   #   h_colorbar.setLevels([min_level, max_level])
   
   QtCore.QCoreApplication.processEvents()
-  app.exec()
 
 ###################################################################
 # Plot a flow field for each label
@@ -302,23 +313,15 @@ if plot_tactile_heatmaps:
 
 if plot_shear_flowfields:
   labels_to_exclude = ['unworn', 'flat']
-  app = QtGui.QApplication([])
-  screen_width = app.primaryScreen().size().width()
-  screen_height = app.primaryScreen().size().height()
-  figure_width = int(screen_width*0.5)
-  figure_height = int(figure_width/1.5)
-  figure_size = (figure_width, figure_height)
-  pyqtgraph.setConfigOption('background', 'w')
-  pyqtgraph.setConfigOption('foreground', 'k')
   layout = pyqtgraph.GraphicsLayoutWidget(show=True)
+  pyqtgraph_layouts.append(layout)
   layout.setGeometry(10, 10, *figure_size)
   layout.setWindowTitle('Average Calibrated Shear Data')
-  num_labels_toPlot = len(set(activities_labels))-len(labels_to_exclude)
+  num_labels_toPlot = len(label_order_toPlot)
   num_cols = 3
   num_rows = np.ceil(num_labels_toPlot/num_cols)
   subplot_row = 0
   subplot_col = 0
-  vs = []
   for (label_index, activity_label) in enumerate(label_order_toPlot): # enumerate(activities_labels)
     if activity_label in labels_to_exclude:
       continue
@@ -331,14 +334,13 @@ if plot_shear_flowfields:
     v.init(activity_label, '', {'sample_size':shear_magnitudeAngle.shape},
            subplot_row=subplot_row, subplot_col=subplot_col)
     v.update(new_data={'data':[shear_magnitudeAngle]}, visualizing_all_data=False)
-    vs.append(v)
+    flowfield_visualizers.append(v)
   
     subplot_col = (subplot_col+1) % num_cols
     if subplot_col == 0:
       subplot_row += 1
   
   QtCore.QCoreApplication.processEvents()
-  app.exec()
   
 ###################################################################
 # Plot the average flow for each label
@@ -356,25 +358,16 @@ if plot_shear_average_flow:
     shear_magnitude = float(np.squeeze(shear_magnitudeAngle[0]))
     if shear_magnitude > normalization_factor:
       normalization_factor = shear_magnitude
-      print(normalization_factor)
   
-  app = QtGui.QApplication([])
-  screen_width = app.primaryScreen().size().width()
-  screen_height = app.primaryScreen().size().height()
-  figure_width = int(screen_width*0.5)
-  figure_height = int(figure_width/1.5)
-  figure_size = (figure_width, figure_height)
-  pyqtgraph.setConfigOption('background', 'w')
-  pyqtgraph.setConfigOption('foreground', 'k')
   layout = pyqtgraph.GraphicsLayoutWidget(show=True)
+  pyqtgraph_layouts.append(layout)
   layout.setGeometry(10, 10, *figure_size)
   layout.setWindowTitle('Average Calibrated Shear Data')
-  num_labels_toPlot = len(set(activities_labels))-len(labels_to_exclude)
+  num_labels_toPlot = len(label_order_toPlot)
   num_cols = 3
   num_rows = np.ceil(num_labels_toPlot/num_cols)
   subplot_row = 0
   subplot_col = 0
-  vs = []
   for (label_index, activity_label) in enumerate(label_order_toPlot): # enumerate(activities_labels)
     if activity_label in labels_to_exclude:
       continue
@@ -388,11 +381,104 @@ if plot_shear_average_flow:
     v.init(activity_label, '', {'sample_size':shear_magnitudeAngle.shape},
            subplot_row=subplot_row, subplot_col=subplot_col)
     v.update(new_data={'data':[shear_magnitudeAngle]}, visualizing_all_data=False)
-    vs.append(v)
+    flowfield_visualizers.append(v)
   
     subplot_col = (subplot_col+1) % num_cols
     if subplot_col == 0:
       subplot_row += 1
   
   QtCore.QCoreApplication.processEvents()
-  app.exec()
+  
+###################################################################
+# Plot magnitude box plots
+###################################################################
+
+if plot_magnitude_box_plots:
+  label_order_toBoxPlot = label_order_toPlot
+  label_order_toBoxPlot = sorted(label_order_toBoxPlot)
+
+  plt.figure()
+  magnitudes = []
+  angles_deg = []
+  for (label_index, activity_label) in enumerate(label_order_toBoxPlot): # enumerate(activities_labels)
+    shear_magnitudeAngle = shear_magnitudeAngle_byLabel[activity_label]
+    shear_magnitude = np.squeeze(shear_magnitudeAngle[0])
+    shear_angle_rad = np.squeeze(shear_magnitudeAngle[1])
+    shear_angle_deg = shear_angle_rad*180/np.pi
+    magnitudes.append(np.squeeze(shear_magnitude.reshape((1,-1))))
+    angles_deg.append(np.squeeze(shear_angle_deg.reshape((1,-1))))
+
+  sns.set(style="whitegrid")
+  
+  # The main boxplot
+  ax = sns.boxplot(data=magnitudes)
+  # Add jitter with the swarmplot function
+  sns.swarmplot(data=magnitudes, size=3)
+  # Add labels
+  ax.set_xticklabels([x.split('-down')[0].replace(' ','\n') for x in label_order_toBoxPlot])
+  # plt.xticks(rotation=45)
+  plt.ylabel('Shear Magnitudes in Time-Averaged Matrix')
+  plt.title('Shear Magnitudes in Time-Averaged Matrix per Label')
+  
+  figManager = plt.get_current_fig_manager()
+  figManager.window.showMaximized()
+
+###################################################################
+# Plot magnitude-angle scatter plots
+###################################################################
+
+if plot_magnitudeAngle_scatter:
+  label_order_toBoxPlot = label_order_toPlot
+  label_order_toBoxPlot = sorted(label_order_toBoxPlot)
+  
+  plt.figure()
+  for (label_index, activity_label) in enumerate(label_order_toBoxPlot): # enumerate(activities_labels)
+    shear_magnitudeAngle = shear_magnitudeAngle_byLabel[activity_label]
+    shear_magnitude = np.squeeze(shear_magnitudeAngle[0])
+    shear_angle_rad = np.squeeze(shear_magnitudeAngle[1])
+    shear_angle_deg = shear_angle_rad*180/np.pi
+    magnitudes = np.squeeze(shear_magnitude.reshape((1,-1)))
+    angles_deg = np.squeeze(shear_angle_deg.reshape((1,-1)))
+
+    shear_average_magnitudeAngle = shear_average_magnitudeAngle_byLabel[activity_label]
+    shear_average_magnitude = np.squeeze(shear_average_magnitudeAngle[0])
+    shear_average_angle_rad = np.squeeze(shear_average_magnitudeAngle[1])
+    shear_average_angle_deg = shear_average_angle_rad*180/np.pi
+  
+    # Plot the scatter for this label
+    ax = plt.scatter(magnitudes, angles_deg, label=activity_label)
+    plt.draw()
+    plt.scatter(shear_average_magnitude, shear_average_angle_deg,
+                s=500,
+                color=ax.get_facecolors()[0].tolist())
+    
+  # Format
+  plt.legend()
+  plt.grid(True, color='lightgray')
+  plt.ylabel('Shear Angle [deg]')
+  plt.xlabel('Shear Magnitude')
+  plt.title('Shear Magnitudes and Angles in Time-Averaged Matrix per Label')
+  
+  figManager = plt.get_current_fig_manager()
+  figManager.window.showMaximized()
+
+###################################################################
+# Show all plots
+###################################################################
+
+using_pyqtgraph = plot_tactile_heatmaps or plot_shear_flowfields or plot_shear_average_flow
+using_pyplot = plot_magnitude_box_plots or plot_magnitudeAngle_scatter
+
+if using_pyqtgraph:
+  def run_pyqtgraphs():
+    pyqtgraph_app.exec()
+  run_pyqtgraph_thread = threading.Thread(target=run_pyqtgraphs)
+  run_pyqtgraph_thread.start()
+if using_pyplot:
+  plt.show()
+if using_pyqtgraph:
+  run_pyqtgraph_thread.join()
+
+
+
+

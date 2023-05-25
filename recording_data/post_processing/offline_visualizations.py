@@ -45,7 +45,8 @@ if __name__ == '__main__':
     data_dir = os.path.realpath(os.path.join(script_dir, '..', '..', 'data'))
     experiments_dir = os.path.join(data_dir, 'tests')
     log_dirs = [
-      os.path.join(experiments_dir, 'my_set_of_experiments', 'my_experiment_folder'),
+      # os.path.join(experiments_dir, '2023-05-24_shoeAngle_testing', '2023-05-24_18-00-03_shoeAngle_testing'),
+      os.path.join(experiments_dir, '2023-05-24_shoeAngle_testing', '2023-05-24_17-41-33_shoeAngle_testing_full'),
     ]
   else:
     log_dirs = sys.argv[1:]
@@ -53,8 +54,8 @@ if __name__ == '__main__':
   # Define offsets for start/end of processing.
   #  Should be a list with an entry for each log directory.
   #  Each entry can be a time in seconds, or None to use all log data.
-  start_offsets_s = [None]*len(log_dirs)
-  end_offsets_s = [None]*len(log_dirs)
+  start_offsets_s = [None]*len(log_dirs) # for 2022-05-24: [12*60+30] # 5*60+34, 1*60+40, 2*60+3
+  end_offsets_s = [None]*len(log_dirs) # for 2022-05-24: [(22*60+47) - (16*60+45)] # (14*60+24) - (13*60+32), (14*60+1) - (13*60+15), (5*60+58) - (3*60+55)
 
   # Loop through each specified log directory to process.
   for (i, log_dir) in enumerate(log_dirs):
@@ -75,7 +76,7 @@ if __name__ == '__main__':
     # Configure visualizations to be shown as a simulation of real-time streaming.
     visualization_options = None
     composite_video_filepath = os.path.join(log_dir,
-                                  'composite_visualization_postProcessed_10fps')
+                                  'composite_visualization_postProcessed_shear_20fps')
 
     # Create a sensor manager.
     sensor_manager = SensorManager(sensor_streamer_specs=None,
@@ -89,24 +90,32 @@ if __name__ == '__main__':
     sensor_manager.connect()
 
     # Visualize!
-    frame_size = (1520, 2560) # height, width # (1800, 3000)
-    composite_col_width_xsens = int(frame_size[1]*0.4)
-    composite_col_widths = [composite_col_width_xsens, frame_size[1] - composite_col_width_xsens]
-    composite_row_height = int(frame_size[0] / 2)
+    composite_frame_size = (1800, 3000) # height, width # (1800, 3000)
+    composite_col_width = int(composite_frame_size[1]/2)
+    composite_row_height = int(composite_frame_size[0]/2)
     visualizer = DataVisualizer(sensor_streamers=sensor_manager.get_streamers(),
-                                update_period_s = 0.05,
+                                update_period_s = 0.1,
                                 use_composite_video=True,
                                 composite_video_layout = [
                                   [ # row  0
-                                    {'device_name':'xsens-segments', 'stream_name':'position_cm', 'rowspan':1, 'colspan':1, 'width':composite_col_widths[0], 'height': composite_row_height},
-                                    {'device_name':'shear-shoe-right', 'stream_name':'tactile_data', 'rowspan':1, 'colspan':1, 'width':composite_col_widths[1], 'height':composite_row_height},
+                                    {'device_name':'video', 'stream_name':'frame', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
+                                    {'device_name':'shear-sensor-left', 'stream_name':'tactile_data_calibrated', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
                                   ],
                                   [ # row  1
-                                    {'device_name':'shear-shoe-right', 'stream_name':'tactile_tiled', 'rowspan':1, 'colspan':1, 'width':composite_col_widths[0], 'height':composite_row_height},
-                                    {'device_name':'shear-shoe-right', 'stream_name':'force_vector', 'rowspan':1, 'colspan':1, 'width':composite_col_widths[1], 'height':composite_row_height},
-                                    # {'device_name':'dummy', 'stream_name':'nothing', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
+                                    {'device_name':'shear-sensor-left', 'stream_name':'tactile_tiled', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
+                                    {'device_name':'shear-sensor-left', 'stream_name':'force_vector', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
                                   ],
                                 ],
+                                #   [ # row  0
+                                #     {'device_name':'xsens-segments', 'stream_name':'position_cm', 'rowspan':1, 'colspan':1, 'width':composite_col_widths[0], 'height': composite_row_height},
+                                #     {'device_name':'shear-shoe-right', 'stream_name':'tactile_data', 'rowspan':1, 'colspan':1, 'width':composite_col_widths[1], 'height':composite_row_height},
+                                #   ],
+                                #   [ # row  1
+                                #     {'device_name':'shear-shoe-right', 'stream_name':'tactile_tiled', 'rowspan':1, 'colspan':1, 'width':composite_col_widths[0], 'height':composite_row_height},
+                                #     {'device_name':'shear-shoe-right', 'stream_name':'force_vector', 'rowspan':1, 'colspan':1, 'width':composite_col_widths[1], 'height':composite_row_height},
+                                #     # {'device_name':'dummy', 'stream_name':'nothing', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
+                                #   ],
+                                # ],
                                 # composite_video_layout = [
                                 #   [ # row  0
                                 #     {'device_name':'xsens-segments', 'stream_name':'position_cm', 'rowspan':1, 'colspan':1, 'width':composite_col_widths[0], 'height': composite_row_height},

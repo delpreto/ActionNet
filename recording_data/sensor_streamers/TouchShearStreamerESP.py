@@ -80,12 +80,30 @@ class TouchShearStreamerESP(TouchStreamer):
     
     # Shear-specific configuration.
     self._tiled_sample_size = tuple([x // 2 for x in self._sensor_sample_size]) # (height, width)
+    # State for subtracting an average of initial readings.
+    self._calibration_duration_s = None # None to not calibrate
+    self._calibration_startTime_s = None
+    self._calibration_matrices = []
+    self._calibration_matrix = np.zeros(shape=self._sensor_sample_size)
+    self._calibration_completed = False if self._calibration_duration_s is not None else True
     
   
   def _connect(self, timeout_s=10):
     if TouchStreamer._connect(self, timeout_s=timeout_s):
       # Add shear-specific streams.
       for sensor_name in self._sensor_names_active:
+        self.add_stream(device_name=sensor_name,
+                        stream_name='tactile_data_calibrated',
+                        data_type='float32',
+                        sample_size=self._sensor_sample_size,
+                        sampling_rate_hz=None,
+                        extra_data_info={},
+                        data_notes=OrderedDict([
+                          ('Description', 'ADC readings from the matrix of tactile sensors '
+                                          'on the glove.  Higher readings indicate '
+                                          'higher pressures.  See the calibration periods '
+                                          'for more information about conversions.'),
+                        ]))
         self.add_stream(device_name=sensor_name,
                         stream_name='tactile_tiled',
                         data_type='float32',
@@ -122,22 +140,35 @@ class TouchShearStreamerESP(TouchStreamer):
   def _compute_shear(self, time_s, data_matrix):
     # Compute shear-specific quantities.
     if time_s is not None:
+      # Subtract an average of initial readings as a rough calibration.
+      if not self._calibration_completed:
+        # Record the initial matrices.
+        if self._calibration_startTime_s is None:
+          self._calibration_startTime_s = time.time()
+        if time.time() - self._calibration_startTime_s < self._calibration_duration_s:
+          self._calibration_matrices.append(data_matrix)
+        else:
+          # Aggregate the initial matrices to create a calibration matrix.
+          self._calibration_matrix = np.median(np.array(self._calibration_matrices), axis=0)
+          self._calibration_completed = True
+      data_matrix_calibrated = data_matrix - self._calibration_matrix # will do nothing if the matrix hasn't been computed or if calibration is disabled
+      
       # Compute the total force in each shear square.
       toConvolve_tiled_magnitude = np.array([[1,1],[1,1]])
-      data_matrix_tiled_magnitude = convolve2d_strided(data_matrix, toConvolve_tiled_magnitude, stride=2)
+      data_matrix_tiled_magnitude = convolve2d_strided(data_matrix_calibrated, toConvolve_tiled_magnitude, stride=2)
     
       # Compute the force angle in each shear square.
       toConvolve_tiled_x = np.array([[-1,1],[-1,1]])
       toConvolve_tiled_y = np.array([[1,1],[-1,-1]])
-      data_matrix_tiled_x = convolve2d_strided(data_matrix, toConvolve_tiled_x, stride=2)
-      data_matrix_tiled_y = convolve2d_strided(data_matrix, toConvolve_tiled_y, stride=2)
+      data_matrix_tiled_x = convolve2d_strided(data_matrix_calibrated, toConvolve_tiled_x, stride=2)
+      data_matrix_tiled_y = convolve2d_strided(data_matrix_calibrated, toConvolve_tiled_y, stride=2)
       data_matrix_tiled_shearAngle_rad = np.arctan2(data_matrix_tiled_y, data_matrix_tiled_x)
       data_matrix_tiled_shearMagnitude = np.linalg.norm(np.stack([data_matrix_tiled_y, data_matrix_tiled_x], axis=0), axis=0)
     
       # Return the data!
-      return (time_s, data_matrix, data_matrix_tiled_magnitude,
+      return (time_s, data_matrix, data_matrix_calibrated, data_matrix_tiled_magnitude,
               data_matrix_tiled_shearAngle_rad, data_matrix_tiled_shearMagnitude)
-    return (None, None, None, None, None)
+    return (None, None, None, None, None, None)
   
     
   ###########################
@@ -153,6 +184,12 @@ class TouchShearStreamerESP(TouchStreamer):
       processed_options.setdefault(device_name, {})
       for (stream_name, stream_info) in device_info.items():
         if stream_name == 'tactile_data':
+          processed_options[device_name].setdefault(stream_name,
+                                                    {
+                                                      'class': HeatmapVisualizer,
+                                                      'colorbar_levels': 'auto', # a 2-element list, 'auto', or omitted
+                                                    })
+        if stream_name == 'tactile_data_calibrated':
           processed_options[device_name].setdefault(stream_name,
                                                     {
                                                       'class': HeatmapVisualizer,
@@ -208,11 +245,12 @@ class TouchShearStreamerESP(TouchStreamer):
         try:
           (time_s, data_matrix) \
             = self._read_sensor(sensor_name, suppress_printing=(count < 10))
-          (time_s, data_matrix, data_matrix_tiled_magnitude,
+          (time_s, data_matrix, data_matrix_calibrated, data_matrix_tiled_magnitude,
            data_matrix_tiled_shearAngle_rad, data_matrix_tiled_shearMagnitude) \
             = self._compute_shear(time_s, data_matrix)
           if time_s is not None and data_matrix is not None:
             self.append_data(sensor_name, 'tactile_data', time_s, data_matrix)
+            self.append_data(sensor_name, 'tactile_data_calibrated', time_s, data_matrix_calibrated)
             self.append_data(sensor_name, 'tactile_tiled', time_s, data_matrix_tiled_magnitude)
             self.append_data(sensor_name, 'force_vector', time_s,
                              np.stack((data_matrix_tiled_shearMagnitude,
@@ -228,7 +266,7 @@ class TouchShearStreamerESP(TouchStreamer):
     except KeyboardInterrupt: # The program was likely terminated
       pass
     except:
-      self._log_error('\n\n***ERROR RUNNING TouchShearStreamer for sensor %s:\n%s\n' % (sensor_name, traceback.format_exc()))
+      self._log_error('\n\n***ERROR RUNNING TouchShearStreamerESP for sensor %s:\n%s\n' % (sensor_name, traceback.format_exc()))
     finally:
       pass
   

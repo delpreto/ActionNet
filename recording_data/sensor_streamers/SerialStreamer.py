@@ -194,7 +194,13 @@ class SerialStreamer(SensorStreamer):
                                                     'class': LinePlotVisualizer,
                                                     'single_graph': True,
                                                     'plot_duration_s': 60,
+                                                    # 'plot_duration_s': 2700, # oven tests
+                                                    # 'plot_duration_s': 200, # vacuum tests
+                                                    # 'plot_duration_s': 600, # spreader tests
                                                     'downsample_factor': 1,
+                                                    'y_lim': None,
+                                                    'x_label': 'Time [s]',
+                                                    'y_label': None,
                                                   })
     
     # Override with any provided options.

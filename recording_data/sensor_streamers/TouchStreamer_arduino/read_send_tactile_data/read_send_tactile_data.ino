@@ -25,8 +25,8 @@ See https://action-net.csail.mit.edu for more usage information.
 ////////////
 
 // Specify which microcontroller is being used
-#define USING_ARDUINO 1
-#define USING_ESP     0
+#define USING_ARDUINO 0
+#define USING_ESP     1
 
 // Specify whether to send data wirelessly via ESP-NOW or wired via Serial.
 #define SEND_DATA_ESPNOW 0
@@ -78,7 +78,7 @@ uint8_t newline_offset = '\n'+1;
 
 // Define pins for sampling and outputs (mux channel selections, LEDs, etc).
 #if USING_ESP
-const int pins_selectRows[] = {A0, A1, A5, 12, 13};
+const int pins_selectRows[] = {A0, A1, A5, 21, 12};
 const int pins_selectCols[] = {27, 33, 15, 32, 14};
 #endif
 #if USING_ARDUINO

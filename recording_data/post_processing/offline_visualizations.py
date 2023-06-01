@@ -76,7 +76,7 @@ if __name__ == '__main__':
     # Configure visualizations to be shown as a simulation of real-time streaming.
     visualization_options = None
     composite_video_filepath = os.path.join(log_dir,
-                                  'composite_visualization_postProcessed_shear_20fps')
+                                  'composite_visualization_postProcessed_shear_newVis_10fps')
 
     # Create a sensor manager.
     sensor_manager = SensorManager(sensor_streamer_specs=None,
@@ -103,6 +103,7 @@ if __name__ == '__main__':
                                   ],
                                   [ # row  1
                                     {'device_name':'shear-sensor-left', 'stream_name':'tactile_tiled', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
+                                    # {'device_name':'shear-sensor-left', 'stream_name':'force_magnitude', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
                                     {'device_name':'shear-sensor-left', 'stream_name':'force_vector', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
                                   ],
                                 ],

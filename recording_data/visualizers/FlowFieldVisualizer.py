@@ -63,22 +63,30 @@ class FlowFieldVisualizer(Visualizer):
   # Define a function for getting line segment coordinates and scatter coordinates
   # from matrices of magnitudes/angles.
   def _vector_to_plotPoints(self, magnitudes_scaled, angles_rad):
+    
     dx = magnitudes_scaled*np.cos(angles_rad)
     dy = magnitudes_scaled*np.sin(angles_rad)
     
     x1 = self._plotPoints_x0+dx
     y1 = self._plotPoints_y0+dy
     
-    x0_1d = np.reshape(self._plotPoints_x0, (1, self._sample_size_n))
-    x1_1d = np.reshape(x1, (1, self._sample_size_n))
-    y0_1d = np.reshape(self._plotPoints_y0, (1, self._sample_size_n))
-    y1_1d = np.reshape(y1, (1, self._sample_size_n))
+    x0_1d = np.reshape(self._plotPoints_x0, (1, self._plotData_size_n))
+    x1_1d = np.reshape(x1, (1, self._plotData_size_n))
+    y0_1d = np.reshape(self._plotPoints_y0, (1, self._plotData_size_n))
+    y1_1d = np.reshape(y1, (1, self._plotData_size_n))
     x = np.squeeze(np.concatenate((x0_1d, x1_1d), axis=0).T.reshape((-1, 1)))
     y = np.squeeze(np.concatenate((y0_1d, y1_1d), axis=0).T.reshape((-1, 1)))
     
-    return {'scatter': (x0_1d, y0_1d), 'segments': (x, y)}
+    nan_mask_scatter = np.squeeze(np.reshape(np.isnan(magnitudes_scaled) | np.isnan(angles_rad), (1, self._plotData_size_n)))
+    nan_mask_scatter = np.atleast_2d(nan_mask_scatter)
     
-  # Initialize a visualization that plots data as a 2D heatmap.
+    return {'scatter': (x0_1d, y0_1d),
+            'scatter_not_nan': (np.atleast_2d(x0_1d[~nan_mask_scatter]), np.atleast_2d(y0_1d[~nan_mask_scatter])),
+            'scatter_nan': (np.atleast_2d(x0_1d[nan_mask_scatter]), np.atleast_2d(y0_1d[nan_mask_scatter])),
+            'segments': (x, y),
+            }
+    
+  # Initialize a visualization that plots data as a flow field.
   def init(self, device_name, stream_name, stream_info, subplot_row=0, subplot_col=0):
     if self._print_debug: print('FlowFieldVisualizer initializing for %s %s' % (device_name, stream_name))
     
@@ -93,6 +101,7 @@ class FlowFieldVisualizer(Visualizer):
     self._visualizer_options.setdefault('magnitude_normalization_update_period_s', 10)
     self._visualizer_options.setdefault('magnitude_normalization_buffer_duration_s', 120)
     self._visualizer_options.setdefault('linewidth', 1.5)
+    self._visualizer_options.setdefault('data_transform_fn', None)
     # Get the plotting options.
     magnitude_normalization = self._visualizer_options['magnitude_normalization']
     magnitude_normalization_min = self._visualizer_options['magnitude_normalization_min']
@@ -130,30 +139,39 @@ class FlowFieldVisualizer(Visualizer):
       if self._hidden:
         self._layout.hide()
     
-    # Compute x and y coordinates for the center of each tile plot.
-    self._sample_size_x = self._sample_size[1]
-    self._sample_size_y = self._sample_size[0]
-    self._sample_size_n = np.prod(self._sample_size)
-    self._plotPoints_x0 = np.tile(np.arange(self._sample_size_x), (self._sample_size_y, 1))
-    self._plotPoints_y0 = np.flipud(np.tile(np.atleast_2d(np.arange(self._sample_size_y)).T, (1, self._sample_size_x)))
-    
-    # Create dummy data, and use it to initialize the plot.
+    # Create dummy data to use for initializing the plot.
     data_magnitudes = np.zeros(self._sample_size)
     data_angles_rad = np.zeros(self._sample_size)
-    plotPoints = self._vector_to_plotPoints(data_magnitudes, data_angles_rad)
+    if self._visualizer_options['data_transform_fn'] is not None:
+      data_magnitudes = self._visualizer_options['data_transform_fn'](data_magnitudes)
+      data_angles_rad = self._visualizer_options['data_transform_fn'](data_angles_rad)
     self._data = np.stack((data_magnitudes, data_angles_rad), axis=0)
+
+    # Compute x and y coordinates for the center of each tile plot.
+    self._plotData_size_x = self._data.shape[2]
+    self._plotData_size_y = self._data.shape[1]
+    self._plotData_size_n = self._plotData_size_x * self._plotData_size_y
+    self._plotPoints_x0 = np.tile(np.arange(self._plotData_size_x), (self._plotData_size_y, 1))
+    self._plotPoints_y0 = np.flipud(np.tile(np.atleast_2d(np.arange(self._plotData_size_y)).T, (1, self._plotData_size_x)))
+    plotPoints = self._vector_to_plotPoints(data_magnitudes, data_angles_rad)
     
+    # Initialize the plot with dots at each location.
     h_plot = self._layout.addPlot(subplot_row,subplot_col, 1,1, title=title) # row, col, rowspan, colspan
-    scatter = pyqtgraph.ScatterPlotItem(pos=np.concatenate(plotPoints['scatter'], axis=0).T, size=0.25, pxMode=False)
-    scatter.setBrush(color=np.array([1,1,1])*150)
-    scatter.setPen(color=np.array([1,1,1])*150)
+    scatter_not_nan = pyqtgraph.ScatterPlotItem(pos=np.concatenate(plotPoints['scatter_not_nan'], axis=0).T,
+                                                size=0.5, pxMode=False)
+    scatter_not_nan.setBrush(color=np.array([1,1,1])*150)
+    scatter_not_nan.setPen(color=np.array([1,1,1])*150)
+    scatter_nan = pyqtgraph.ScatterPlotItem(pos=np.concatenate(plotPoints['scatter_nan'], axis=0).T,
+                                            size=0.1, pxMode=False)
+    scatter_nan.setPen(color=np.array([1,1,1])*255)
     path = pyqtgraph.arrayToQPath(*plotPoints['segments'], connect='pairs')
     path_item = pyqtgraph.QtGui.QGraphicsPathItem(path)
     path_item.setPen(pyqtgraph.mkPen('k', width=self._visualizer_options['linewidth'], pxMode=False))
-    h_plot.addItem(scatter)
+    h_plot.addItem(scatter_not_nan)
+    h_plot.addItem(scatter_nan)
     h_plot.addItem(path_item)
-    h_plot.setXRange(0, self._sample_size_x-1, padding=0.5/(self._sample_size_x-1) if self._sample_size_x > 1 else 0.5)
-    h_plot.setYRange(0, self._sample_size_y-1, padding=0.5/(self._sample_size_y-1) if self._sample_size_y > 1 else 0.5)
+    h_plot.setXRange(0, self._plotData_size_x - 1, padding=0.5 / (self._plotData_size_x - 1) if self._plotData_size_x > 1 else 0.5)
+    h_plot.setYRange(0, self._plotData_size_y - 1, padding=0.5 / (self._plotData_size_y - 1) if self._plotData_size_y > 1 else 0.5)
     h_plot.setAspectLocked(ratio=1)
     
     # Create an exporter to grab an image of the plot.
@@ -161,9 +179,11 @@ class FlowFieldVisualizer(Visualizer):
     
     # Save state for future updates.
     self._plot = h_plot
-    self._scatter = scatter
+    self._scatter_not_nan = scatter_not_nan
+    self._scatter_nan = scatter_nan
     self._segments = path_item
     self._figure_size = figure_size
+    
   
   # Update the visualization with new data.
   # Note that only the most recent data sample will be shown.
@@ -178,6 +198,12 @@ class FlowFieldVisualizer(Visualizer):
     self._data = np.array(new_data['data'][-1])
     magnitudes = self._data[0][:,:]
     angles_rad = self._data[1][:,:]
+
+    # Apply any user-defined transformation.
+    if self._visualizer_options['data_transform_fn'] is not None:
+      magnitudes = self._visualizer_options['data_transform_fn'](magnitudes)
+      angles_rad = self._visualizer_options['data_transform_fn'](angles_rad)
+      self._data = np.stack((magnitudes, angles_rad), axis=0)
 
     # Update the magnitude scale based on a buffer of recent magnitudes.
     if self._auto_magnitude_normalization:
@@ -194,8 +220,9 @@ class FlowFieldVisualizer(Visualizer):
       # Update the overall magnitude scale.
       if time.time() >= self._next_magnitude_normalization_update_time_s:
         magnitudes_buffer = np.array(self._magnitude_normalization_buffer)
-        self._magnitude_normalization = np.quantile(magnitudes_buffer, 0.98)
-        self._magnitude_normalization = max(self._magnitude_normalization_min, self._magnitude_normalization)
+        if np.any(~np.isnan(magnitudes_buffer)):
+          self._magnitude_normalization = np.nanquantile(magnitudes_buffer, 0.98)
+          self._magnitude_normalization = max(self._magnitude_normalization_min, self._magnitude_normalization)
         self._next_magnitude_normalization_update_time_s = time.time() + self._magnitude_normalization_update_period_s
     
     # Scale the magnitudes using the automatic scale or the user-provided scale.
@@ -205,6 +232,7 @@ class FlowFieldVisualizer(Visualizer):
     plotPoints = self._vector_to_plotPoints(magnitudes, angles_rad)
     path = pyqtgraph.arrayToQPath(*plotPoints['segments'], connect='pairs')
     self._segments.setPath(path)
+    
     # Update the figure to see the changes.
     if not self._hidden:
       QtCore.QCoreApplication.processEvents()

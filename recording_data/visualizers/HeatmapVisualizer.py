@@ -75,6 +75,7 @@ class HeatmapVisualizer(Visualizer):
     #   CET maps: https://colorcet.com/gallery.html#linear
     self._visualizer_options.setdefault('colormap', 'inferno')
     self._visualizer_options.setdefault('colorbar_levels', 'auto')
+    self._visualizer_options.setdefault('data_transform_fn', None)
     # Get the plotting options.
     colormap = self._visualizer_options['colormap']
     colorbar_levels = self._visualizer_options['colorbar_levels']
@@ -151,12 +152,16 @@ class HeatmapVisualizer(Visualizer):
   #   If periodically, new data should be added to the visualization if applicable.
   #   Otherwise the new data should replace the visualization if applicable.
   def update(self, new_data, visualizing_all_data):
-    # Update the heatmap with the latest data.
+    # Fetch the latest data that has been recorded.
     self._data = np.array(new_data['data'][-1]).reshape(self._sample_size)
-    image_data = self._data
-    self._heatmap.setImage(np.flipud(self._data).T) # Transpose since image is indexed as (x, y) but numpy as (y, x).
-                                                    # Flip so y=0 is at the top of the heatmap.
-                                        
+    
+    # Apply any user-defined transformation.
+    if self._visualizer_options['data_transform_fn'] is not None:
+      self._data = self._visualizer_options['data_transform_fn'](self._data)
+
+    # Transpose since the image is indexed as (x, y) but numpy as (y, x).
+    # Flip so y=0 is at the top of the heatmap.
+    self._heatmap.setImage(np.flipud(self._data).T)
     
     # Update the colorbar scale based on a buffer of recent colorbar levels.
     if self._auto_colorbar_levels:
@@ -171,8 +176,9 @@ class HeatmapVisualizer(Visualizer):
         # self._colorbar_levels = [np.quantile(colorbar_levels_buffer[:,0], 0.2),
         #                          np.quantile(colorbar_levels_buffer[:,1], 0.8)]
         colorbar_levels_data_buffer = np.array(self._colorbar_levels_data_buffer)
-        self._colorbar_levels = [np.quantile(colorbar_levels_data_buffer, 0.01),
-                                 np.quantile(colorbar_levels_data_buffer, 0.99)]
+        if np.any(~np.isnan(colorbar_levels_data_buffer)):
+          self._colorbar_levels = [np.nanquantile(colorbar_levels_data_buffer, 0.01),
+                                   np.nanquantile(colorbar_levels_data_buffer, 0.99)]
         self._colorbar_levels_buffer = []
         self._colorbar_levels_data_buffer = []
         self._next_levels_update_time_s = time.time() + self._levels_update_period_s

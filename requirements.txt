@@ -1,0 +1,14 @@
+numpy==1.23.4
+h5py
+h5py_cache
+opencv-python
+rosbags
+rosbags-image
+catkin-pkg
+PyYAML
+tensorflow
+tensorboard
+ujson
+pydot
+pydotplus
+graphviz

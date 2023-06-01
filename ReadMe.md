@@ -15,14 +15,22 @@ The folder `parsing_data` contains example scripts for parsing data offered by t
 
 
 ## Environment Setup
-The various methods in this repository use the following packages for interfacing with ROS files, saving to HDF5, plotting and data processing, etc.
-
-The following packages can be installed with a typical
+Please create a conda environment for installing all of the necessary packages for interfacing with ROS files, saving to HDF5, plotting and data processing, etc.
 
 ```
-pip install package
+conda create --name actionnet python=3.9
+conda activate actionnet
+conda install pip
 ```
 
+Use cd to enter the ActionNet folder. From here, you can use the following line to install all dependencies, or you can install them individually with a typical `pip install package_name`.
+
+```
+pip install -r requirements.txt
+```
+
+Here are all of the required dependencies:
+- numpy==1.23.4 (please be sure to install this correct version)
 - [h5py](https://docs.h5py.org/en/stable/build.html)
 - h5py_cache
 - [opencv-python](https://pypi.org/project/opencv-python/)
@@ -37,21 +45,14 @@ pip install package
 - pydotplus (for visualizing keras model)
 - graphviz (for visualizing keras model)
 
-Please be sure to install the proper numpy version
-- pip install numpy==1.23.4
-
-After installing catkin-pkg, install ros_numpy via
+After finishing these installations, especially catkin-pkg, install ros_numpy via
 ```
 git clone https://github.com/eric-wieser/ros_numpy.git
 cd ros_numpy/
 python setup.py install
 ```
 
-After all of these installations, be sure to restart your computer!!!
-
-- Pillow
-- scipy
-
+Finally, please be sure to restart your computer!!!
 
 
 

@@ -24,11 +24,14 @@ pip install package
 ```
 
 - [h5py](https://docs.h5py.org/en/stable/build.html)
+- h5py_cache
 - [opencv-python](https://pypi.org/project/opencv-python/)
 - [rosbags](https://pypi.org/project/rosbags/)
+- [rosbags-image](https://pypi.org/project/rosbags-image/)
 - catkin-pkg (before ros_numpy)
 - [PyYAML](https://pypi.org/project/PyYAML/)
 - [tensorflow](https://www.tensorflow.org/install/pip) (includes keras)
+- tensorboard
 - ujson
 - pydot (for visualizing keras model)
 - pydotplus (for visualizing keras model)

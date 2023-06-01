@@ -57,6 +57,7 @@ def average_grid_dims(grid, new_dims):
 def find_fingers(grid):
   '''
   Function to find averages of the tactile sensor coordinates that (probably) correspond to the 5 fingers of the hand
+  Corresponding coordinates are hard-coded based on visual analysis of a tactile sensor image
   '''
   thumb =  [(23,6), (23,7), (23,8), (23,9), (24,6), (24,7), (24,8), (24,9), (25,6), (25,7), (25,8), (25,9), (26,6), (26,7), (26,8), (26,9), (27,6), (27,7), (27,8), (27,9), (28,6), (28,7), (28,8), (28,9), (29,6), (29,7), (29,8), (29,9), (30,6), (30,7), (30,8), (30,9)]
   index =  [(19,20), (19,21), (19,22), (19,23), (19,24), (19,25), (19,26), (19,27), (19,28), (19,29), (19,30), (20,20), (20,21), (20,22), (20,23), (20,24), (20,25), (20,26), (20,27), (20,28), (20,29), (20,30), (21,20), (21,21), (21,22), (21,23), (21,24), (21,25), (21,26), (21,27), (21,28), (21,29), (21,30)]
@@ -77,14 +78,10 @@ if __name__ == '__main__':
   avg_tactiles = np.absolute(np.average(np.array(tactiles), 1))
       
   plt.plot(times, avg_tactiles)
-  filtered1 = butter_filter(avg_tactiles, times, 0.5) #scipy example
-  filtered2 = butter_filter(avg_tactiles, times, 0.5, version='matlab') #matlab example  
-  plt.plot(times, filtered1)
-  plt.plot(times, filtered2)
   plt.show()
     
   # #### Currently testing with data from tactile-glove-right/tactile_data;Slice bread
-  # #### Code to load tactile data from testing_tactile.json and plot the data (filtered and unfiltered) for the index finger
+  # #### Code to load tactile data from testing_tactile.json and plot the data for the index finger
   # with open('testing_tactile.json') as json_file:
   #     data = json.load(json_file)
   # tactiles = data['S00']['tactile-glove-right']['tactile_data']['Slice a cucumber']
@@ -96,24 +93,11 @@ if __name__ == '__main__':
   # avg_tactiles_by_finger = list(zip(*avg_tactiles))
   
   # plt.plot(times, avg_tactiles_by_finger[1])
-  # filtered1 = butter_filter(avg_tactiles_by_finger[1], times, 2) #scipy example
-  # filtered2 = butter_filter(avg_tactiles_by_finger[1], times, 2, version='matlab') #matlab example  
-  # plt.plot(times, filtered1)
-  # plt.plot(times, filtered2)
-  # # plt.xlim(left=1654641154.59)
-  # # plt.ylim((560, 580))
   # plt.show()
   
   # #### To visualize ^ all fingers
   # for y in avg_tactiles_by_finger:
   #   plt.plot(times, y)
-  #   filt1 = butter_filter(y, times, 2) #scipy example
-  #   filt2 = butter_filter(y, times, 2, version='matlab') #matlab example  
-  #   plt.plot(times, filt1)
-  #   plt.plot(times, filt2)
-  #   plt.legend(["Finger", "Scipy", "Matlab"])
-  #   plt.xlim(left=1654641154.59)
-  #   plt.ylim((560, 580))    
   #   plt.show()
 
   ##### Testing averaging functions
@@ -125,29 +109,3 @@ if __name__ == '__main__':
   # print(average_grid(y, [[(0,0),(0,1),(1,0),(1,1)],[(0,2),(0,3),(1,2),(1,3)],[(2,0),(3,0),(2,1),(3,1)],[(2,2),(2,3),(3,2),(3,3)]]))
   # print(average_grid(x,[[(1,),(3,),(5,)],[(0,),(2,),(4,)]], True))
   # print(average_grid_dims(big_array,(1,1)))
-  
-  # #### Quickly type out list of hand mapping coords for find_fingers function
-  # for x in range(23,31):
-  #   for y in range(6,10):
-  #     print(f"({x},{y}), ",end="")
-  # print("\n")
-  
-  # for x in range(19,22):
-  #   for y in range(20,31):
-  #     print(f"({x},{y}), ",end="")
-  # print("\n")
-  
-  # for x in range(11,14):
-  #   for y in range(20,31):
-  #     print(f"({x},{y}), ",end="")
-  # print("\n")
-  
-  # for x in range(6,9):
-  #   for y in range(20,31):
-  #     print(f"({x},{y}), ",end="")
-  # print("\n")
-  
-  # for x in range(0,3):
-  #   for y in range(20,31):
-  #     print(f"({x},{y}), ",end="")
-  # print("\n")

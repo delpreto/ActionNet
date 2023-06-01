@@ -3,17 +3,26 @@ devices:
     stream: emg
     cutoff_freq: 5
     absolute_value: True
+    normalize_offset: 1
+    normalize_scale: 99
   myo-right:
     stream: emg
     cutoff_freq: 5
     absolute_value: True
+    normalize_offset: 1
+    normalize_scale: 99
   tactile-glove-left:
     stream: tactile_data
-    cutoff_freq: 2
+    cutoff_freq: 1
     absolute_value: False
+    normalize_offset: 1
+    normalize_scale: 99
   tactile-glove-right:
     stream: tactile_data
     cutoff_freq: 2
+    normalize_offset: 1
     absolute_value: False
+    normalize_offset: 1
+    normalize_scale: 90
 activities: "Clean a plate with a towel|Peel a potato|Peel a cucumber|Spread jelly on a bread slice|Stack on table: 3 each large/small plates, bowls|Spread almond butter on a bread slice|Set table: 3 each large/small plates, bowls, mugs, glasses, sets of utensils|Clean a pan with a towel|Get items from cabinets: 3 each large/small plates, bowls, mugs, glasses, sets of utensils|Load dishwasher: 3 each large/small plates, bowls, mugs, glasses, sets of utensils|Slice a potato|Clean a pan with a sponge|Slice a cucumber|Slice bread|Clean a plate with a sponge|Get items from refrigerator/cabinets/drawers|Pour water from a pitcher into a glass|Open a jar of almond butter|Unload dishwasher: 3 each large/small plates, bowls, mugs, glasses, sets of utensils"
 sampling_freq: 50.0

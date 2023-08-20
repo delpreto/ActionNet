@@ -43,7 +43,7 @@ from collections import OrderedDict
 from utils.time_utils import *
 from utils.dict_utils import *
 from utils.print_utils import *
-from utils.numpy_utils import *
+from utils.numpy_scipy_utils import *
 
 ################################################
 ################################################

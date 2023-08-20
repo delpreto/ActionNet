@@ -29,12 +29,12 @@ import os
 script_dir = os.path.dirname(os.path.realpath(__file__))
 
 
-data_dir = os.path.realpath(os.path.join(script_dir, '..', '..', 'data'))
+data_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'data'))
 experiments_dir = os.path.join(data_dir, 'experiments')
 
 log_dirs = [
-  os.path.join(experiments_dir, 'my_set_of_experiments_1', 'my_experiment_folder'),
-  os.path.join(experiments_dir, 'my_set_of_experiments_2', 'my_experiment_folder'),
+  # os.path.join(experiments_dir, '2023-08-18_experiment_S10', '2023-08-18_19-49-19_actionNet-wearables_S10'),
+  os.path.join(experiments_dir, '2023-08-18_experiment_S10', '2023-08-18_20-50-18_actionNet-wearables_S10'),
   ]
 
 for log_dir in log_dirs:

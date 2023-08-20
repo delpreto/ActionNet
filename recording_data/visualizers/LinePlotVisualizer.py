@@ -42,7 +42,7 @@ else:
 
 import numpy as np
 
-from utils.numpy_utils import *
+from utils.numpy_scipy_utils import *
 
 
 ################################################

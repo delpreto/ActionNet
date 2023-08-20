@@ -124,6 +124,7 @@ class ExperimentControlStreamer(SensorStreamer):
         'Spread jelly on a bread slice',
         'Open/close a jar of almond butter',
         'Pour water from a pitcher into a glass',
+        'Scoop from a pan to a plate',
         'Clean a plate with a sponge',
         'Clean a plate with a towel',
         'Clean a pan with a sponge',

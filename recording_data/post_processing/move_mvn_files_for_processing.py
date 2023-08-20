@@ -60,7 +60,7 @@ if collecting_files:
   # Find all MVN files, and move them to the temporary processing folder.
   filepaths = glob.glob(os.path.join(log_dir_root, '**', '*.mvn'), recursive=True)
   print()
-  print('Will move the following %d files:')
+  print('Will move the following %d files:' % len(filepaths))
   for filepath in filepaths:
     print('  ', filepath)
   input('Press Enter to continue')
@@ -88,8 +88,8 @@ if collecting_files:
 if restoring_files:
   mvn_processing_dir = input('Enter the MVN processing directory: ')
   log_dir_root = os.path.realpath(os.path.join(mvn_processing_dir, '..'))
-  append_to_exports = input('Enter postfix to add to exported files: ').strip()
-  append_to_mvns = input('Enter postfix to add to MVN   files: ').strip()
+  append_to_processed = input('Enter postfix to add to processed files: ').strip('_').strip()
+  append_to_originals = input('Enter postfix to add to original  files: ').strip('_').strip()
   
   print()
   filepaths = glob.glob(os.path.join(mvn_processing_dir, '**', '*'), recursive=True)
@@ -97,17 +97,17 @@ if restoring_files:
   restored_filepaths = []
   moved_count = 0
   for filepath in filepaths:
+    if len(os.path.splitext(filepath)[1]) == 0:
+      continue # folder rather than a file
+    ext = os.path.splitext(filepath)[-1]
     filename = os.path.basename(filepath)
     filename_split = filename.split('__sep__')
     restored_filepath = os.path.join(log_dir_root, *filename_split)
-    if len(append_to_exports) > 0 and '.xlsx' in restored_filepath.lower():
-      restored_filepath = restored_filepath.replace('.xlsx', '_%s.xlsx' % append_to_exports.lstrip('_'))
-    elif len(append_to_exports) > 0 and '.mvnx' in restored_filepath.lower():
-      restored_filepath = restored_filepath.replace('.mvnx', '_%s.mvnx' % append_to_exports.lstrip('_'))
-    elif len(append_to_mvns) > 0 and '.mvn' in restored_filepath.lower():
-      restored_filepath = restored_filepath.replace('.mvn', '_%s.mvn' % append_to_mvns.lstrip('_'))
-    if len(os.path.splitext(filepath)[1]) == 0:
-      continue # folder rather than a file
+    is_processed_file = os.path.join(mvn_processing_dir, 'processed').lower() in os.path.realpath(filepath).lower()
+    if is_processed_file and len(append_to_processed) > 0:
+      restored_filepath = restored_filepath.replace(ext, '_%s%s' % (append_to_processed, ext))
+    if not is_processed_file and len(append_to_originals) > 0:
+      restored_filepath = restored_filepath.replace(ext, '_%s%s' % (append_to_originals, ext))
     source_filepaths.append(filepath)
     restored_filepaths.append(restored_filepath)
   existing_destination_filepaths = [f for f in restored_filepaths if os.path.exists(f)]
@@ -116,7 +116,7 @@ if restoring_files:
     print('\n'.join(existing_destination_filepaths))
   else:
     print()
-    print('Will move the following %d files:')
+    print('Will move the following %d files:' % len(source_filepaths))
     for i in range(len(source_filepaths)):
       print('  %02d: %s' % (i, source_filepaths[i]))
       print(  '    > %s' % (restored_filepaths[i]))

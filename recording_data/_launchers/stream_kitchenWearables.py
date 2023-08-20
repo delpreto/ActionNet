@@ -66,7 +66,7 @@ if __name__ == '__main__':
     ('TouchStreamer',      False),  # Custom tactile sensors streaming via an Arduino
     ('XsensStreamer',      True),  # The Xsens body tracking system (includes the Manus finger-tracking gloves if connected to Xsens)
     ('EyeStreamer',        True),  # The Pupil Labs eye-tracking headset
-    ('ScaleStreamer',      True),  # The Dymo M25 digital postal scale
+    ('ScaleStreamer',      False),  # The Dymo M25 digital postal scale
     ('MoticonStreamer',    False),  # Moticon insole pressure sensors
     ('MicrophoneStreamer', False),  # One or more microphones
     ('CameraStreamer',     False),  # One or more cameras
@@ -75,6 +75,8 @@ if __name__ == '__main__':
   sensor_streamer_specs = [
     # Allow the experimenter to label data and enter notes.
     {'class': 'ExperimentControlStreamer',
+     # 'activities': [ # TODO: Enter your activities that you want to label
+     # ],
      'print_debug': print_debug, 'print_status': print_status
      },
     # Allow the experimenter to record timestamped notes at any time.
@@ -115,7 +117,7 @@ if __name__ == '__main__':
     # Stream from one or more cameras.
     {'class': 'CameraStreamer',
      'cameras_to_stream': { # map camera names (usable as device names in the HDF5 file) to capture device indexes
-       'camera-built-in': 0,
+       'camera-built-in': 1,
      },
      'print_debug': print_debug, 'print_status': print_status
     },
@@ -136,10 +138,10 @@ if __name__ == '__main__':
   if enable_data_logging:
     script_dir = os.path.dirname(os.path.realpath(__file__))
     (log_time_str, log_time_s) = get_time_str(return_time_s=True)
-    log_tag = 'actionNet-wearables_S09'
-    log_dir_root = os.path.join(script_dir, '..', '..', 'data',
+    log_tag = 'actionNet-wearables_S10'
+    log_dir_root = os.path.join(script_dir, '..', '..', '..', 'data',
                                 'experiments', # recommend 'tests' and 'experiments' for testing vs "real" data
-                                '%s_experiment_S09' % get_time_str(format='%Y-%m-%d'))
+                                '%s_experiment_S10' % get_time_str(format='%Y-%m-%d'))
     log_subdir = '%s_%s' % (log_time_str, log_tag)
     log_dir = os.path.join(log_dir_root, log_subdir)
     datalogging_options = {
@@ -152,7 +154,7 @@ if __name__ == '__main__':
       'stream_hdf5' : True,
       'stream_video': True,
       'stream_audio': True,
-      'stream_period_s': 15,
+      'stream_period_s': 10,
       'clear_logged_data_from_memory': True, # ignored if dumping is also enabled
       # Choose whether to write all data at the end.
       'dump_csv'  : False,
@@ -232,7 +234,7 @@ if __name__ == '__main__':
         fps_start_num_timesteps[streamer_index] = num_timesteps
         fps_num_timesteps[streamer_index] = num_timesteps - fps_start_num_timesteps[streamer_index]
         fps_last_print_time_s = time.time()
-      elif time.time() - fps_last_print_time_s > 5:
+      elif time.time() - fps_last_print_time_s > 3:
         printed_fps = True
         fps_duration_s = time.time() - fps_start_time_s[streamer_index]
         fps_num_timesteps[streamer_index] = num_timesteps - fps_start_num_timesteps[streamer_index]

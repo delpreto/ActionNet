@@ -32,13 +32,17 @@ import matplotlib.pyplot as plt
 import os
 script_dir = os.path.dirname(os.path.realpath(__file__))
 
+# CHOOSE THE ACTIVITY TO PROCESS
+configure_for_pouring = False # otherwise will be scooping
+
 # Specify the folder of experiments to parse.
 data_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'results', 'learning_trajectories'))
 # Specify the input files of extracted trajectory data.
-trajectory_data_filepath_humans = os.path.join(data_dir, 'pouring_paths_humans.hdf5')
-trajectory_data_filepath_robots = os.path.join(data_dir, 'pouring_paths_robots.hdf5')
+trajectory_data_filepath_humans = os.path.join(data_dir, '%s_paths_humans.hdf5' % ('pouring' if configure_for_pouring else 'scooping'))
+trajectory_data_filepath_robots = os.path.join(data_dir, '%s_paths_robots.hdf5' % ('pouring' if configure_for_pouring else 'scooping'))
 # Specify the output file for the feature matrices and labels.
-training_data_filepath = os.path.join(data_dir, 'training_data.hdf5') # None to not save
+training_data_filepath = os.path.join(data_dir, '%s_training_data.hdf5' % ('pouring' if configure_for_pouring else 'scooping')) # None to not save
+referenceOjbect_positions_filepath = os.path.join(data_dir, '%s_training_referenceObject_positions.hdf5' % ('pouring' if configure_for_pouring else 'scooping')) # None to not save
 
 # Specify how to standardize training data segment lengths.
 # Will currently normalize time of each trial to be from 0 to 1,
@@ -70,7 +74,7 @@ for (body_segment_index, body_segment_name) in enumerate(body_segment_names_huma
   else:
     print(' ', end='')
   print(' %02d: %s' % (body_segment_index, body_segment_name))
-# Highlight segment indexes useful for the pouring trajectories:
+# Highlight segment indexes useful for the activity trajectories:
 hand_index_humans = body_segment_names_humans.index('Right Hand')
 elbow_index_humans = body_segment_names_humans.index('Right Forearm')
 shoulder_index_humans = body_segment_names_humans.index('Right Upper Arm')
@@ -131,6 +135,7 @@ def add_training_segment(time_s, body_segment_position_cm, body_segment_quaterni
 
 # Loop through each subject and trial.
 print()
+referenceObject_positions_cm = []
 for group_name in data_file_humans.keys():
   # Check if this group is for a subject's data (or something else such as metadata)
   try:
@@ -159,12 +164,12 @@ for group_name in data_file_humans.keys():
     # It is a Tx23x4 matrix, indexed as [timestep][body_segment_index][xyzw].
     body_segment_quaternion = np.squeeze(np.array(trial_group_human['body_segment_quaternion']))
     # Get the global xyz positions, orientations, and timestamp
-    #  of the inferred pour position (when the person holds the pitcher relatively still).
+    #  of the inferred stationary position (when the person holds the pitcher or scooper relatively still).
     # NOTE: Not currently used in the features, but shown here in case it becomes useful.
-    pouring_position_cm = np.squeeze(np.array(trial_group_human['pouring']['body_segment_position_cm']))
-    pouring_quaternion = np.squeeze(np.array(trial_group_human['pouring']['body_segment_quaternion']))
-    pouring_time_s = np.squeeze(np.array(trial_group_human['pouring']['time_s']))
-    pouring_index = np.where(abs(pouring_time_s - time_s) == np.min(abs(pouring_time_s - time_s)))[0][-1]
+    stationary_position_cm = np.squeeze(np.array(trial_group_human['stationary']['body_segment_position_cm']))
+    stationary_quaternion = np.squeeze(np.array(trial_group_human['stationary']['body_segment_quaternion']))
+    stationary_time_s = np.squeeze(np.array(trial_group_human['stationary']['time_s']))
+    stationary_index = np.where(abs(stationary_time_s - time_s) == np.min(abs(stationary_time_s - time_s)))[0][-1]
     
     # Add a labeled feature matrix for this trial.
     add_training_segment(time_s, body_segment_position_cm, body_segment_quaternion, is_human=True)
@@ -173,8 +178,16 @@ for group_name in data_file_humans.keys():
     body_segment_position_cm = np.squeeze(np.array(trial_group_robot['body_segment_position_cm']))
     body_segment_quaternion = np.squeeze(np.array(trial_group_robot['body_segment_quaternion']))
     add_training_segment(time_s, body_segment_position_cm, body_segment_quaternion, is_human=False)
-    
+
+    # Get the reference object position.
+    # Add it twice since it will be the same for human and robot examples that were just added.
+    referenceObject_positions_cm.append(np.array(trial_group_human['reference_object']['position_cm']))
+    referenceObject_positions_cm.append(np.array(trial_group_human['reference_object']['position_cm']))
+
 print()
+
+# Make a single matrix from the reference object positions.
+referenceObject_positions_cm = np.stack(referenceObject_positions_cm)
 
 # Clean up.
 data_file_humans.close()
@@ -186,6 +199,11 @@ if training_data_filepath is not None:
   training_data_file.create_dataset('feature_matrices', data=np.array(feature_matrices))
   training_data_file.create_dataset('labels', data=labels)
   training_data_file.close()
+  # Write a file with the reference object positions.
+  referenceObject_positions_file = h5py.File(referenceOjbect_positions_filepath, 'w')
+  referenceObject_positions_file.create_dataset('position_cm', data=np.array(referenceObject_positions_cm))
+  referenceObject_positions_file.close()
+
 
 
 

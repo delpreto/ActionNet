@@ -48,16 +48,38 @@ subject_ids_filter = None # None to consider all subjects
 data_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'data'))
 experiments_dir = os.path.join(data_dir, 'experiments')
 output_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'results', 'learning_trajectories'))
+os.makedirs(output_dir, exist_ok=True)
 
-animate_pouring_plots = False # show an animated plot of the skeleton for each trial
-plot_all_pouring_paths = False # make a subplot for each subject, which shows all paths from that subject
+animate_trajectory_plots = False # show an animated plot of the skeleton for each trial
+plot_all_trajectories = False # make a subplot for each subject, which shows all paths from that subject
 save_eye_videos = False # save the eye-tracking video for each trial
 save_composite_videos = False # save the eye-tracking video and animated plot for each trial
 save_results_data = True
 
 resampled_fs_hz = 50
 
-use_manual_startEnd_times = True
+# CHOOSE THE ACTIVITY TO PROCESS
+configure_for_pouring = False # if False, will be scooping
+
+if configure_for_pouring:
+  target_activity_label = 'Pour water from a pitcher into a glass'
+  target_activity_keyword = 'pouring'
+else:
+  target_activity_label = 'Scoop from a pan to a plate'
+  target_activity_keyword = 'scooping'
+
+# Decide how to extract the stationary waypoint (e.g. pouring the water or scooping from the plate).
+# Can use a rolling buffer and look at hand position variance when inferring hold position,
+#  or can use the pose at a hard-coded fraction into the trial.
+stationary_position_use_variance = True if configure_for_pouring else False
+stationary_position_hardcoded_time_fraction = 0.3 # will use the hand position/pose at this ratio of time into the trial
+# Define the buffer length to use when computing variance OR when averaging around the hard-coded time.
+stationary_position_buffer_duration_s = 2 if configure_for_pouring else 1
+
+# Specify the segment that is a proxy for the reference object.
+referenceObject_bodySegment_name = 'Left Hand'
+
+use_manual_startEnd_times = False
 manual_pouring_start_times_s = [
   '2022-06-07 18:44:42.541198',
   '2022-06-07 18:45:16.441165',
@@ -189,11 +211,11 @@ bodySegment_chains_labels_toPlot = {
   'Right Arm': ['Right Upper Arm', 'Right Forearm', 'Right Hand'],
 }
 
+referenceObject_bodySegment_index = bodySegment_labels.index(referenceObject_bodySegment_name)
+
 # hand_box_dimensions_cm = np.array([2, 9, 18]) # open hand
 hand_box_dimensions_cm = np.array([5, 9, 8]) # fist
 
-# rolling buffer duration for looking at hand position variance when inferring pour position
-pour_position_variance_buffer_duration_s = 2
 
 ###################################################################
 ###################################################################
@@ -243,7 +265,7 @@ def get_bodyPath_data(h5_file):
   return (time_s, bodySegment_data)
 
 # Helper to extract path data for specified activities.
-def get_pouring_bodyPath_data(h5_file, start_times_s, end_times_s):
+def get_activity_bodyPath_data(h5_file, start_times_s, end_times_s):
   # Get path data throughout the whole experiment.
   (time_s, bodySegment_data) = get_bodyPath_data(h5_file)
   
@@ -335,52 +357,99 @@ def resample_data(times_s, bodySegment_datas):
     times_s[trial_index] = time_s_resampled
   return (times_s, bodySegment_datas)
 
-# Infer the hand position when the water is being poured.
-def infer_pouring_pose(times_s, bodySegment_datas):
-  body_positions_pouring_cm = []
-  pouring_times_s = []
+# Infer the hand position at a stationary point (such as when water is being poured)
+def infer_stationary_poses(times_s, bodySegment_datas):
+  body_positions_stationary_cm = []
+  stationary_times_s = []
   for trial_index, bodySegment_data in enumerate(bodySegment_datas):
     body_position_cm = bodySegment_datas[trial_index]['position_cm']
     body_quaternion = bodySegment_datas[trial_index]['quaternion']
     time_s = times_s[trial_index]
     num_timesteps = time_s.shape[0]
-    min_average_distance_cm = None
-    min_average_distance_buffer_start_index = None
-    min_average_distance_buffer_end_index = None
-    body_position_pouring_buffer_cm = None
-    body_quaternion_pouring_buffer = None
-    average_distances_cm = []
-    for buffer_start_index in range(num_timesteps):
-      buffer_start_time_s = time_s[buffer_start_index]
-      buffer_end_time_s = buffer_start_time_s + pour_position_variance_buffer_duration_s
-      if buffer_end_time_s > time_s[-1]:
-        break
-      buffer_end_index = np.where(time_s <= buffer_end_time_s)[0][-1]
-      body_position_buffers_cm = dict([(name, position_cm[buffer_start_index:buffer_end_index, :]) for (name, position_cm) in body_position_cm.items()])
-      body_quaternion_buffers = dict([(name, quaternion[buffer_start_index:buffer_end_index, :]) for (name, quaternion) in body_quaternion.items()])
-      median_hand_position_cm = np.median(body_position_buffers_cm['Right Hand'], axis=0)
-      distances_cm = np.linalg.norm(body_position_buffers_cm['Right Hand'] - median_hand_position_cm, axis=1)
-      average_distance_cm = np.mean(distances_cm, axis=0)
-      average_distances_cm.append(average_distance_cm)
-      if min_average_distance_cm is None or average_distance_cm < min_average_distance_cm:
-        min_average_distance_cm = average_distance_cm
-        min_average_distance_buffer_start_index = buffer_start_index
-        min_average_distance_buffer_end_index = buffer_end_index
-        body_position_pouring_buffer_cm = body_position_buffers_cm
-        body_quaternion_pouring_buffer = body_quaternion_buffers
-    # print(time_s[min_average_distance_buffer_start_index] - min(time_s),
-    #       time_s[min_average_distance_buffer_end_index] - min(time_s))
-    body_positions_pouring_cm.append({
-      'position_cm':
-        dict([(name, np.median(position_cm, axis=0)) for (name, position_cm) in body_position_pouring_buffer_cm.items()]),
-      'quaternion':
-        dict([(name, quaternion[int(quaternion.shape[0]/2),:]) for (name, quaternion) in body_quaternion_pouring_buffer.items()]),
-      })
-    pouring_times_s.append(time_s[int(np.mean([min_average_distance_buffer_start_index,
-                                               min_average_distance_buffer_end_index]))]-min(time_s))
-  # print(pouring_times_s)
-  return (pouring_times_s, body_positions_pouring_cm)
-  
+    fs = (num_timesteps-1)/(time_s[-1] - time_s[0])
+    if stationary_position_use_variance:
+      if time_s[-1] - time_s[0] < 2*stationary_position_buffer_duration_s:
+        # Add a dummy stationary position for now
+        # TODO do something better?
+        body_positions_stationary_cm.append({
+        'position_cm':
+          dict([(name, 0) for (name, position_cm) in body_position_cm.items()]),
+        'quaternion':
+          dict([(name, 0) for (name, quaternion) in body_position_cm.items()]),
+        })
+        stationary_times_s.append(0)
+        continue
+      min_average_distance_cm = None
+      min_average_distance_buffer_start_index = None
+      min_average_distance_buffer_end_index = None
+      body_position_stationary_buffer_cm = None
+      body_quaternion_stationary_buffer = None
+      average_distances_cm = []
+      for buffer_start_index in range(num_timesteps):
+        buffer_start_time_s = time_s[buffer_start_index]
+        buffer_end_time_s = buffer_start_time_s + stationary_position_buffer_duration_s
+        if buffer_end_time_s > time_s[-1]:
+          break
+        buffer_end_index = np.where(time_s <= buffer_end_time_s)[0][-1]
+        body_position_buffers_cm = dict([(name, position_cm[buffer_start_index:buffer_end_index, :]) for (name, position_cm) in body_position_cm.items()])
+        body_quaternion_buffers = dict([(name, quaternion[buffer_start_index:buffer_end_index, :]) for (name, quaternion) in body_quaternion.items()])
+        median_hand_position_cm = np.median(body_position_buffers_cm['Right Hand'], axis=0)
+        distances_cm = np.linalg.norm(body_position_buffers_cm['Right Hand'] - median_hand_position_cm, axis=1)
+        average_distance_cm = np.mean(distances_cm, axis=0)
+        average_distances_cm.append(average_distance_cm)
+        if min_average_distance_cm is None or average_distance_cm < min_average_distance_cm:
+          min_average_distance_cm = average_distance_cm
+          min_average_distance_buffer_start_index = buffer_start_index
+          min_average_distance_buffer_end_index = buffer_end_index
+          body_position_stationary_buffer_cm = body_position_buffers_cm
+          body_quaternion_stationary_buffer = body_quaternion_buffers
+      # print(time_s[min_average_distance_buffer_start_index] - min(time_s),
+      #       time_s[min_average_distance_buffer_end_index] - min(time_s))
+      body_positions_stationary_cm.append({
+        'position_cm':
+          dict([(name, np.median(position_cm, axis=0)) for (name, position_cm) in body_position_stationary_buffer_cm.items()]),
+        'quaternion':
+          dict([(name, quaternion[int(quaternion.shape[0]/2),:]) for (name, quaternion) in body_quaternion_stationary_buffer.items()]),
+        })
+      stationary_times_s.append(time_s[int(np.mean([min_average_distance_buffer_start_index,
+                                                 min_average_distance_buffer_end_index]))]-min(time_s))
+    else: # use hard-coded time fraction instead of computing the variance
+      stationary_position_time_s = time_s[0] + (time_s[-1] - time_s[0])*stationary_position_hardcoded_time_fraction
+      stationary_position_index = time_s.searchsorted(stationary_position_time_s)
+      buffer_length = fs * stationary_position_buffer_duration_s
+      buffer_start_index = round(stationary_position_index - buffer_length/2)
+      buffer_end_index = round(stationary_position_index + buffer_length/2)
+      body_position_stationary_buffer_cm = dict([(name, position_cm[buffer_start_index:buffer_end_index, :]) for (name, position_cm) in body_position_cm.items()])
+      body_quaternion_stationary_buffer = dict([(name, quaternion[buffer_start_index:buffer_end_index, :]) for (name, quaternion) in body_quaternion.items()])
+      body_positions_stationary_cm.append({
+        'position_cm':
+          dict([(name, np.median(position_cm, axis=0)) for (name, position_cm) in body_position_stationary_buffer_cm.items()]),
+        'quaternion':
+          dict([(name, quaternion[int(quaternion.shape[0]/2),:]) for (name, quaternion) in body_quaternion_stationary_buffer.items()]),
+        })
+      stationary_times_s.append(time_s[int(np.mean([buffer_start_index,
+                                                 buffer_end_index]))]-min(time_s))
+
+
+  # print(stationary_times_s)
+  return (stationary_times_s, body_positions_stationary_cm)
+
+# Infer the hand position at a stationary point (such as when water is being poured)
+def infer_referenceObject_positions(times_s, bodySegment_datas):
+  referenceObject_positions_cm = []
+  for trial_index, bodySegment_data in enumerate(bodySegment_datas):
+    body_position_cm = bodySegment_datas[trial_index]['position_cm']
+    body_quaternion = bodySegment_datas[trial_index]['quaternion']
+    time_s = times_s[trial_index]
+    num_timesteps = time_s.shape[0]
+    fs = (num_timesteps-1)/(time_s[-1] - time_s[0])
+
+    referenceObject_position_cm = np.squeeze(np.median(
+                                    body_position_cm[referenceObject_bodySegment_name],
+                                    axis=0))
+    referenceObject_positions_cm.append(referenceObject_position_cm)
+  return referenceObject_positions_cm
+
 # Plot hand paths.
 def plt_wait_for_keyboard_press(timeout_s=-1.0):
   keyboardClick=False
@@ -433,11 +502,13 @@ def plot_3d_box(ax, center, quaternion): # function created using ChatGPT
   return box
 
 def plot_handPath_data(fig, subplot_index,
-                       times_s, bodySegment_datas, pouring_pose,
+                       times_s, bodySegment_datas,
+                       stationary_poses, referenceObject_positions_cm,
                        subject_id, num_subjects,
                        spf=0.1,  # None to view all frames
                        include_skeleton=True,
                        trial_indexes_filter=None,
+                       trial_start_index_offset=0,
                        target_times_s=None, start_times_s=None, end_times_s=None,
                        pause_between_trials=False, pause_between_frames=True,
                        clear_axes_each_trial=True, hide_figure_window=False):
@@ -455,6 +526,7 @@ def plot_handPath_data(fig, subplot_index,
       fig.add_subplot(num_rows, num_cols, s+1, projection='3d')
   ax = fig.get_axes()[subplot_index]
   for trial_index, bodySegment_data in enumerate(bodySegment_datas):
+    trial_index_withOffset = trial_index + trial_start_index_offset
     if trial_indexes_filter is not None and trial_index not in trial_indexes_filter:
       continue
     if clear_axes_each_trial:
@@ -481,15 +553,19 @@ def plot_handPath_data(fig, subplot_index,
       ax.plot3D(upperArm_position_cm[:, 0], upperArm_position_cm[:, 1], upperArm_position_cm[:, 2], alpha=0.3)
       ax.plot3D(pelvis_position_cm[:, 0], pelvis_position_cm[:, 1], pelvis_position_cm[:, 2], alpha=0.3)
     
-    # Plot origin and start/end/pour hand positions.
+    # Plot origin and start/end/stationary hand positions.
     ax.scatter(0, 0, 0, s=25, color=[0, 0, 0])
     ax.scatter(hand_position_cm[0, 0], hand_position_cm[0, 1], hand_position_cm[0, 2], s=25, color='g')
     ax.scatter(hand_position_cm[-1, 0], hand_position_cm[-1, 1], hand_position_cm[-1, 2], s=25, color='r')
-    ax.scatter(pouring_pose[trial_index]['position_cm']['Right Hand'][0],
-               pouring_pose[trial_index]['position_cm']['Right Hand'][1],
-               pouring_pose[trial_index]['position_cm']['Right Hand'][2],
+    ax.scatter(stationary_poses[trial_index]['position_cm']['Right Hand'][0],
+               stationary_poses[trial_index]['position_cm']['Right Hand'][1],
+               stationary_poses[trial_index]['position_cm']['Right Hand'][2],
                s=25, color=h_hand_path[0].get_color(), edgecolor='k')
-    
+    ax.scatter(referenceObject_positions_cm[trial_index][0],
+               referenceObject_positions_cm[trial_index][1],
+               referenceObject_positions_cm[trial_index][2],
+               s=25, color=h_hand_path[0].get_color(), edgecolor='c')
+
     if include_skeleton:
       # Animate the whole skeleton.
       h_chains = []
@@ -549,7 +625,7 @@ def plot_handPath_data(fig, subplot_index,
         ax.set_box_aspect([ub - lb for lb, ub in (x_lim, y_lim, z_lim)])
         
         # Set the title.
-        ax.set_title('Subject %02d Trial %02d\nt=%0.2fs' % (subject_id, trial_index, times_s[trial_index][time_index]-times_s[trial_index][0]))
+        ax.set_title('Subject %02d Trial %02d\nt=%0.2fs' % (subject_id, trial_index_withOffset, times_s[trial_index][time_index]-times_s[trial_index][0]))
         
         # Show the plot and wait for the next timestep.
         plt.draw()
@@ -570,13 +646,14 @@ def plot_handPath_data(fig, subplot_index,
 
 
 # Save the first-person videos during each hand path.
-def save_pouring_eyeVideos(h5_file, eyeVideo_filepath, times_s, subject_id, trial_indexes_filter=None):
+def save_trial_eyeVideos(h5_file, eyeVideo_filepath, times_s, subject_id, trial_indexes_filter=None, trial_start_index_offset=0):
   device_name = 'eye-tracking-video-worldGaze'
   stream_name = 'frame_timestamp'
   frames_time_s = h5_file[device_name][stream_name]['data']
   
   for trial_index, time_s in enumerate(times_s):
-    print('Saving eye video for Subject S%02d trial %02d' % (subject_id, trial_index))
+    trial_index_withOffset = trial_index+trial_start_index_offset
+    print('Saving eye video for Subject S%02d trial %02d' % (subject_id, trial_index_withOffset))
     if trial_indexes_filter is not None and trial_index not in trial_indexes_filter:
       continue
     start_time_s = min(time_s)
@@ -585,8 +662,8 @@ def save_pouring_eyeVideos(h5_file, eyeVideo_filepath, times_s, subject_id, tria
     start_frame_index = min(frame_indexes)
     num_frames = len(frame_indexes)
     video_reader = cv2.VideoCapture(eyeVideo_filepath)
-    video_writer = cv2.VideoWriter(os.path.join(output_dir, 'pouring_eyeVideo_S%02d_%02d.mp4' % (subject_id, trial_index)),
-                                   cv2.VideoWriter_fourcc(*'MP4V'), # for AVI: cv2.VideoWriter_fourcc(*'MJPG'),
+    video_writer = cv2.VideoWriter(os.path.join(output_dir, '%s_eyeVideo_S%02d_%02d.mp4' % (target_activity_keyword, subject_id, trial_index_withOffset)),
+                                   cv2.VideoWriter_fourcc(*'MP4V'),  # for AVI: cv2.VideoWriter_fourcc(*'MJPG'),
                                    video_reader.get(cv2.CAP_PROP_FPS),
                                    (int(video_reader.get(cv2.CAP_PROP_FRAME_WIDTH)), int(video_reader.get(cv2.CAP_PROP_FRAME_HEIGHT)))
                                    )
@@ -617,16 +694,19 @@ def resize_image(img, target_width=None, target_height=None):
   # Resize the image.
   return cv2.resize(img, (0,0), None, scale_factor, scale_factor)
   
-def save_pouring_composite_videos(h5_file, eyeVideo_filepath,
-                                  fig, subplot_index,
-                                  times_s, bodySegment_datas,
-                                  subject_id, num_subjects, trial_indexes_filter=None):
+def save_activity_composite_videos(h5_file, eyeVideo_filepath,
+                                   fig, subplot_index,
+                                   times_s, bodySegment_datas,
+                                   stationary_poses, referenceObject_positions_cm,
+                                   subject_id, num_subjects, trial_indexes_filter=None,
+                                   trial_start_index_offset=0):
   device_name = 'eye-tracking-video-worldGaze'
   stream_name = 'frame_timestamp'
   frames_time_s = h5_file[device_name][stream_name]['data']
-  
+
   for trial_index, time_s in enumerate(times_s):
-    print('Saving composite video for Subject S%02d trial %02d' % (subject_id, trial_index))
+    trial_index_withOffset = trial_index + trial_start_index_offset
+    print('Saving composite video for Subject S%02d trial %02d' % (subject_id, trial_index_withOffset))
     if trial_indexes_filter is not None and trial_index not in trial_indexes_filter:
       continue
     start_time_s = min(time_s)
@@ -647,11 +727,13 @@ def save_pouring_composite_videos(h5_file, eyeVideo_filepath,
       target_times_s = [None]*len(times_s) # an entry for each trial
       target_times_s[trial_index] = target_time_s
       fig = plot_handPath_data(fig, subplot_index,
-                               times_s, bodySegment_datas, pouring_pose,
+                               times_s, bodySegment_datas,
+                               stationary_poses, referenceObject_positions_cm,
                                subject_id, 1,
                                spf=None,  # scan all frames for the closest time match
                                include_skeleton=True,
                                trial_indexes_filter=[trial_index],
+                               trial_start_index_offset=trial_start_index_offset,
                                target_times_s=target_times_s,
                                pause_between_trials=False, pause_between_frames=False,
                                hide_figure_window=True,
@@ -667,7 +749,7 @@ def save_pouring_composite_videos(h5_file, eyeVideo_filepath,
       
       # Write to the output video
       if video_writer is None:
-        video_writer = cv2.VideoWriter(os.path.join(output_dir, 'pouring_composite_S%02d_%02d.mp4' % (subject_id, trial_index)),
+        video_writer = cv2.VideoWriter(os.path.join(output_dir, '%s_composite_S%02d_%02d.mp4' % (target_activity_keyword, subject_id, trial_index_withOffset)),
                                        cv2.VideoWriter_fourcc(*'MP4V'), # for AVI: cv2.VideoWriter_fourcc(*'MJPG'),
                                        video_reader.get(cv2.CAP_PROP_FPS),
                                        (composite_frame.shape[1], composite_frame.shape[0])
@@ -677,9 +759,10 @@ def save_pouring_composite_videos(h5_file, eyeVideo_filepath,
     video_reader.release()
 
 def export_path_data(times_s_allSubjects, bodySegment_datas_allSubjects,
-                     pouring_times_s_allSubjects, pouring_pose_allSubjects):
+                     stationary_times_s_allSubjects, stationary_pose_allSubjects,
+                     referenceObject_positions_cm_allSubjects):
   # Open the output HDF5 file
-  hdf5_output_filepath = os.path.join(output_dir, 'pouring_paths_humans.hdf5')
+  hdf5_output_filepath = os.path.join(output_dir, '%s_paths_humans.hdf5' % target_activity_keyword)
   if os.path.exists(hdf5_output_filepath):
     print()
     print('Output file exists at [%s]' % hdf5_output_filepath)
@@ -713,27 +796,50 @@ def export_path_data(times_s_allSubjects, bodySegment_datas_allSubjects,
       data = np.stack(data, axis=0)
       data = np.moveaxis(data, 0, 1) # convert from [segment][time][xyzw] to [time][segment][xyzw]
       trial_group.create_dataset('body_segment_quaternion', data=data)
-      # Add estimated pouring position
-      pouring_group = trial_group.create_group('pouring')
-      data_segmentDict = pouring_pose_allSubjects[subject_id][trial_index]['position_cm']
+      # Add estimated stationary position
+      stationary_group = trial_group.create_group('stationary')
+      data_segmentDict = stationary_pose_allSubjects[subject_id][trial_index]['position_cm']
       data = list(data_segmentDict.values())
       data = np.stack(data, axis=0)
-      pouring_group.create_dataset('body_segment_position_cm', data=data)
-      # Add estimated pouring quaternion
-      data_segmentDict = pouring_pose_allSubjects[subject_id][trial_index]['quaternion']
+      stationary_group.create_dataset('body_segment_position_cm', data=data)
+      # Add estimated stationary quaternion
+      data_segmentDict = stationary_pose_allSubjects[subject_id][trial_index]['quaternion']
       data = list(data_segmentDict.values())
       data = np.stack(data, axis=0)
-      pouring_group.create_dataset('body_segment_quaternion', data=data)
-      # Add pouring time
-      pouring_group.create_dataset('time_s',
-                                   data=pouring_times_s_allSubjects[subject_id][trial_index] - min(time_s))
+      stationary_group.create_dataset('body_segment_quaternion', data=data)
+      # Add stationary time
+      stationary_group.create_dataset('time_s',
+                                      data=stationary_times_s_allSubjects[subject_id][trial_index] - min(time_s))
+      # Add estimated reference object position
+      referenceObject_group = trial_group.create_group('reference_object')
+      data = referenceObject_positions_cm_allSubjects[subject_id][trial_index]
+      data = np.stack(data, axis=0)
+      referenceObject_group.create_dataset('position_cm', data=data)
   
   # Add segment names
   hdf5_file.create_dataset('body_segment_names',
-                           data=list(bodySegment_datas_allSubjects[0][0]['position_cm'].keys()))
+                           data=list(bodySegment_datas_allSubjects[subject_id][0]['position_cm'].keys()))
   
   # Close the output file
   hdf5_file.close()
+
+  # # Make a file dedicated to the reference object positions.
+  # hdf5_output_filepath = os.path.join(output_dir, '%s_referenceOjbects.hdf5' % target_activity_keyword)
+  # if os.path.exists(hdf5_output_filepath):
+  #   print()
+  #   print('Output file exists at [%s]' % hdf5_output_filepath)
+  #   print('  Overwrite the file? [y/N] ', end='')
+  #   overwrite_file = input()
+  #   if overwrite_file.lower().strip() != 'y':
+  #     print('  Aborting')
+  #     return
+  # hdf5_file = h5py.File(hdf5_output_filepath, 'w')
+  # for subject_id in bodySegment_datas_allSubjects:
+  #   subject_group = hdf5_file.create_group('subject_%02d' % subject_id)
+  #   data = referenceObject_positions_cm_allSubjects[subject_id]
+  #   data = np.stack(data, axis=0)
+  #   subject_group.create_dataset('position_cm', data=data)
+  # hdf5_file.close()
 
 # Helper to get start and end times of each activity.
 # Optionally exclude activities marked as bad.
@@ -782,22 +888,22 @@ def get_activity_startEnd_times_s(h5_file, exclude_bad_labels=True):
   activities_end_times_s = np.array(activities_end_times_s)
   return (activities_labels, activities_start_times_s, activities_end_times_s)
 
-# Helper to get start and end times of the pouring water activity.
-def get_pouring_startEnd_times_s(h5_file, exclude_bad_labels=True):
+# Helper to get start and end times of the target activity.
+def get_targetActivity_startEnd_times_s(h5_file, exclude_bad_labels=True):
   # Get start/end times of every activity.
   (activities_labels, activities_start_times_s, activities_end_times_s) = get_activity_startEnd_times_s(h5_file, exclude_bad_labels=exclude_bad_labels)
   
-  # Filter by pouring water.
-  pouring_indexes = [i for (i, label) in enumerate(activities_labels) if 'Pour' in label]
-  if len(pouring_indexes) == 0:
+  # Filter by the target activity label.
+  targetActivity_indexes = [i for (i, label) in enumerate(activities_labels) if target_activity_label in label]
+  if len(targetActivity_indexes) == 0:
     return (None, None, None)
-  activities_labels = activities_labels[pouring_indexes]
-  activities_start_times_s = activities_start_times_s[pouring_indexes]
-  activities_end_times_s = activities_end_times_s[pouring_indexes]
+  activities_labels = activities_labels[targetActivity_indexes]
+  activities_start_times_s = activities_start_times_s[targetActivity_indexes]
+  activities_end_times_s = activities_end_times_s[targetActivity_indexes]
   
   return (activities_labels, activities_start_times_s, activities_end_times_s)
 
-# Helper to get manual start and end times of the pouring water activity.
+# Helper to get manual start and end times of the target activity.
 def get_manual_pouring_startEnd_times_s(subject_id):
   num_trials = 5
   subject_index = subject_id
@@ -819,7 +925,7 @@ def get_manual_pouring_startEnd_times_s(subject_id):
         get_time_s_from_local_str(activities_end_times_str[i].split(' ')[1], input_time_format='%H:%M:%S.%f',
                                   date_local_str=activities_end_times_str[i].split(' ')[0], input_date_format='%Y-%m-%d'))
   
-  activities_labels = ['Pour water from a pitcher into a glass']*num_trials
+  activities_labels = [target_activity_label]*num_trials
   
   return (activities_labels, activities_start_times_s, activities_end_times_s)
 
@@ -857,15 +963,17 @@ fig = None
 subplot_index = 0
 times_s_allSubjects = OrderedDict()
 bodySegment_datas_allSubjects = OrderedDict()
-pouring_times_s_allSubjects = OrderedDict()
-pouring_pose_allSubjects = OrderedDict()
+stationary_times_s_allSubjects = OrderedDict()
+stationary_poses_allSubjects = OrderedDict()
+referenceObject_positions_cm_allSubjects = OrderedDict()
 for subject_id, subject_hdf5_filepaths in hdf5_filepaths.items():
   print('Processing subject %02d' % subject_id)
   times_s_allSubjects.setdefault(subject_id, [])
   bodySegment_datas_allSubjects.setdefault(subject_id, [])
-  pouring_times_s_allSubjects.setdefault(subject_id, [])
-  pouring_pose_allSubjects.setdefault(subject_id, [])
-  pouring_trial_index_start = 0
+  stationary_times_s_allSubjects.setdefault(subject_id, [])
+  stationary_poses_allSubjects.setdefault(subject_id, [])
+  referenceObject_positions_cm_allSubjects.setdefault(subject_id, [])
+  targetActivity_trial_index_start = 0
   for (filepath_index, hdf5_filepath) in enumerate(subject_hdf5_filepaths):
     print(' ', hdf5_filepath)
     eyeVideo_filepath = eyeVideo_filepaths[subject_id][filepath_index]
@@ -874,72 +982,84 @@ for subject_id, subject_hdf5_filepaths in hdf5_filepaths.items():
     
     # Determine the start/end times of each hand path.
     (activities_labels, activities_start_times_s, activities_end_times_s) = \
-      get_pouring_startEnd_times_s(h5_file, exclude_bad_labels=True)
+      get_targetActivity_startEnd_times_s(h5_file, exclude_bad_labels=True)
     if activities_labels is None:
       continue
     num_trials_inFile = len(activities_labels)
     if use_manual_startEnd_times:
       (activities_labels, activities_start_times_s, activities_end_times_s) = \
         get_manual_pouring_startEnd_times_s(subject_id)
-      activities_labels = activities_labels[pouring_trial_index_start:(pouring_trial_index_start+num_trials_inFile)]
-      activities_start_times_s = activities_start_times_s[pouring_trial_index_start:(pouring_trial_index_start+num_trials_inFile)]
-      activities_end_times_s = activities_end_times_s[pouring_trial_index_start:(pouring_trial_index_start+num_trials_inFile)]
+      activities_labels = activities_labels[targetActivity_trial_index_start:(targetActivity_trial_index_start + num_trials_inFile)]
+      activities_start_times_s = activities_start_times_s[targetActivity_trial_index_start:(targetActivity_trial_index_start + num_trials_inFile)]
+      activities_end_times_s = activities_end_times_s[targetActivity_trial_index_start:(targetActivity_trial_index_start + num_trials_inFile)]
       # print([activities_start_times_s[i] - activities_start_times_s[i] for i in range(5)])
       # print([activities_end_times_s[i] - activities_end_times_s[i] for i in range(5)])
       # print([get_time_str(t) for t in activities_start_times_s])
       # print([get_time_str(t) for t in activities_start_times_s])
-    pouring_trial_index_start += num_trials_inFile
-    
+
     # Get the hand paths.
-    (times_s, bodySegment_datas) = get_pouring_bodyPath_data(h5_file, activities_start_times_s, activities_end_times_s)
+    (times_s, bodySegment_datas) = get_activity_bodyPath_data(h5_file, activities_start_times_s, activities_end_times_s)
     (times_s, bodySegment_datas) = resample_data(times_s, bodySegment_datas)
-    # Infer the hand position while pouring
-    (pour_times_s, pouring_pose) = infer_pouring_pose(times_s, bodySegment_datas)
-    
+    # Infer the hand position while being relatively stationary
+    (stationary_times_s, stationary_poses) = infer_stationary_poses(times_s, bodySegment_datas)
+    # Infer the reference object position
+    referenceObject_positions_cm = infer_referenceObject_positions(times_s, bodySegment_datas)
+
     # Store the results
     times_s_allSubjects[subject_id].extend(times_s)
     bodySegment_datas_allSubjects[subject_id].extend(bodySegment_datas)
-    pouring_times_s_allSubjects[subject_id].extend(pour_times_s)
-    pouring_pose_allSubjects[subject_id].extend(pouring_pose)
+    stationary_times_s_allSubjects[subject_id].extend(stationary_times_s)
+    stationary_poses_allSubjects[subject_id].extend(stationary_poses)
+    referenceObject_positions_cm_allSubjects[subject_id].extend(referenceObject_positions_cm)
 
     # Plot the paths.
-    if animate_pouring_plots:
+    if animate_trajectory_plots:
       fig = plot_handPath_data(fig, subplot_index,
                                times_s, bodySegment_datas,
-                               pouring_pose,
+                               stationary_poses, referenceObject_positions_cm,
                                subject_id, 1, trial_indexes_filter=None,
+                               trial_start_index_offset=targetActivity_trial_index_start,
                                spf=0.25,
                                pause_between_trials=False, pause_between_frames=True)
-    if plot_all_pouring_paths:
+    if plot_all_trajectories:
       fig = plot_handPath_data(fig, subplot_index,
                                times_s, bodySegment_datas,
-                               pouring_pose,
+                               stationary_poses, referenceObject_positions_cm,
                                subject_id, num_subjects, trial_indexes_filter=None,
-                               target_times_s=pour_times_s,
+                               trial_start_index_offset=targetActivity_trial_index_start,
+                               target_times_s=stationary_times_s,
                                include_skeleton=False,
                                clear_axes_each_trial=False)
       
     if save_eye_videos:
-      save_pouring_eyeVideos(h5_file, eyeVideo_filepath, times_s, subject_id, trial_indexes_filter=None)
+      save_trial_eyeVideos(h5_file, eyeVideo_filepath, times_s, subject_id,
+                           trial_start_index_offset=targetActivity_trial_index_start,
+                           trial_indexes_filter=None)
     if save_composite_videos:
-      save_pouring_composite_videos(h5_file, eyeVideo_filepath,
-                                    fig, subplot_index,
-                                    times_s, bodySegment_datas,
-                                    subject_id, num_subjects, trial_indexes_filter=None)
+      save_activity_composite_videos(h5_file, eyeVideo_filepath,
+                                     fig, subplot_index,
+                                     times_s, bodySegment_datas,
+                                     stationary_poses, referenceObject_positions_cm,
+                                     subject_id, num_subjects, trial_indexes_filter=None,
+                                     trial_start_index_offset=targetActivity_trial_index_start,)
     # Close the HDF5 file.
     h5_file.close()
+
+    # Increment the trial index offset counter for this subject.
+    targetActivity_trial_index_start += num_trials_inFile
     
   # Advance subplot index if putting each subject in a new subplot
-  if plot_all_pouring_paths:
+  if plot_all_trajectories:
     subplot_index += 1
   
 # Export the results if desired
 if save_results_data:
   export_path_data(times_s_allSubjects, bodySegment_datas_allSubjects,
-                   pouring_times_s_allSubjects, pouring_pose_allSubjects)
+                   stationary_times_s_allSubjects, stationary_poses_allSubjects,
+                   referenceObject_positions_cm_allSubjects)
   
 # Show the final plot
-if animate_pouring_plots or plot_all_pouring_paths:
+if animate_trajectory_plots or plot_all_trajectories:
   plt.show(block=True)
 
 

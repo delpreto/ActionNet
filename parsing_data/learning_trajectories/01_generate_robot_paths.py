@@ -43,7 +43,7 @@ trajectory_data_filepath_humans = os.path.join(data_dir, '%s_paths_humans.hdf5' 
 trajectory_data_filepath_robots = os.path.join(data_dir, '%s_paths_robots.hdf5' % ('pouring' if configure_for_pouring else 'scooping'))
 
 show_plot_human_and_robot_hand_paths = False
-save_plot_human_and_robot_hand_paths = True
+save_plot_human_and_robot_hand_paths = False
 stationary_duration_s = 2 if configure_for_pouring else 1 # might want to match stationary_position_variance_buffer_duration_s used when extracting human demonstrations?
 
 ###################################################################

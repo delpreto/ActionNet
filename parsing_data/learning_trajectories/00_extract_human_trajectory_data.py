@@ -200,6 +200,17 @@ bodySegment_labels = [
   'Left Foot',
   'Left Toe',
 ]
+bodyJoints_toExtract = OrderedDict([
+  (21, 'Right Shoulder Abduction/Adduction'),
+  (22, 'Right Shoulder Internal/External Rotation'),
+  (23, 'Right Shoulder Flexion/Extension'),
+  (24, 'Right Elbow Ulnar Deviation/Radial Deviation'),
+  (25, 'Right Elbow Pronation/Supination'),
+  (26, 'Right Elbow Flexion/Extension'),
+  (27, 'Right Wrist Ulnar Deviation/Radial Deviation'),
+  (28, 'Right Wrist Pronation/Supination'),
+  (29, 'Right Wrist Flexion/Extension'),
+])
 
 bodySegment_chains_labels_toPlot = {
   # 'Left Leg':  ['Left Upper Leg', 'Left Lower Leg', 'Left Foot', 'Left Toe'],
@@ -255,22 +266,32 @@ def get_bodyPath_data(h5_file):
   bodySegment_quaternion_data = OrderedDict()
   for (segment_index, segment_name) in enumerate(bodySegment_labels):
     bodySegment_quaternion_data[segment_name] = np.squeeze(segment_data[:, segment_index, :])
-  
+
+  # Get joint angle data as an NxJx3 matrix as [timestep][joint][xyz]
+  device_name = 'xsens-joints'
+  stream_name = 'rotation_xzy_deg'
+  joint_data = h5_file[device_name][stream_name]['data']
+  joint_data = np.array(joint_data)
+  bodyJoint_angle_data_rad = OrderedDict()
+  for (joint_index, joint_name) in bodyJoints_toExtract.items():
+    bodyJoint_angle_data_rad[joint_name] = np.radians(np.squeeze(joint_data[:, joint_index, :]))
+
   # Combine the position and orientation data.
   # NOTE: Assumes the timestamps are the same.
-  bodySegment_data = {
+  bodyPath_data = {
     'position_cm': bodySegment_xyz_data,
+    'joint_angle_xzy_rad': bodyJoint_angle_data_rad,
     'quaternion': bodySegment_quaternion_data
   }
-  return (time_s, bodySegment_data)
+  return (time_s, bodyPath_data)
 
 # Helper to extract path data for specified activities.
 def get_activity_bodyPath_data(h5_file, start_times_s, end_times_s):
   # Get path data throughout the whole experiment.
-  (time_s, bodySegment_data) = get_bodyPath_data(h5_file)
+  (time_s, bodyPath_data) = get_bodyPath_data(h5_file)
   
   times_s = []
-  bodySegment_datas = []
+  bodyPath_datas = []
   # Extract each desired activity.
   for time_index in range(len(start_times_s)):
     start_time_s = start_times_s[time_index]
@@ -278,12 +299,12 @@ def get_activity_bodyPath_data(h5_file, start_times_s, end_times_s):
     indexes_forLabel = np.where((time_s >= start_time_s) & (time_s <= end_time_s))[0]
     if indexes_forLabel.size > 0:
       times_s.append(time_s[indexes_forLabel])
-      bodySegment_datas.append(OrderedDict())
-      for data_type in bodySegment_data.keys():
-        bodySegment_datas[-1].setdefault(data_type, OrderedDict())
-        for body_segment in bodySegment_data[data_type].keys():
-          bodySegment_datas[-1][data_type].setdefault(body_segment, OrderedDict())
-          bodySegment_datas[-1][data_type][body_segment] = bodySegment_data[data_type][body_segment][indexes_forLabel, :]
+      bodyPath_datas.append(OrderedDict())
+      for data_type in bodyPath_data.keys():
+        bodyPath_datas[-1].setdefault(data_type, OrderedDict())
+        for body_segment in bodyPath_data[data_type].keys():
+          bodyPath_datas[-1][data_type].setdefault(body_segment, OrderedDict())
+          bodyPath_datas[-1][data_type][body_segment] = bodyPath_data[data_type][body_segment][indexes_forLabel, :]
           # if data_type == 'position_cm':
           #   print(data_type, body_segment)
           #   print('start time index', time_index, 'start time', start_time_s, get_time_str(start_time_s))
@@ -293,22 +314,22 @@ def get_activity_bodyPath_data(h5_file, start_times_s, end_times_s):
   # Rotate each segment to a coordinate frame based on the body, such that
   #  the y axis is aligned with the shoudlers/hips.
   # print()
-  for trial_index in range(len(bodySegment_datas)):
+  for trial_index in range(len(bodyPath_datas)):
     # Set the origin between the hips (very close to the pelvis but not exactly).
     # pelvis_position_cm = bodySegment_datas[trial_index]['position_cm']['Pelvis']
     # origin_cm = pelvis_position_cm[0,:]
     origin_cm = np.mean(np.array(
-          [bodySegment_datas[trial_index]['position_cm']['Right Upper Leg'][0, :],
-          bodySegment_datas[trial_index]['position_cm']['Left Upper Leg'][0, :]]), axis=0)
+          [bodyPath_datas[trial_index]['position_cm']['Right Upper Leg'][0, :],
+           bodyPath_datas[trial_index]['position_cm']['Left Upper Leg'][0, :]]), axis=0)
     # print(origin_cm)
-    for body_segment in bodySegment_data['position_cm'].keys():
-      position_cm = bodySegment_datas[trial_index]['position_cm'][body_segment]
+    for body_segment in bodyPath_data['position_cm'].keys():
+      position_cm = bodyPath_datas[trial_index]['position_cm'][body_segment]
       position_cm = position_cm - origin_cm
-      bodySegment_datas[trial_index]['position_cm'][body_segment] = position_cm
+      bodyPath_datas[trial_index]['position_cm'][body_segment] = position_cm
     
     # Use the hip orientation to create the y axis.
-    y_axis_right = np.append(bodySegment_datas[trial_index]['position_cm']['Right Upper Leg'][0, 0:2], 0)
-    y_axis_left = np.append(bodySegment_datas[trial_index]['position_cm']['Left Upper Leg'][0, 0:2], 0)
+    y_axis_right = np.append(bodyPath_datas[trial_index]['position_cm']['Right Upper Leg'][0, 0:2], 0)
+    y_axis_left = np.append(bodyPath_datas[trial_index]['position_cm']['Left Upper Leg'][0, 0:2], 0)
     # # Average the shoulders and hips (projected onto xy plane) to create a y axis.
     # y_axis_right = np.mean(np.array(
     #   [bodySegment_datas[trial_index]['position_cm']['Right Upper Arm'][0, 0:2],
@@ -318,8 +339,8 @@ def get_activity_bodyPath_data(h5_file, start_times_s, end_times_s):
     #   bodySegment_datas[trial_index]['position_cm']['Left Upper Leg'][0, 0:2]]), axis=0)
     y_axis_center = np.mean(np.array([y_axis_right, y_axis_left]), axis=0)
     rotation_matrix = rotation_matrix_from_vectors(y_axis_right, [0, 1, 0])
-    for body_segment in bodySegment_data['position_cm'].keys():
-      position_cm = bodySegment_datas[trial_index]['position_cm'][body_segment]
+    for body_segment in bodyPath_data['position_cm'].keys():
+      position_cm = bodyPath_datas[trial_index]['position_cm'][body_segment]
       for time_index in range(position_cm.shape[0]):
         position_cm[time_index,:] = rotation_matrix.dot(position_cm[time_index,:])
     # NOTE: The segment orientations probably don't need to be adjusted,
@@ -336,7 +357,7 @@ def get_activity_bodyPath_data(h5_file, start_times_s, end_times_s):
     #   (it looks like the pose in the eye-tracking video after imposing the hip frame
     #    but not changing the quaternion), but it wasn't quantified.
     
-  return (times_s, bodySegment_datas)
+  return (times_s, bodyPath_datas)
 
 # Resample to a consistent rate
 def resample_data(times_s, bodySegment_datas):
@@ -758,7 +779,7 @@ def save_activity_composite_videos(h5_file, eyeVideo_filepath,
     video_writer.release()
     video_reader.release()
 
-def export_path_data(times_s_allSubjects, bodySegment_datas_allSubjects,
+def export_path_data(times_s_allSubjects, bodyPath_datas_allSubjects,
                      stationary_times_s_allSubjects, stationary_pose_allSubjects,
                      referenceObject_positions_cm_allSubjects):
   # Open the output HDF5 file
@@ -773,8 +794,8 @@ def export_path_data(times_s_allSubjects, bodySegment_datas_allSubjects,
       return
   hdf5_file = h5py.File(hdf5_output_filepath, 'w')
   
-  for subject_id in bodySegment_datas_allSubjects:
-    num_trials = len(bodySegment_datas_allSubjects[subject_id])
+  for subject_id in bodyPath_datas_allSubjects:
+    num_trials = len(bodyPath_datas_allSubjects[subject_id])
     subject_group = hdf5_file.create_group('subject_%02d' % subject_id)
     for trial_index in range(num_trials):
       trial_group = subject_group.create_group('trial_%02d' % trial_index)
@@ -785,17 +806,23 @@ def export_path_data(times_s_allSubjects, bodySegment_datas_allSubjects,
       # time_str = [get_time_str(t, '%Y-%m-%d %H:%M:%S.%f') for t in time_s]
       # trial_group.create_dataset('time_str', data=time_str, dtype='S26')
       # Add body segment position data
-      data_segmentDict = bodySegment_datas_allSubjects[subject_id][trial_index]['position_cm']
+      data_segmentDict = bodyPath_datas_allSubjects[subject_id][trial_index]['position_cm']
       data = list(data_segmentDict.values())
       data = np.stack(data, axis=0)
       data = np.moveaxis(data, 0, 1) # convert from [segment][time][xyz] to [time][segment][xyz]
       trial_group.create_dataset('body_segment_position_cm', data=data)
       # Add body segment orientation data
-      data_segmentDict = bodySegment_datas_allSubjects[subject_id][trial_index]['quaternion']
+      data_segmentDict = bodyPath_datas_allSubjects[subject_id][trial_index]['quaternion']
       data = list(data_segmentDict.values())
       data = np.stack(data, axis=0)
       data = np.moveaxis(data, 0, 1) # convert from [segment][time][xyzw] to [time][segment][xyzw]
       trial_group.create_dataset('body_segment_quaternion', data=data)
+      # Add body joint angle data
+      data_jointDict = bodyPath_datas_allSubjects[subject_id][trial_index]['joint_angle_xzy_rad']
+      data = list(data_jointDict.values())
+      data = np.stack(data, axis=0)
+      data = np.moveaxis(data, 0, 1) # convert from [joint][time][xyzw] to [time][joint][xyzw]
+      trial_group.create_dataset('joint_angle_xzy_rad', data=data)
       # Add estimated stationary position
       stationary_group = trial_group.create_group('stationary')
       data_segmentDict = stationary_pose_allSubjects[subject_id][trial_index]['position_cm']
@@ -818,8 +845,11 @@ def export_path_data(times_s_allSubjects, bodySegment_datas_allSubjects,
   
   # Add segment names
   hdf5_file.create_dataset('body_segment_names',
-                           data=list(bodySegment_datas_allSubjects[subject_id][0]['position_cm'].keys()))
-  
+                           data=list(bodyPath_datas_allSubjects[subject_id][0]['position_cm'].keys()))
+  # Add joint names
+  hdf5_file.create_dataset('body_joint_names',
+                           data=list(bodyPath_datas_allSubjects[subject_id][0]['joint_angle_xzy_rad'].keys()))
+
   # Close the output file
   hdf5_file.close()
 
@@ -962,14 +992,14 @@ num_subjects = len(hdf5_filepaths)
 fig = None
 subplot_index = 0
 times_s_allSubjects = OrderedDict()
-bodySegment_datas_allSubjects = OrderedDict()
+bodyPath_datas_allSubjects = OrderedDict()
 stationary_times_s_allSubjects = OrderedDict()
 stationary_poses_allSubjects = OrderedDict()
 referenceObject_positions_cm_allSubjects = OrderedDict()
 for subject_id, subject_hdf5_filepaths in hdf5_filepaths.items():
   print('Processing subject %02d' % subject_id)
   times_s_allSubjects.setdefault(subject_id, [])
-  bodySegment_datas_allSubjects.setdefault(subject_id, [])
+  bodyPath_datas_allSubjects.setdefault(subject_id, [])
   stationary_times_s_allSubjects.setdefault(subject_id, [])
   stationary_poses_allSubjects.setdefault(subject_id, [])
   referenceObject_positions_cm_allSubjects.setdefault(subject_id, [])
@@ -998,16 +1028,16 @@ for subject_id, subject_hdf5_filepaths in hdf5_filepaths.items():
       # print([get_time_str(t) for t in activities_start_times_s])
 
     # Get the hand paths.
-    (times_s, bodySegment_datas) = get_activity_bodyPath_data(h5_file, activities_start_times_s, activities_end_times_s)
-    (times_s, bodySegment_datas) = resample_data(times_s, bodySegment_datas)
+    (times_s, bodyPath_datas) = get_activity_bodyPath_data(h5_file, activities_start_times_s, activities_end_times_s)
+    (times_s, bodyPath_datas) = resample_data(times_s, bodyPath_datas)
     # Infer the hand position while being relatively stationary
-    (stationary_times_s, stationary_poses) = infer_stationary_poses(times_s, bodySegment_datas)
+    (stationary_times_s, stationary_poses) = infer_stationary_poses(times_s, bodyPath_datas)
     # Infer the reference object position
-    referenceObject_positions_cm = infer_referenceObject_positions(times_s, bodySegment_datas)
+    referenceObject_positions_cm = infer_referenceObject_positions(times_s, bodyPath_datas)
 
     # Store the results
     times_s_allSubjects[subject_id].extend(times_s)
-    bodySegment_datas_allSubjects[subject_id].extend(bodySegment_datas)
+    bodyPath_datas_allSubjects[subject_id].extend(bodyPath_datas)
     stationary_times_s_allSubjects[subject_id].extend(stationary_times_s)
     stationary_poses_allSubjects[subject_id].extend(stationary_poses)
     referenceObject_positions_cm_allSubjects[subject_id].extend(referenceObject_positions_cm)
@@ -1015,7 +1045,7 @@ for subject_id, subject_hdf5_filepaths in hdf5_filepaths.items():
     # Plot the paths.
     if animate_trajectory_plots:
       fig = plot_handPath_data(fig, subplot_index,
-                               times_s, bodySegment_datas,
+                               times_s, bodyPath_datas,
                                stationary_poses, referenceObject_positions_cm,
                                subject_id, 1, trial_indexes_filter=None,
                                trial_start_index_offset=targetActivity_trial_index_start,
@@ -1023,7 +1053,7 @@ for subject_id, subject_hdf5_filepaths in hdf5_filepaths.items():
                                pause_between_trials=False, pause_between_frames=True)
     if plot_all_trajectories:
       fig = plot_handPath_data(fig, subplot_index,
-                               times_s, bodySegment_datas,
+                               times_s, bodyPath_datas,
                                stationary_poses, referenceObject_positions_cm,
                                subject_id, num_subjects, trial_indexes_filter=None,
                                trial_start_index_offset=targetActivity_trial_index_start,
@@ -1038,10 +1068,10 @@ for subject_id, subject_hdf5_filepaths in hdf5_filepaths.items():
     if save_composite_videos:
       save_activity_composite_videos(h5_file, eyeVideo_filepath,
                                      fig, subplot_index,
-                                     times_s, bodySegment_datas,
+                                     times_s, bodyPath_datas,
                                      stationary_poses, referenceObject_positions_cm,
                                      subject_id, num_subjects, trial_indexes_filter=None,
-                                     trial_start_index_offset=targetActivity_trial_index_start,)
+                                     trial_start_index_offset=targetActivity_trial_index_start, )
     # Close the HDF5 file.
     h5_file.close()
 
@@ -1054,7 +1084,7 @@ for subject_id, subject_hdf5_filepaths in hdf5_filepaths.items():
   
 # Export the results if desired
 if save_results_data:
-  export_path_data(times_s_allSubjects, bodySegment_datas_allSubjects,
+  export_path_data(times_s_allSubjects, bodyPath_datas_allSubjects,
                    stationary_times_s_allSubjects, stationary_poses_allSubjects,
                    referenceObject_positions_cm_allSubjects)
   

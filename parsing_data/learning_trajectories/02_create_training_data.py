@@ -60,9 +60,11 @@ plot_hand_path_features = False
 data_file_humans = h5py.File(trajectory_data_filepath_humans, 'r')
 data_file_robots = h5py.File(trajectory_data_filepath_robots, 'r')
 
-# Get the list of body segments, which can be used to index data matrices below.
+# Get the list of body segments and joints, which can be used to index data matrices below.
 body_segment_names_humans = data_file_humans['body_segment_names']
 body_segment_names_humans = [name.decode('utf-8') for name in body_segment_names_humans]
+body_joint_names_humans = data_file_humans['body_joint_names']
+body_joint_names_humans = [name.decode('utf-8') for name in body_joint_names_humans]
 body_segment_names_robots = data_file_robots['body_segment_names']
 body_segment_names_robots = [name.decode('utf-8') for name in body_segment_names_robots]
 print()
@@ -74,32 +76,46 @@ for (body_segment_index, body_segment_name) in enumerate(body_segment_names_huma
   else:
     print(' ', end='')
   print(' %02d: %s' % (body_segment_index, body_segment_name))
+print('See the following list of body joints (in the human data).')
+for (body_joint_index, body_joint_name) in enumerate(body_joint_names_humans):
+  print(' %02d: %s' % (body_joint_index, body_joint_name))
 # Highlight segment indexes useful for the activity trajectories:
-hand_index_humans = body_segment_names_humans.index('Right Hand')
-elbow_index_humans = body_segment_names_humans.index('Right Forearm')
-shoulder_index_humans = body_segment_names_humans.index('Right Upper Arm')
-hand_index_robots = body_segment_names_robots.index('Right Hand')
-elbow_index_robots = body_segment_names_robots.index('Right Forearm')
-shoulder_index_robots = body_segment_names_robots.index('Right Upper Arm')
+hand_segment_index_humans = body_segment_names_humans.index('Right Hand')
+elbow_segment_index_humans = body_segment_names_humans.index('Right Forearm')
+shoulder_segment_index_humans = body_segment_names_humans.index('Right Upper Arm')
+wrist_joint_indexes_humans = [body_joint_names_humans.index(name) for name in ['Right Wrist Ulnar Deviation/Radial Deviation', 'Right Wrist Pronation/Supination', 'Right Wrist Flexion/Extension']]
+elbow_joint_indexes_humans = [body_joint_names_humans.index(name) for name in ['Right Elbow Ulnar Deviation/Radial Deviation', 'Right Elbow Pronation/Supination', 'Right Elbow Flexion/Extension']]
+shoulder_joint_indexes_humans = [body_joint_names_humans.index(name) for name in ['Right Shoulder Abduction/Adduction', 'Right Shoulder Internal/External Rotation', 'Right Shoulder Flexion/Extension']]
+hand_segment_index_robots = body_segment_names_robots.index('Right Hand')
+elbow_segment_index_robots = body_segment_names_robots.index('Right Forearm')
+shoulder_segment_index_robots = body_segment_names_robots.index('Right Upper Arm')
 
 # Create feature matrices for each trial, labeled as human or robot.
 # The current matrices will concatenate shoulder, elbow, and hand positions and hand orientation.
+# For humans, will also concatenate joint angles.
 feature_matrices = []
 labels = []
 
 # Helper to create a feature matrix from the processed trajectory data.
-def add_training_segment(time_s, body_segment_position_cm, body_segment_quaternion, is_human):
+def add_training_segment(time_s, body_segment_position_cm, body_segment_quaternion, body_joint_angle_xzy_rad, is_human):
   
   # Concatenate position and orientation features.
   # Result will be Tx13, where T is timesteps and 13 is (xyz axes) x (hand, elbow, shoulder) + (xyzw quaternion) x (hand)
   num_timesteps = body_segment_position_cm.shape[0]
   if is_human:
-    position_features = np.reshape(body_segment_position_cm[:,[hand_index_humans, elbow_index_humans, shoulder_index_humans],:], (num_timesteps, -1)) # unwrap xyz from each segment
-    orientation_features =  np.reshape(body_segment_quaternion[:,hand_index_humans,:], (num_timesteps, -1))
+    position_features = np.reshape(body_segment_position_cm[:,[hand_segment_index_humans, elbow_segment_index_humans, shoulder_segment_index_humans], :], (num_timesteps, -1)) # unwrap xyz from each segment
+    orientation_features = np.reshape(body_segment_quaternion[:, [hand_segment_index_humans, elbow_segment_index_humans, shoulder_segment_index_humans], :], (num_timesteps, -1))
+    wrist_joint_features = np.reshape(body_joint_angle_xzy_rad[:, wrist_joint_indexes_humans, :], (num_timesteps, -1))
+    elbow_joint_features = np.reshape(body_joint_angle_xzy_rad[:, elbow_joint_indexes_humans, :], (num_timesteps, -1))
+    shoulder_joint_features = np.reshape(body_joint_angle_xzy_rad[:, shoulder_joint_indexes_humans, :], (num_timesteps, -1))
   else:
-    position_features = np.reshape(body_segment_position_cm[:,[hand_index_robots, elbow_index_robots, shoulder_index_robots],:], (num_timesteps, -1)) # unwrap xyz from each segment
-    orientation_features =  np.reshape(body_segment_quaternion[:,hand_index_robots,:], (num_timesteps, -1))
-  feature_matrix = np.concatenate([position_features, orientation_features], axis=1)
+    position_features = np.reshape(body_segment_position_cm[:,[hand_segment_index_robots, elbow_segment_index_robots, shoulder_segment_index_robots], :], (num_timesteps, -1)) # unwrap xyz from each segment
+    orientation_features =  np.reshape(body_segment_quaternion[:, [hand_segment_index_robots, elbow_segment_index_robots, shoulder_segment_index_robots], :], (num_timesteps, -1))
+    wrist_joint_features = np.nan*np.ones(shape=(num_timesteps, 9))
+    elbow_joint_features = np.nan*np.ones(shape=(num_timesteps, 9))
+    shoulder_joint_features = np.nan*np.ones(shape=(num_timesteps, 9))
+  feature_matrix = np.concatenate([position_features, orientation_features,
+                                   wrist_joint_features, elbow_joint_features, shoulder_joint_features], axis=1)
 
   # Normalize time and resample.
   time_s = time_s - min(time_s)
@@ -163,6 +179,9 @@ for group_name in data_file_humans.keys():
     # Get the orientation of each body segment as a quaternion.
     # It is a Tx23x4 matrix, indexed as [timestep][body_segment_index][xyzw].
     body_segment_quaternion = np.squeeze(np.array(trial_group_human['body_segment_quaternion']))
+    # Get the joint angles as radians.
+    # It is a Tx9x3 matrix, indexed as [timestep][body_joint_index][xzy].
+    body_joint_angle_xzy_rad = np.squeeze(np.array(trial_group_human['joint_angle_xzy_rad']))
     # Get the global xyz positions, orientations, and timestamp
     #  of the inferred stationary position (when the person holds the pitcher or scooper relatively still).
     # NOTE: Not currently used in the features, but shown here in case it becomes useful.
@@ -172,12 +191,12 @@ for group_name in data_file_humans.keys():
     stationary_index = np.where(abs(stationary_time_s - time_s) == np.min(abs(stationary_time_s - time_s)))[0][-1]
     
     # Add a labeled feature matrix for this trial.
-    add_training_segment(time_s, body_segment_position_cm, body_segment_quaternion, is_human=True)
+    add_training_segment(time_s, body_segment_position_cm, body_segment_quaternion, body_joint_angle_xzy_rad, is_human=True)
     
     # Do the same for the robot path based on this trial.
     body_segment_position_cm = np.squeeze(np.array(trial_group_robot['body_segment_position_cm']))
     body_segment_quaternion = np.squeeze(np.array(trial_group_robot['body_segment_quaternion']))
-    add_training_segment(time_s, body_segment_position_cm, body_segment_quaternion, is_human=False)
+    add_training_segment(time_s, body_segment_position_cm, body_segment_quaternion, None, is_human=False)
 
     # Get the reference object position.
     # Add it twice since it will be the same for human and robot examples that were just added.

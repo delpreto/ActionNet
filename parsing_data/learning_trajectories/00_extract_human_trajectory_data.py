@@ -200,17 +200,68 @@ bodySegment_labels = [
   'Left Foot',
   'Left Toe',
 ]
-bodyJoints_toExtract = OrderedDict([
-  (21, 'Right Shoulder Abduction/Adduction'),
-  (22, 'Right Shoulder Internal/External Rotation'),
-  (23, 'Right Shoulder Flexion/Extension'),
-  (24, 'Right Elbow Ulnar Deviation/Radial Deviation'),
-  (25, 'Right Elbow Pronation/Supination'),
-  (26, 'Right Elbow Flexion/Extension'),
-  (27, 'Right Wrist Ulnar Deviation/Radial Deviation'),
-  (28, 'Right Wrist Pronation/Supination'),
-  (29, 'Right Wrist Flexion/Extension'),
-])
+bodyJoint_labels = [
+  'L5S1',
+  'L4L3',
+  'L1T12',
+  'T9T8',
+  'T1C7',
+  'C1 Head',
+  'Right T4 Shoulder',
+  'Right Shoulder',
+  'Right Elbow',
+  'Right Wrist',
+  'Left T4 Shoulder',
+  'Left Shoulder',
+  'Left Elbow',
+  'Left Wrist',
+  'Right Hip',
+  'Right Knee',
+  'Right Ankle',
+  'Right Ball Foot',
+  'Left Hip',
+  'Left Knee',
+  'Left Ankle',
+  'Left Ball Foot',
+  'Left First CMC',
+  'Left First MCP',
+  'Left IP',
+  'Left Second CMC',
+  'Left Second MCP',
+  'Left Second PIP',
+  'Left Second DIP',
+  'Left Third CMC',
+  'Left Third MCP',
+  'Left Third PIP',
+  'Left Third DIP',
+  'Left Fourth CMC',
+  'Left Fourth MCP',
+  'Left Fourth PIP',
+  'Left Fourth DIP',
+  'Left Fifth CMC',
+  'Left Fifth MCP',
+  'Left Fifth PIP',
+  'Left Fifth DIP',
+  'Right First CMC',
+  'Right First MCP',
+  'Right IP',
+  'Right Second CMC',
+  'Right Second MCP',
+  'Right Second PIP',
+  'Right Second DIP',
+  'Right Third CMC',
+  'Right Third MCP',
+  'Right Third PIP',
+  'Right Third DIP',
+  'Right Fourth CMC',
+  'Right Fourth MCP',
+  'Right Fourth PIP',
+  'Right Fourth DIP',
+  'Right Fifth CMC',
+  'Right Fifth MCP',
+  'Right Fifth PIP',
+  'Right Fifth DIP',
+]
 
 bodySegment_chains_labels_toPlot = {
   # 'Left Leg':  ['Left Upper Leg', 'Left Lower Leg', 'Left Foot', 'Left Toe'],
@@ -273,7 +324,7 @@ def get_bodyPath_data(h5_file):
   joint_data = h5_file[device_name][stream_name]['data']
   joint_data = np.array(joint_data)
   bodyJoint_angle_data_rad = OrderedDict()
-  for (joint_index, joint_name) in bodyJoints_toExtract.items():
+  for (joint_index, joint_name) in enumerate(bodyJoint_labels):
     bodyJoint_angle_data_rad[joint_name] = np.radians(np.squeeze(joint_data[:, joint_index, :]))
 
   # Combine the position and orientation data.
@@ -815,13 +866,13 @@ def export_path_data(times_s_allSubjects, bodyPath_datas_allSubjects,
       data_segmentDict = bodyPath_datas_allSubjects[subject_id][trial_index]['quaternion']
       data = list(data_segmentDict.values())
       data = np.stack(data, axis=0)
-      data = np.moveaxis(data, 0, 1) # convert from [segment][time][xyzw] to [time][segment][xyzw]
+      data = np.moveaxis(data, 0, 1) # convert from [segment][time][wxyz] to [time][segment][wxyz]
       trial_group.create_dataset('body_segment_quaternion', data=data)
       # Add body joint angle data
       data_jointDict = bodyPath_datas_allSubjects[subject_id][trial_index]['joint_angle_xzy_rad']
       data = list(data_jointDict.values())
       data = np.stack(data, axis=0)
-      data = np.moveaxis(data, 0, 1) # convert from [joint][time][xyzw] to [time][joint][xyzw]
+      data = np.moveaxis(data, 0, 1) # convert from [joint][time][wxyz] to [time][joint][xzy]
       trial_group.create_dataset('joint_angle_xzy_rad', data=data)
       # Add estimated stationary position
       stationary_group = trial_group.create_group('stationary')

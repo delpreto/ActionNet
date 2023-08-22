@@ -105,7 +105,7 @@ for group_name in data_file_humans.keys():
     # It is a Tx23x3 matrix, indexed as [timestep][body_segment_index][xyz].
     body_segment_position_cm = np.squeeze(np.array(trial_group_human['body_segment_position_cm']))
     # Get the orientation of each body segment as a quaternion.
-    # It is a Tx23x4 matrix, indexed as [timestep][body_segment_index][xyzw].
+    # It is a Tx23x4 matrix, indexed as [timestep][body_segment_index][wxyz].
     body_segment_quaternion = np.squeeze(np.array(trial_group_human['body_segment_quaternion']))
     # Get the global xyz positions, orientations, and timestamp
     #  of the inferred stationary position (when the person holds the pitcher or scooper relatively still).

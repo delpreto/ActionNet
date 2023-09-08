@@ -39,6 +39,7 @@ import copy
 import pandas
 from bs4 import BeautifulSoup
 import glob
+from collections import OrderedDict
 
 from utils.dict_utils import *
 from utils.print_utils import *
@@ -1156,9 +1157,168 @@ class XsensStreamer(SensorStreamer):
                   data=all_system_times_s,
                   stream_group_metadata=self._data_notes_excel['xsens-time']['stream_receive_time_s'])
 
+  
+  
+  
+  
+  
+  
+  def _get_mvnx_metadata(self, mvnx_xml):
+    # Extract metadata about MVN version.
+    mvnx_version = mvnx_xml.find('mvnx').get('version')
+    mvn_version = mvnx_xml.find('mvn').get('build')
+    if mvnx_version != '4':
+      raise AssertionError('The MVNX import script currently assumes MVNX version 4, but version %s is being used instead. The script should be checked for compatibility.' % mvnx_version)
+    # Extract the sensor names.
+    sensor_labels = [sensor_xml.get('label') for sensor_xml in mvnx_xml.find_all('sensor')]
+    
+    # Extract segment metadata for the main skeleton.
+    body_segment_mesh_points_xyz_cm = OrderedDict()
+    for segment_xml in mvnx_xml.find('segments').find_all('segment'):
+      segment_mesh_points_xyz_cm_forSegment = OrderedDict()
+      for segment_point_xml in segment_xml.find_all('point'):
+        point_position_xyz_cm = [round(100*float(d), 6) for d in segment_point_xml.find('pos_b').contents[0].split()]
+        segment_mesh_points_xyz_cm_forSegment[segment_point_xml.get('label')] = point_position_xyz_cm
+      body_segment_mesh_points_xyz_cm[segment_xml.get('label')] = segment_mesh_points_xyz_cm_forSegment
+    body_segment_labels = list(body_segment_mesh_points_xyz_cm.keys())
+    # Extract finger segment metadata for the left hand if it is available.
+    fingerLeft_segment_mesh_points_xyz_cm = OrderedDict()
+    if mvnx_xml.find('fingerTrackingSegmentsLeft') is not None:
+      for segment_xml in mvnx_xml.find('fingerTrackingSegmentsLeft').find_all('segment'):
+        segment_mesh_points_xyz_cm_forSegment = OrderedDict()
+        for segment_point_xml in segment_xml.find_all('point'):
+          point_position_xyz_cm = [round(100*float(d), 6) for d in segment_point_xml.find('pos_b').contents[0].split()]
+          segment_mesh_points_xyz_cm_forSegment[segment_point_xml.get('label')] = point_position_xyz_cm
+        fingerLeft_segment_mesh_points_xyz_cm[segment_xml.get('label')] = segment_mesh_points_xyz_cm_forSegment
+    fingerLeft_segment_labels = list(fingerLeft_segment_mesh_points_xyz_cm.keys())
+    # Extract finger segment metadata for the right hand if it is available.
+    fingerRight_segment_mesh_points_xyz_cm = OrderedDict()
+    if mvnx_xml.find('fingerTrackingSegmentsRight') is not None:
+      for segment_xml in mvnx_xml.find('fingerTrackingSegmentsRight').find_all('segment'):
+        segment_mesh_points_xyz_cm_forSegment = OrderedDict()
+        for segment_point_xml in segment_xml.find_all('point'):
+          point_position_xyz_cm = [round(100*float(d), 6) for d in segment_point_xml.find('pos_b').contents[0].split()]
+          segment_mesh_points_xyz_cm_forSegment[segment_point_xml.get('label')] = point_position_xyz_cm
+        fingerRight_segment_mesh_points_xyz_cm[segment_xml.get('label')] = segment_mesh_points_xyz_cm_forSegment
+    fingerRight_segment_labels = list(fingerRight_segment_mesh_points_xyz_cm.keys())
+    
+    # Extract joint metadata for the main skeleton.
+    body_joint_segment_connections = OrderedDict()
+    for joint_xml in mvnx_xml.find('joints').find_all('joint'):
+      body_joint_segment_connections[joint_xml.get('label')[1:]] = [ # trim the initial 'j' from the label
+        joint_xml.find('connector1').contents[0],
+        joint_xml.find('connector2').contents[0],
+        ]
+    body_joint_labels = list(body_joint_segment_connections.keys())
+    # Extract finger joint metadata for the left hand if it is available.
+    fingerLeft_joint_segment_connections = OrderedDict()
+    if mvnx_xml.find('fingerTrackingJointsLeft') is not None:
+      for joint_xml in mvnx_xml.find('fingerTrackingJointsLeft').find_all('joint'):
+        fingerLeft_joint_segment_connections[joint_xml.get('label')[1:]] = [ # trim the initial 'j' from the label
+          joint_xml.find('connector1').contents[0],
+          joint_xml.find('connector2').contents[0],
+          ]
+    fingerLeft_joint_labels = list(fingerLeft_joint_segment_connections.keys())
+    # Extract finger joint metadata for the right hand if it is available.
+    fingerRight_joint_segment_connections = OrderedDict()
+    if mvnx_xml.find('fingerTrackingJointsRight') is not None:
+      for joint_xml in mvnx_xml.find('fingerTrackingJointsRight').find_all('joint'):
+        fingerRight_joint_segment_connections[joint_xml.get('label')[1:]] = [ # trim the initial 'j' from the label
+          joint_xml.find('connector1').contents[0],
+          joint_xml.find('connector2').contents[0],
+          ]
+    fingerRight_joint_labels = list(fingerRight_joint_segment_connections.keys())
+    
+    # Extract metadata about the ergonomic joint angles.
+    ergonomic_joint_segment_connections = OrderedDict()
+    for joint_xml in mvnx_xml.find_all('ergonomicJointAngle'):
+      ergonomic_joint_segment_connections[joint_xml.get('label')] = [
+        joint_xml.get('parentSegment'),
+        joint_xml.get('childSegment'),
+        ]
+    ergonomic_joint_labels = list(ergonomic_joint_segment_connections.keys())
+    
+    # Extract the foot contact names.
+    foot_contact_labels = [tag.get('label') for tag in mvnx_xml.find_all('contactDefinition')]
+    
+    # Define joint rotation names for each entry.
+    body_joint_rotation_type_ordering_raw = OrderedDict([
+      ('L5S1',   ('Lateral Bending', 'Axial Bending',  'Flexion/Extension')),
+      ('L4L3',   ('Lateral Bending', 'Axial Rotation', 'Flexion/Extension')),
+      ('L1T12',  ('Lateral Bending', 'Axial Rotation', 'Flexion/Extension')),
+      ('T9T8',   ('Lateral Bending', 'Axial Rotation', 'Flexion/Extension')),
+      ('T1C7',   ('Lateral Bending', 'Axial Rotation', 'Flexion/Extension')),
+      ('C1Head', ('Lateral Bending', 'Axial Rotation', 'Flexion/Extension')),
+      ('RightT4Shoulder', ('Abduction/Adduction',              'Internal/External Rotation', 'Flexion/Extension')),
+      ('RightShoulder',   ('Abduction/Adduction',              'Internal/External Rotation', 'Flexion/Extension')),
+      ('RightElbow',      ('Ulnar Deviation/Radial Deviation', 'Pronation/Supination',       'Flexion/Extension')),
+      ('RightWrist',      ('Ulnar Deviation/Radial Deviation', 'Pronation/Supination',       'Flexion/Extension')),
+      ('LeftT4Shoulder',  ('Abduction/Adduction',              'Internal/External Rotation', 'Flexion/Extension')),
+      ('LeftShoulder',    ('Abduction/Adduction',              'Internal/External Rotation', 'Flexion/Extension')),
+      ('LeftElbow',       ('Ulnar Deviation/Radial Deviation', 'Pronation/Supination',       'Flexion/Extension')),
+      ('LeftWrist',       ('Ulnar Deviation/Radial Deviation', 'Pronation/Supination',       'Flexion/Extension')),
+      ('RightHip',        ('Abduction/Adduction',              'Internal/External Rotation', 'Flexion/Extension')),
+      ('RightKnee',       ('Abduction/Adduction',              'Internal/External Rotation', 'Flexion/Extension')),
+      ('RightAnkle',      ('Abduction/Adduction',              'Internal/External Rotation', 'Dorsiflexion/Plantarflexion')),
+      ('RightBallFoot',   ('Abduction/Adduction',              'Internal/External Rotation', 'Flexion/Extension')),
+      ('LeftHip',         ('Abduction/Adduction',              'Internal/External Rotation', 'Flexion/Extension')),
+      ('LeftKnee',        ('Abduction/Adduction',              'Internal/External Rotation', 'Flexion/Extension')),
+      ('LeftAnkle',       ('Abduction/Adduction',              'Internal/External Rotation', 'Dorsiflexion/Plantarflexion')),
+      ('LeftBallFoot',    ('Abduction/Adduction',              'Internal/External Rotation', 'Flexion/Extension')),
+    ])
+    body_joint_rotation_type_ordering = [(key, body_joint_rotation_type_ordering_raw[key]) for key in body_joint_labels]
+    fingerLeft_joint_rotation_type_ordering = OrderedDict([
+      (key, ('Abduction/Adduction', 'Internal/External Rotation', 'Flexion/Extension'))
+       for key in fingerLeft_joint_labels])
+    fingerRight_joint_rotation_type_ordering = OrderedDict([
+      (key, ('Abduction/Adduction', 'Internal/External Rotation', 'Flexion/Extension'))
+       for key in fingerRight_joint_labels])
+    
+    # Compile the metadata.
+    metadata = OrderedDict([
+      ('num_segments_body', len(body_segment_labels)),
+      ('num_segments_fingers_left', len(fingerLeft_segment_labels)),
+      ('num_segments_fingers_right', len(fingerRight_segment_labels)),
+      ('num_joints_body', len(body_joint_labels)),
+      ('num_joints_fingers_left', len(fingerLeft_joint_labels)),
+      ('num_joints_fingers_right', len(fingerRight_joint_labels)),
+      ('num_joints_ergonomic', len(ergonomic_joint_labels)),
+      ('num_sensors', len(sensor_labels)),
+      ('segment_names_body', body_segment_labels),
+      ('segment_names_fingers_left', fingerLeft_segment_labels),
+      ('segment_names_fingers_right', fingerRight_segment_labels),
+      ('joint_names_body', body_joint_labels),
+      ('joint_names_fingers_left', fingerLeft_joint_labels),
+      ('joint_names_fingers_right', fingerRight_joint_labels),
+      ('joint_rotation_order_body', body_joint_rotation_type_ordering),
+      ('joint_rotation_order_fingers_left', fingerLeft_joint_rotation_type_ordering),
+      ('joint_rotation_order_fingers_right', fingerRight_joint_rotation_type_ordering),
+      ('ergonomic_joint_names', ergonomic_joint_labels),
+      ('sensor_names', sensor_labels),
+      ('foot_contact_names', foot_contact_labels),
+      ('joint_segment_connections_body', body_joint_segment_connections),
+      ('joint_segment_connections_fingers_left', fingerLeft_joint_segment_connections),
+      ('joint_segment_connections_fingers_right', fingerRight_joint_segment_connections),
+      ('ergonomic_joint_segment_connections', ergonomic_joint_segment_connections),
+      ('segment_mesh_points_body_xyz_cm', body_segment_mesh_points_xyz_cm),
+      ('segment_mesh_points_fingers_left_xyz_cm', fingerLeft_segment_mesh_points_xyz_cm),
+      ('segment_mesh_points_fingers_right_xyz_cm', fingerRight_segment_mesh_points_xyz_cm),
+      ('mvn_version', mvn_version),
+      ('mvnx_version', mvnx_version),
+    ])
+    if len(fingerLeft_segment_labels) == 0:
+      for key in list(metadata.keys()):
+        if 'fingers_left' in key:
+          del metadata[key]
+    if len(fingerRight_segment_labels) == 0:
+      for key in list(metadata.keys()):
+        if 'fingers_right' in key:
+          del metadata[key]
+    return metadata
+  
   # Update a streamed data log with data recorded from the Xsens software exported to MVNX.
   def _merge_mvnx_data_with_streamed_data(self, mvnx_filepath,
-                                         hdf5_file_toUpdate, hdf5_file_archived):
+                                          hdf5_file_toUpdate, hdf5_file_archived):
   
     self._log_status('XsensStreamer merging streamed data with Xsens MVNX data')
     
@@ -1166,120 +1326,144 @@ class XsensStreamer(SensorStreamer):
     self._log_debug('Reading and parsing the MVNX file')
     with open(mvnx_filepath, 'r') as fin:
       mvnx_contents = fin.read()
-    mvnx_data = BeautifulSoup(mvnx_contents, 'xml')
+    mvnx_xml = BeautifulSoup(mvnx_contents, 'xml')
+  
+    # Get metadata.
+    metadata = self._get_mvnx_metadata(mvnx_xml)
+    metadata_segments = dict([(key, value) for (key, value) in metadata.items() if 'joint' not in key and 'sensor' not in key and 'contact' not in key])
+    metadata_joints = dict([(key, value) for (key, value) in metadata.items() if 'segment' not in key and 'sensor' not in key and 'contact' not in key])
+    metadata_com = dict([(key, value) for (key, value) in metadata.items() if 'segment' not in key and 'joint' not in key and 'sensor' not in key and 'contact' not in key])
+    metadata_sensors = dict([(key, value) for (key, value) in metadata.items() if 'segment' not in key and 'joint' not in key and 'contact' not in key])
+    metadata_footContacts = dict([(key, value) for (key, value) in metadata.items() if 'segment' not in key and 'joint' not in key and 'sensor' not in key])
     
-    # Extract all of the frames, ignoring the first few that are empty rows.
-    self._log_debug('Extracting streams from the MVNX data')
-    frames = mvnx_data.find_all('frame')
-    frame_indexes = [frame.get('index') for frame in frames]
-    frames = [frame for (i, frame) in enumerate(frames) if frame_indexes[i].isnumeric()]
-    frame_indexes = [int(frame_index) for frame_index in frame_indexes if frame_index.isnumeric()]
+    have_fingers_left = 'segment_names_fingers_left' in metadata
+    have_fingers_right = 'segment_names_fingers_right' in metadata
+    # print_var(metadata, 'metadata')
+
+    # Extract all frames
+    frames = mvnx_xml.find_all('frame')
+
+    # Extract the calibration frames.
+    calibration_types = ['identity', 'Tpose', 'Tpose_ISB'] # should match MVNX types if make lowercase and replace underscores with hyphones
+    calibration_data = dict([(key, None) for key in calibration_types])
+    for (frame_index, frame) in enumerate(frames[0:5]): # should be the first 3 frames, but increase a bit just to be safe
+      for calibration_type in calibration_types:
+        if frame.get('type') == calibration_type.lower().replace('_', '-'):
+          calibration_data[calibration_type] = {
+            'segment_orientations_body_quaternion': np.atleast_2d([round(float(q), 6) for q in frame.find('orientation').contents[0].split()]),
+            'segment_positions_body_m': np.atleast_2d([round(float(q), 6) for q in frame.find('position').contents[0].split()]),
+          }
+
+    # Extract data from all non-calibration frames.
+    frames = [frame for (i, frame) in enumerate(frames) if frame.get('type') == 'normal']
+    frame_indexes = [int(frame.get('index')) for frame in frames]
     num_frames = len(frames)
-    
+
     # Get time information.
-    times_since_start_s = [float(frame.get('time'))/1000.0 for frame in frames]
+    times_since_start_s = [round(float(frame.get('time')))/1000.0 for frame in frames]
     times_utc_str = [frame.get('tc') for frame in frames]
     times_s = [float(frame.get('ms'))/1000.0 for frame in frames]
     times_str = [get_time_str(time_s, '%Y-%m-%d %H:%M:%S.%f') for time_s in times_s]
-    
+
     # Check that the timestamps monotonically increase.
-    times_s_np = np.array(times_s)
-    times_s_diffs = np.diff(times_s_np)
-    if np.any(times_s_diffs < 0):
+    if np.any(np.diff(times_s) < 0):
       print_var(times_str, 'times_str')
       msg = '\n'*2
       msg += 'x'*75
       msg += 'XsensStreamer aborting merge due to incorrect timestamps in the MVNX file (they are not monotonically increasing)'
       msg += 'x'*75
       msg = '\n'*2
-      self._log_status(msg)
+      print(msg)
       return
-    
-    # A helper to get a matrix of data for a given tag, such as 'position'.
+
+    # A helper to get a matrix of data from all frames for a given tag, such as 'position'.
     def get_tagged_data(tag):
-      datas = [frame.find_all(tag)[0] for frame in frames]
-      data = np.array([[float(x) for x in data.contents[0].split()] for data in datas])
+      datas = [frame.find(tag) for frame in frames]
+      data = np.array([[round(float(x), 6) for x in data.contents[0].split()] for data in datas])
       return data
-    
+
     # Extract the data!
-    segment_positions_body_cm                 = get_tagged_data('position')*100.0 # convert from m to cm
-    segment_orientations_body_quaternion      = get_tagged_data('orientation')
-    segment_velocities_body_cm_s              = get_tagged_data('velocity')*100.0 # convert from m to cm
-    segment_accelerations_body_cm_ss          = get_tagged_data('acceleration')*100.0 # convert from m to cm
-    segment_angular_velocities_body_deg_s     = get_tagged_data('angularVelocity')*180.0/np.pi # convert from radians to degrees
-    segment_angular_accelerations_body_deg_ss = get_tagged_data('angularAcceleration')*180.0/np.pi # convert from radians to degrees
+    segment_orientations_body_quaternion_wijk = get_tagged_data('orientation')
+    segment_positions_body_m                  = get_tagged_data('position')
+    segment_velocities_body_m_s               = get_tagged_data('velocity')
+    segment_accelerations_body_m_ss           = get_tagged_data('acceleration')
+    segment_angular_velocities_body_rad_s     = get_tagged_data('angularVelocity')
+    segment_angular_accelerations_body_rad_ss = get_tagged_data('angularAcceleration')
     foot_contacts                             = get_tagged_data('footContacts')
-    sensor_freeAccelerations_cm_ss            = get_tagged_data('sensorFreeAcceleration')*100.0 # convert from m to cm
-    sensor_magnetic_fields                    = get_tagged_data('sensorMagneticField')
-    sensor_orientations_quaternion            = get_tagged_data('sensorOrientation')
-    joint_angles_zxy_body_deg                 = get_tagged_data('jointAngle')
-    joint_angles_xzy_body_deg                 = get_tagged_data('jointAngleXZY')
-    ergonomic_joint_angles_zxy_deg            = get_tagged_data('jointAngleErgo')
-    ergonomic_joint_angles_xzy_deg            = get_tagged_data('jointAngleErgoXZY')
+    sensor_freeAccelerations_m_ss             = get_tagged_data('sensorFreeAcceleration')
+    sensor_magnetic_fields_au                 = get_tagged_data('sensorMagneticField')
+    sensor_orientations_quaternion_wijk       = get_tagged_data('sensorOrientation')
+    joint_angles_body_eulerZXY_xyz_rad        = get_tagged_data('jointAngle')*np.pi/180.0 # convert from degrees to radians
+    joint_angles_body_eulerXZY_xyz_rad        = get_tagged_data('jointAngleXZY')*np.pi/180.0 # convert from degrees to radians
+    joint_angles_ergonomic_eulerZXY_xyz_rad   = get_tagged_data('jointAngleErgo')*np.pi/180.0 # convert from degrees to radians
+    joint_angles_ergonomic_eulerXZY_xyz_rad   = get_tagged_data('jointAngleErgoXZY')*np.pi/180.0 # convert from degrees to radians
     center_of_mass                            = get_tagged_data('centerOfMass')
-    center_of_mass_positions_cm               = center_of_mass[:, 0:3]*100.0 # convert from m to cm
-    center_of_mass_velocities_cm_s            = center_of_mass[:, 3:6]*100.0 # convert from m to cm
-    center_of_mass_accelerations_cm_ss        = center_of_mass[:, 6:9]*100.0 # convert from m to cm
-    try:
-      segment_positions_fingersLeft_cm             = get_tagged_data('positionFingersLeft')*100.0
-      segment_positions_fingersRight_cm            = get_tagged_data('positionFingersRight')*100.0
-      segment_orientations_fingersLeft_quaternion  = get_tagged_data('orientationFingersLeft')
-      segment_orientations_fingersRight_quaternion = get_tagged_data('orientationFingersRight')
-      joint_angles_zxy_fingersLeft_deg             = get_tagged_data('jointAngleFingersLeft')
-      joint_angles_zxy_fingersRight_deg            = get_tagged_data('jointAngleFingersRight')
-      joint_angles_xzy_fingersLeft_deg             = get_tagged_data('jointAngleFingersLeftXZY')
-      joint_angles_xzy_fingersRight_deg            = get_tagged_data('jointAngleFingersRightXZY')
-      segment_positions_all_cm = np.concatenate((segment_positions_body_cm,
-                                                 segment_positions_fingersLeft_cm,
-                                                 segment_positions_fingersRight_cm),
-                                                axis=1)
-      segment_orientations_all_quaternion = np.concatenate((segment_orientations_body_quaternion,
-                                                            segment_orientations_fingersLeft_quaternion,
-                                                            segment_orientations_fingersRight_quaternion),
-                                                           axis=1)
-      joint_angles_zxy_all_deg = np.concatenate((joint_angles_zxy_body_deg,
-                                                 joint_angles_zxy_fingersLeft_deg,
-                                                 joint_angles_zxy_fingersRight_deg),
-                                                axis=1)
-      joint_angles_xzy_all_deg = np.concatenate((joint_angles_xzy_body_deg,
-                                                 joint_angles_xzy_fingersLeft_deg,
-                                                 joint_angles_xzy_fingersRight_deg),
-                                                axis=1)
-    except IndexError: # fingers were not included in the data
-      segment_positions_all_cm = segment_positions_body_cm
-      segment_orientations_all_quaternion = segment_orientations_body_quaternion
-      joint_angles_zxy_all_deg = joint_angles_zxy_body_deg
-      joint_angles_xzy_all_deg = joint_angles_xzy_body_deg
+    center_of_mass_positions_m                = center_of_mass[:, 0:3]
+    center_of_mass_velocities_m_s             = center_of_mass[:, 3:6]
+    center_of_mass_accelerations_m_ss         = center_of_mass[:, 6:9]
+    # Extract data for the left hand if it is available.
+    if have_fingers_left:
+      segment_orientations_fingersLeft_quaternion_wijk = get_tagged_data('orientationFingersLeft')
+      segment_positions_fingersLeft_m                  = get_tagged_data('positionFingersLeft')
+      joint_angles_fingersLeft_eulerZXY_xyz_rad        = get_tagged_data('jointAngleFingersLeft')*np.pi/180.0 # convert from degrees to radians
+      joint_angles_fingersLeft_eulerXZY_xyz_rad        = get_tagged_data('jointAngleFingersLeftXZY')*np.pi/180.0 # convert from degrees to radians
+    else:
+      segment_orientations_fingersLeft_quaternion_wijk = None
+      segment_positions_fingersLeft_m = None
+      joint_angles_fingersLeft_eulerZXY_xyz_rad = None
+      joint_angles_fingersLeft_eulerXZY_xyz_rad = None
+    # Extract data for the right hand if it is available.
+    if have_fingers_right:
+      segment_orientations_fingersRight_quaternion_wijk = get_tagged_data('orientationFingersRight')
+      segment_positions_fingersRight_m                  = get_tagged_data('positionFingersRight')
+      joint_angles_fingersRight_eulerZXY_xyz_rad        = get_tagged_data('jointAngleFingersRight')*np.pi/180.0 # convert from degrees to radians
+      joint_angles_fingersRight_eulerXZY_xyz_rad        = get_tagged_data('jointAngleFingersRightXZY')*np.pi/180.0 # convert from degrees to radians
+    else:
+      segment_orientations_fingersRight_quaternion_wijk = None
+      segment_positions_fingersRight_m = None
+      joint_angles_fingersRight_eulerZXY_xyz_rad = None
+      joint_angles_fingersRight_eulerXZY_xyz_rad = None
     
-    # Get the number of segments and sensors
-    num_segments_body = segment_orientations_body_quaternion.shape[1]/4
-    assert num_segments_body == int(num_segments_body)
-    num_segments_body = int(num_segments_body)
-    num_segments_all = segment_orientations_all_quaternion.shape[1]/4
-    assert num_segments_all == int(num_segments_all)
-    num_segments_all = int(num_segments_all)
-    num_sensors = sensor_orientations_quaternion.shape[1]/4
-    assert num_sensors == int(num_sensors)
-    num_sensors = int(num_sensors)
-
+    # Check a few dimensions.
+    assert metadata['num_segments_body'] == segment_orientations_body_quaternion_wijk.shape[1]/4
+    if have_fingers_left:
+      assert metadata['num_segments_fingers_left'] == segment_orientations_fingersLeft_quaternion_wijk.shape[1]/4
+    if have_fingers_right:
+      assert metadata['num_segments_fingers_right'] == segment_orientations_fingersRight_quaternion_wijk.shape[1]/4
+    
     # Create Euler orientations from quaternion orientations.
-    segment_orientations_all_euler_deg = np.empty([num_frames, 3*num_segments_all])
-    for segment_index in range(num_segments_all):
+    segment_orientations_body_eulerZXY_xyz_rad = np.empty([num_frames, 3*metadata['num_segments_body']])
+    for segment_index in range(metadata['num_segments_body']):
       for frame_index in range(num_frames):
-        eulers_deg = euler_from_quaternion(*segment_orientations_all_quaternion[frame_index, (segment_index*4):(segment_index*4+4)])
-        segment_orientations_all_euler_deg[frame_index, (segment_index*3):(segment_index*3+3)] = eulers_deg
-    sensor_orientations_euler_deg = np.empty([num_frames, 3*num_sensors])
-    for sensor_index in range(num_sensors):
+        quat_wijk = segment_orientations_body_quaternion_wijk[frame_index, (segment_index*4):(segment_index*4+4)]
+        eulers_rad = euler_from_quaternion(w=quat_wijk[0], x=quat_wijk[1], y=quat_wijk[2], z=quat_wijk[3], euler_sequence='ZXY', degrees=False)
+        segment_orientations_body_eulerZXY_xyz_rad[frame_index, (segment_index*3):(segment_index*3+3)] = eulers_rad
+    if have_fingers_left:
+      segment_orientations_fingersLeft_eulerZXY_xyz_rad = np.empty([num_frames, 3*metadata['num_segments_fingers_left']])
+      for segment_index in range(metadata['num_segments_fingers_left']):
+        for frame_index in range(num_frames):
+          quat_wijk = segment_orientations_fingersLeft_quaternion_wijk[frame_index, (segment_index*4):(segment_index*4+4)]
+          eulers_rad = euler_from_quaternion(w=quat_wijk[0], x=quat_wijk[1], y=quat_wijk[2], z=quat_wijk[3], euler_sequence='ZXY', degrees=False)
+          segment_orientations_fingersLeft_eulerZXY_xyz_rad[frame_index, (segment_index*3):(segment_index*3+3)] = eulers_rad
+    if have_fingers_right:
+      segment_orientations_fingersRight_eulerZXY_xyz_rad = np.empty([num_frames, 3*metadata['num_segments_fingers_right']])
+      for segment_index in range(metadata['num_segments_fingers_right']):
+        for frame_index in range(num_frames):
+          quat_wijk = segment_orientations_fingersRight_quaternion_wijk[frame_index, (segment_index*4):(segment_index*4+4)]
+          eulers_rad = euler_from_quaternion(w=quat_wijk[0], x=quat_wijk[1], y=quat_wijk[2], z=quat_wijk[3], euler_sequence='ZXY', degrees=False)
+          segment_orientations_fingersRight_eulerZXY_xyz_rad[frame_index, (segment_index*3):(segment_index*3+3)] = eulers_rad
+    sensor_orientations_eulerZXY_xyz_rad = np.empty([num_frames, 3*metadata['num_sensors']])
+    for sensor_index in range(metadata['num_sensors']):
       for frame_index in range(num_frames):
-        eulers_deg = euler_from_quaternion(*sensor_orientations_quaternion[frame_index, (sensor_index*4):(sensor_index*4+4)])
-        sensor_orientations_euler_deg[frame_index, (sensor_index*3):(sensor_index*3+3)] = eulers_deg
-
-    # Create streams of joint child and parent IDs from the streamed HDF5 file.
-    # Note that it is always the same, so only need to reference one streamed entry.
-    joint_child_data = hdf5_file_toUpdate['xsens-joints']['child']['data'][0]
-    joint_parent_data = hdf5_file_toUpdate['xsens-joints']['parent']['data'][0]
-    joint_child_data  = np.tile(np.array(joint_child_data), [num_frames, 1])
-    joint_parent_data = np.tile(np.array(joint_parent_data), [num_frames, 1])
+        quat_wijk = sensor_orientations_quaternion_wijk[frame_index, (sensor_index*4):(sensor_index*4+4)]
+        eulers_rad = euler_from_quaternion(w=quat_wijk[0], x=quat_wijk[1], y=quat_wijk[2], z=quat_wijk[3], euler_sequence='ZXY', degrees=False)
+        sensor_orientations_eulerZXY_xyz_rad[frame_index, (sensor_index*3):(sensor_index*3+3)] = eulers_rad
+    
+    
+    
+    
+    
+    
     
     # Move all streamed data to the archive HDF5 file.
     self._log_debug('Moving streamed data to the archive HDF5 file')
@@ -1292,11 +1476,16 @@ class XsensStreamer(SensorStreamer):
         device_group_metadata = dict(device_group.attrs.items())
         hdf5_file_archived[device_name].attrs.update(device_group_metadata)
         del hdf5_file_toUpdate[device_name]
-
-    # Interpolate between missed frames to generate a system time for every Excel frame
-    #  that estimates when it would have arrived during live streaming.
-    interpolation_results = self._interpolate_system_time(hdf5_file_archived, frame_indexes)
-    system_times_s = interpolation_results[0]
+    
+    # TODO add this back
+    # TODO add this back
+    # TODO add this back
+    # TODO add this back
+    # TODO add this back
+    # # Interpolate between missed frames to generate a system time for every Excel frame
+    # #  that estimates when it would have arrived during live streaming.
+    # interpolation_results = self._interpolate_system_time(hdf5_file_archived, frame_indexes)
+    # system_times_s = interpolation_results[0]
     
     # Helper to import the MVNX data into the HDF5 file.
     def add_hdf5_data(device_name, stream_name,
@@ -1339,150 +1528,215 @@ class XsensStreamer(SensorStreamer):
       if stream_group_metadata is not None:
         hdf5_file_toUpdate[device_name][stream_name].attrs.update(
             convert_dict_values_to_str(stream_group_metadata, preserve_nested_dicts=False))
-
-    # Define the data notes to use for each stream.
-    self._define_data_notes()
+    
+    # TODO merge previous and current metadata approaches.
+    # # Define the data notes to use for each stream.
+    # self._define_data_notes()
     
     # Import the data!
     self._log_debug('Importing data to the new HDF5 file')
     
     # Segment orientation data (quaternion)
     add_hdf5_data(device_name='xsens-segments',
-                  stream_name='orientation_quaternion',
-                  data=segment_orientations_all_quaternion,
+                  stream_name='body_orientation_quaternion_wijk',
+                  data=segment_orientations_body_quaternion_wijk,
                   target_data_shape_per_frame=[-1, 4], # 4-element quaternion per segment per frame
-                  stream_group_metadata=self._data_notes_mvnx['xsens-segments']['orientation_quaternion'])
+                  stream_group_metadata=metadata_segments)
+    if have_fingers_left:
+      add_hdf5_data(device_name='xsens-segments',
+                    stream_name='fingersLeft_orientation_quaternion_wijk',
+                    data=segment_orientations_fingersLeft_quaternion_wijk,
+                    target_data_shape_per_frame=[-1, 4], # 4-element quaternion per segment per frame
+                    stream_group_metadata=metadata_segments)
+    if have_fingers_right:
+      add_hdf5_data(device_name='xsens-segments',
+                    stream_name='fingersRight_orientation_quaternion_wijk',
+                    data=segment_orientations_fingersRight_quaternion_wijk,
+                    target_data_shape_per_frame=[-1, 4], # 4-element quaternion per segment per frame
+                    stream_group_metadata=metadata_segments)
     # Segment orientation data (Euler)
     add_hdf5_data(device_name='xsens-segments',
-                  stream_name='orientation_euler_deg',
-                  data=segment_orientations_all_euler_deg,
+                  stream_name='body_orientation_eulerZXY_xyz_rad',
+                  data=segment_orientations_body_eulerZXY_xyz_rad,
                   target_data_shape_per_frame=[-1, 3], # 3-element Euler vector per segment per frame
-                  stream_group_metadata=self._data_notes_mvnx['xsens-segments']['orientation_euler_deg'])
+                  stream_group_metadata=metadata_segments)
+    if have_fingers_left:
+      add_hdf5_data(device_name='xsens-segments',
+                    stream_name='fingersLeft_orientation_eulerZXY_xyz_rad',
+                    data=segment_orientations_fingersLeft_eulerZXY_xyz_rad,
+                    target_data_shape_per_frame=[-1, 3], # 3-element Euler vector per segment per frame
+                    stream_group_metadata=metadata_segments)
+    if have_fingers_right:
+      add_hdf5_data(device_name='xsens-segments',
+                    stream_name='fingersRight_orientation_eulerZXY_xyz_rad',
+                    data=segment_orientations_fingersRight_eulerZXY_xyz_rad,
+                    target_data_shape_per_frame=[-1, 3], # 3-element Euler vector per segment per frame
+                    stream_group_metadata=metadata_segments)
 
     # Segment position data.
     add_hdf5_data(device_name='xsens-segments',
-                  stream_name='position_cm',
-                  data=segment_positions_all_cm,
+                  stream_name='body_position_xyz_m',
+                  data=segment_positions_body_m,
                   target_data_shape_per_frame=[-1, 3], # 3-element x/y/z vector per segment per frame
-                  stream_group_metadata=self._data_notes_mvnx['xsens-segments']['position_cm'])
+                  stream_group_metadata=metadata_segments)
+    if have_fingers_left:
+      add_hdf5_data(device_name='xsens-segments',
+                    stream_name='fingersLeft_position_xyz_m',
+                    data=segment_positions_fingersLeft_m,
+                    target_data_shape_per_frame=[-1, 3], # 3-element x/y/z vector per segment per frame
+                    stream_group_metadata=metadata_segments)
+    if have_fingers_right:
+      add_hdf5_data(device_name='xsens-segments',
+                    stream_name='fingersRight_position_xyz_m',
+                    data=segment_positions_fingersRight_m,
+                    target_data_shape_per_frame=[-1, 3], # 3-element x/y/z vector per segment per frame
+                    stream_group_metadata=metadata_segments)
     # Segment velocity data.
     add_hdf5_data(device_name='xsens-segments',
-                  stream_name='velocity_cm_s',
-                  data=segment_velocities_body_cm_s,
+                  stream_name='body_velocity_xyz_m_s',
+                  data=segment_velocities_body_m_s,
                   target_data_shape_per_frame=[-1, 3], # 3-element x/y/z vector per segment per frame
-                  stream_group_metadata=self._data_notes_mvnx['xsens-segments']['velocity_cm_s'])
+                  stream_group_metadata=metadata_segments)
     # Segment acceleration data.
     add_hdf5_data(device_name='xsens-segments',
-                  stream_name='acceleration_cm_ss',
-                  data=segment_accelerations_body_cm_ss,
+                  stream_name='body_acceleration_xyz_m_ss',
+                  data=segment_accelerations_body_m_ss,
                   target_data_shape_per_frame=[-1, 3], # 3-element x/y/z vector per segment per frame
-                  stream_group_metadata=self._data_notes_mvnx['xsens-segments']['acceleration_cm_ss'])
+                  stream_group_metadata=metadata_segments)
     # Segment angular velocity.
     add_hdf5_data(device_name='xsens-segments',
-                  stream_name='angular_velocity_deg_s',
-                  data=segment_angular_velocities_body_deg_s,
+                  stream_name='body_angular_velocity_xyz_rad_s',
+                  data=segment_angular_velocities_body_rad_s,
                   target_data_shape_per_frame=[-1, 3], # 3-element x/y/z vector per segment per frame
-                  stream_group_metadata=self._data_notes_mvnx['xsens-segments']['angular_velocity_deg_s'])
+                  stream_group_metadata=metadata_segments)
     # Segment angular acceleration.
     add_hdf5_data(device_name='xsens-segments',
-                  stream_name='angular_acceleration_deg_ss',
-                  data=segment_angular_accelerations_body_deg_ss,
+                  stream_name='body_angular_acceleration_xyz_rad_ss',
+                  data=segment_angular_accelerations_body_rad_ss,
                   target_data_shape_per_frame=[-1, 3], # 3-element x/y/z vector per segment per frame
-                  stream_group_metadata=self._data_notes_mvnx['xsens-segments']['angular_acceleration_deg_ss'])
+                  stream_group_metadata=metadata_segments)
 
     # Joint angles ZXY.
     add_hdf5_data(device_name='xsens-joints',
-                  stream_name='rotation_zxy_deg',
-                  data=joint_angles_zxy_all_deg,
+                  stream_name='body_joint_angles_eulerZXY_xyz_rad',
+                  data=joint_angles_body_eulerZXY_xyz_rad,
                   target_data_shape_per_frame=[-1, 3], # 3-element vector per segment per frame
-                  stream_group_metadata=self._data_notes_mvnx['xsens-joints']['rotation_zxy_deg'])
+                  stream_group_metadata=metadata_joints)
+    if have_fingers_left:
+      add_hdf5_data(device_name='xsens-joints',
+                    stream_name='fingersLeft_joint_angles_eulerZXY_xyz_rad',
+                    data=joint_angles_fingersLeft_eulerZXY_xyz_rad,
+                    target_data_shape_per_frame=[-1, 3], # 3-element vector per segment per frame
+                    stream_group_metadata=metadata_joints)
+    if have_fingers_right:
+      add_hdf5_data(device_name='xsens-joints',
+                    stream_name='fingersRight_joint_angles_eulerZXY_xyz_rad',
+                    data=joint_angles_fingersRight_eulerZXY_xyz_rad,
+                    target_data_shape_per_frame=[-1, 3], # 3-element vector per segment per frame
+                    stream_group_metadata=metadata_joints)
     # Joint angles XZY.
     add_hdf5_data(device_name='xsens-joints',
-                  stream_name='rotation_xzy_deg',
-                  data=joint_angles_xzy_all_deg,
+                  stream_name='body_joint_angles_eulerXZY_xyz_rad',
+                  data=joint_angles_body_eulerXZY_xyz_rad,
                   target_data_shape_per_frame=[-1, 3], # 3-element vector per segment per frame
-                  stream_group_metadata=self._data_notes_mvnx['xsens-joints']['rotation_xzy_deg'])
+                  stream_group_metadata=metadata_joints)
+    if have_fingers_left:
+      add_hdf5_data(device_name='xsens-joints',
+                  stream_name='fingersLeft_joint_angles_eulerXZY_xyz_rad',
+                  data=joint_angles_fingersLeft_eulerXZY_xyz_rad,
+                  target_data_shape_per_frame=[-1, 3], # 3-element vector per segment per frame
+                  stream_group_metadata=metadata_joints)
+    if have_fingers_right:
+      add_hdf5_data(device_name='xsens-joints',
+                  stream_name='fingersRight_joint_angles_eulerXZY_xyz_rad',
+                  data=joint_angles_fingersRight_eulerXZY_xyz_rad,
+                  target_data_shape_per_frame=[-1, 3], # 3-element vector per segment per frame
+                  stream_group_metadata=metadata_joints)
     # Ergonomic joint angles ZXY.
     add_hdf5_data(device_name='xsens-ergonomic-joints',
-                  stream_name='rotation_zxy_deg',
-                  data=ergonomic_joint_angles_zxy_deg,
+                  stream_name='ergonomic_joint_angles_eulerZXY_xyz_rad',
+                  data=joint_angles_ergonomic_eulerZXY_xyz_rad,
                   target_data_shape_per_frame=[-1, 3], # 3-element vector per segment per frame
-                  stream_group_metadata=self._data_notes_mvnx['xsens-ergonomic-joints']['rotation_zxy_deg'])
+                  stream_group_metadata=metadata_joints)
     # Ergonomic joint angles XZY.
     add_hdf5_data(device_name='xsens-ergonomic-joints',
-                  stream_name='rotation_xzy_deg',
-                  data=ergonomic_joint_angles_xzy_deg,
+                  stream_name='ergonomic_joint_angles_eulerXZY_xyz_rad',
+                  data=joint_angles_ergonomic_eulerXZY_xyz_rad,
                   target_data_shape_per_frame=[-1, 3], # 3-element vector per segment per frame
-                  stream_group_metadata=self._data_notes_mvnx['xsens-ergonomic-joints']['rotation_xzy_deg'])
-    # Joint child and parent IDs.
-    add_hdf5_data(device_name='xsens-joints',
-                  stream_name='child',
-                  data=joint_child_data,
-                  target_data_shape_per_frame=[joint_child_data.shape[1]], # 28-element vector per frame
-                  stream_group_metadata=self._data_notes_stream['xsens-joints']['child'])
-    add_hdf5_data(device_name='xsens-joints',
-                  stream_name='parent',
-                  data=joint_parent_data,
-                  target_data_shape_per_frame=[joint_parent_data.shape[1]], # 28-element vector per frame
-                  stream_group_metadata=self._data_notes_stream['xsens-joints']['parent'])
-    
+                  stream_group_metadata=metadata_joints)
+
     # Center of mass position.
     add_hdf5_data(device_name='xsens-CoM',
-                  stream_name='position_cm',
-                  data=center_of_mass_positions_cm,
+                  stream_name='position_xyz_m',
+                  data=center_of_mass_positions_m,
                   target_data_shape_per_frame=[3], # 3-element x/y/z vector per frame
-                  stream_group_metadata=self._data_notes_mvnx['xsens-CoM']['position_cm'])
+                  stream_group_metadata=metadata_com)
     # Center of mass velocity.
     add_hdf5_data(device_name='xsens-CoM',
-                  stream_name='velocity_cm_s',
-                  data=center_of_mass_velocities_cm_s,
+                  stream_name='velocity_xyz_m_s',
+                  data=center_of_mass_velocities_m_s,
                   target_data_shape_per_frame=[3], # 3-element x/y/z vector per frame
-                  stream_group_metadata=self._data_notes_mvnx['xsens-CoM']['velocity_cm_s'])
+                  stream_group_metadata=metadata_com)
     # Center of mass acceleration.
     add_hdf5_data(device_name='xsens-CoM',
-                  stream_name='acceleration_cm_ss',
-                  data=center_of_mass_accelerations_cm_ss,
+                  stream_name='acceleration_xyz_m_ss',
+                  data=center_of_mass_accelerations_m_ss,
                   target_data_shape_per_frame=[3], # 3-element x/y/z vector per frame
-                  stream_group_metadata=self._data_notes_mvnx['xsens-CoM']['acceleration_cm_ss'])
+                  stream_group_metadata=metadata_com)
 
     # Sensor data - acceleration
     add_hdf5_data(device_name='xsens-sensors',
-                  stream_name='free_acceleration_cm_ss',
-                  data=sensor_freeAccelerations_cm_ss,
+                  stream_name='free_acceleration_xyz_m_ss',
+                  data=sensor_freeAccelerations_m_ss,
                   target_data_shape_per_frame=[-1, 3], # 3-element x/y/z vector per segment per frame
-                  stream_group_metadata=self._data_notes_mvnx['xsens-sensors']['free_acceleration_cm_ss'])
+                  stream_group_metadata=metadata_sensors)
     # Sensor data - magnetic field
     add_hdf5_data(device_name='xsens-sensors',
-                  stream_name='magnetic_field',
-                  data=sensor_magnetic_fields,
+                  stream_name='magnetic_field_xyz_au',
+                  data=sensor_magnetic_fields_au,
                   target_data_shape_per_frame=[-1, 3], # 3-element x/y/z vector per segment per frame
-                  stream_group_metadata=self._data_notes_mvnx['xsens-sensors']['magnetic_field'])
+                  stream_group_metadata=metadata_sensors)
     # Sensor data - orientation
     add_hdf5_data(device_name='xsens-sensors',
-                  stream_name='orientation_quaternion',
-                  data=sensor_orientations_quaternion,
+                  stream_name='sensor_orientation_quaternion_wijk',
+                  data=sensor_orientations_quaternion_wijk,
                   target_data_shape_per_frame=[-1, 4], # 4-element quaternion vector per segment per frame
-                  stream_group_metadata=self._data_notes_mvnx['xsens-sensors']['orientation_quaternion'])
+                  stream_group_metadata=metadata_sensors)
     # Sensor data - orientation
     add_hdf5_data(device_name='xsens-sensors',
-                  stream_name='orientation_euler_deg',
-                  data=sensor_orientations_euler_deg,
+                  stream_name='sensor_orientation_eulerZXY_xyz_rad',
+                  data=sensor_orientations_eulerZXY_xyz_rad,
                   target_data_shape_per_frame=[-1, 3], # 3-element x/y/z vector per segment per frame
-                  stream_group_metadata=self._data_notes_mvnx['xsens-sensors']['orientation_euler_deg'])
+                  stream_group_metadata=metadata_sensors)
 
     # Foot contacts
     add_hdf5_data(device_name='xsens-foot-contacts',
-                  stream_name='foot_contact_points',
+                  stream_name='is_contacting_ground',
                   data=foot_contacts,
                   target_data_shape_per_frame=[4], # 4-element contact vector per segment per frame
-                  stream_group_metadata=self._data_notes_mvnx['xsens-foot-contacts']['foot-contacts'])
+                  stream_group_metadata=metadata_footContacts)
+    
+    # Calibration poses.
+    device_group = hdf5_file_toUpdate.create_group('xsens-segments-tpose')
+    device_group.create_dataset('body_orientation_identity_quaternion_wijk',
+                                data=calibration_data['identity']['segment_orientations_body_quaternion'].reshape((-1, 4)))
+    device_group.create_dataset('body_orientation_Tpose_quaternion_wijk',
+                                data=calibration_data['Tpose']['segment_orientations_body_quaternion'].reshape((-1, 4)))
+    device_group.create_dataset('body_orientation_TposeISB_quaternion_wijk',
+                                data=calibration_data['Tpose_ISB']['segment_orientations_body_quaternion'].reshape((-1, 4)))
+    device_group.create_dataset('body_position_identity_xyz_m',
+                                data=calibration_data['identity']['segment_positions_body_m'].reshape((-1, 3)))
+    device_group.create_dataset('body_position_Tpose_xyz_m',
+                                data=calibration_data['Tpose']['segment_positions_body_m'].reshape((-1, 3)))
+    device_group.create_dataset('body_position_TposeISB_xyz_m',
+                                data=calibration_data['Tpose_ISB']['segment_positions_body_m'].reshape((-1, 3)))
   
-    # System time
-    add_hdf5_data(device_name='xsens-time',
-                  stream_name='stream_receive_time_s',
-                  data=system_times_s,
-                  target_data_shape_per_frame=[1],
-                  stream_group_metadata=self._data_notes_mvnx['xsens-time']['stream_receive_time_s'])
+    # # System time
+    # add_hdf5_data(device_name='xsens-time',
+    #               stream_name='stream_receive_time_s',
+    #               data=system_times_s,
+    #               target_data_shape_per_frame=[1],
+    #               stream_group_metadata=self._data_notes_mvnx['xsens-time']['stream_receive_time_s'])
   
   
   

@@ -824,6 +824,8 @@ class DataLogger:
     class_names = [] # use to detect duplicates - will only use one instance of each streamer type
     for (device_name, device_group) in hdf5_file_toUpdate.items():
       metadata = dict(device_group.attrs.items())
+      if 'SensorStreamer class name' not in metadata:
+        continue
       class_name = metadata['SensorStreamer class name']
       if class_name not in class_names:
         class_module = importlib.import_module('sensor_streamers.%s' % class_name, class_name)

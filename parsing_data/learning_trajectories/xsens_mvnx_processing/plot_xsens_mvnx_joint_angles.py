@@ -48,9 +48,9 @@ from utils.print_utils import *
 from utils.time_utils import *
 
 # Specify the folder of experiments to parse.
-data_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'data'))
+data_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', '..', 'data'))
 experiments_dir = os.path.join(data_dir, 'tests', '2023-08-31_experiment_S00_xsens_joint_angles')
-output_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'results', 'learning_trajectories',
+output_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', '..', 'results', 'learning_trajectories',
                                            '2023-08-31_test_xsens_joint_angles'))
 os.makedirs(output_dir, exist_ok=True)
 
@@ -152,25 +152,36 @@ for mvnx_filepath in mvnx_filepaths[0:]:
   print('Reading and parsing %s' % os.path.basename(mvnx_filepath))
   with open(mvnx_filepath, 'r') as fin:
     mvnx_contents = fin.read()
-  mvnx_data = BeautifulSoup(mvnx_contents, 'xml')
+  mvnx_xml = BeautifulSoup(mvnx_contents, 'xml')
 
-  # Extract all of the frames, ignoring the first few that are empty rows.
-  frames = mvnx_data.find_all('frame')
-  frame_indexes = [frame.get('index') for frame in frames]
-  frames = [frame for (i, frame) in enumerate(frames) if frame_indexes[i].isnumeric()]
-  frame_indexes = [int(frame_index) for frame_index in frame_indexes if frame_index.isnumeric()]
+  # Extract all frames
+  frames = mvnx_xml.find_all('frame')
+
+  # Extract the calibration frames.
+  calibration_types = ['identity', 'Tpose', 'Tpose_ISB'] # should match MVNX types if make lowercase and replace underscores with hyphones
+  calibration_data = dict([(key, None) for key in calibration_types])
+  for (frame_index, frame) in enumerate(frames[0:5]): # should be the first 3 frames, but increase a bit just to be safe
+    for calibration_type in calibration_types:
+      if frame.get('type') == calibration_type.lower().replace('_', '-'):
+        calibration_data[calibration_type] = {
+          'segment_orientations_body_quaternion': [round(float(q), 6) for q in frame.find('orientation').contents[0].split()],
+          'segment_positions_body_m': [round(float(q), 6) for q in frame.find('position').contents[0].split()],
+        }
+
+  # Extract data from all non-calibration frames.
+
+  frames = [frame for (i, frame) in enumerate(frames) if frame.get('type') == 'normal']
+  frame_indexes = [int(frame.get('index')) for frame in frames]
   num_frames = len(frames)
 
   # Get time information.
-  times_since_start_s = [float(frame.get('time'))/1000.0 for frame in frames]
+  times_since_start_s = [round(float(frame.get('time')))/1000.0 for frame in frames]
   times_utc_str = [frame.get('tc') for frame in frames]
   times_s = [float(frame.get('ms'))/1000.0 for frame in frames]
   times_str = [get_time_str(time_s, '%Y-%m-%d %H:%M:%S.%f') for time_s in times_s]
 
   # Check that the timestamps monotonically increase.
-  times_s_np = np.array(times_s)
-  times_s_diffs = np.diff(times_s_np)
-  if np.any(times_s_diffs < 0):
+  if np.any(np.diff(times_s) < 0):
     print_var(times_str, 'times_str')
     msg = '\n'*2
     msg += 'x'*75
@@ -180,84 +191,32 @@ for mvnx_filepath in mvnx_filepaths[0:]:
     print(msg)
     continue
 
-  # A helper to get a matrix of data for a given tag, such as 'position'.
+  # A helper to get a matrix of data from all frames for a given tag, such as 'position'.
   def get_tagged_data(tag):
-    datas = [frame.find_all(tag)[0] for frame in frames]
-    data = np.array([[float(x) for x in data.contents[0].split()] for data in datas])
+    datas = [frame.find(tag) for frame in frames]
+    data = np.array([[round(float(x), 6) for x in data.contents[0].split()] for data in datas])
     return data
 
   # Extract the data!
-  segment_positions_body_cm                 = get_tagged_data('position')*100.0 # convert from m to cm
-  segment_orientations_body_quaternion      = get_tagged_data('orientation')
-  segment_velocities_body_cm_s              = get_tagged_data('velocity')*100.0 # convert from m to cm
-  segment_accelerations_body_cm_ss          = get_tagged_data('acceleration')*100.0 # convert from m to cm
-  segment_angular_velocities_body_deg_s     = get_tagged_data('angularVelocity')*180.0/np.pi # convert from radians to degrees
-  segment_angular_accelerations_body_deg_ss = get_tagged_data('angularAcceleration')*180.0/np.pi # convert from radians to degrees
+  segment_orientations_body_quaternion_wijk = get_tagged_data('orientation')
+  segment_positions_body_m                  = get_tagged_data('position')
+  segment_velocities_body_m_s               = get_tagged_data('velocity')
+  segment_accelerations_body_m_ss           = get_tagged_data('acceleration')
+  segment_angular_velocities_body_rad_s     = get_tagged_data('angularVelocity')
+  segment_angular_accelerations_body_rad_ss = get_tagged_data('angularAcceleration')
   foot_contacts                             = get_tagged_data('footContacts')
-  sensor_freeAccelerations_cm_ss            = get_tagged_data('sensorFreeAcceleration')*100.0 # convert from m to cm
-  sensor_magnetic_fields                    = get_tagged_data('sensorMagneticField')
-  sensor_orientations_quaternion            = get_tagged_data('sensorOrientation')
-  joint_angles_zxy_body_deg                 = get_tagged_data('jointAngle')
-  joint_angles_xzy_body_deg                 = get_tagged_data('jointAngleXZY')
-  ergonomic_joint_angles_zxy_deg            = get_tagged_data('jointAngleErgo')
-  ergonomic_joint_angles_xzy_deg            = get_tagged_data('jointAngleErgoXZY')
+  sensor_freeAccelerations_m_ss             = get_tagged_data('sensorFreeAcceleration')
+  sensor_magnetic_fields_au                 = get_tagged_data('sensorMagneticField')
+  sensor_orientations_quaternion_wijk       = get_tagged_data('sensorOrientation')
+  joint_angles_body_eulerZXY_xyz_rad        = get_tagged_data('jointAngle')*np.pi/180.0 # convert from degrees to radians
+  joint_angles_body_eulerXZY_xyz_rad        = get_tagged_data('jointAngleXZY')*np.pi/180.0 # convert from degrees to radians
+  joint_angles_ergonomic_eulerZXY_xyz_rad   = get_tagged_data('jointAngleErgo')*np.pi/180.0 # convert from degrees to radians
+  joint_angles_ergonomic_eulerXZY_xyz_rad   = get_tagged_data('jointAngleErgoXZY')*np.pi/180.0 # convert from degrees to radians
   center_of_mass                            = get_tagged_data('centerOfMass')
-  center_of_mass_positions_cm               = center_of_mass[:, 0:3]*100.0 # convert from m to cm
-  center_of_mass_velocities_cm_s            = center_of_mass[:, 3:6]*100.0 # convert from m to cm
-  center_of_mass_accelerations_cm_ss        = center_of_mass[:, 6:9]*100.0 # convert from m to cm
-  try:
-    segment_positions_fingersLeft_cm             = get_tagged_data('positionFingersLeft')*100.0
-    segment_positions_fingersRight_cm            = get_tagged_data('positionFingersRight')*100.0
-    segment_orientations_fingersLeft_quaternion  = get_tagged_data('orientationFingersLeft')
-    segment_orientations_fingersRight_quaternion = get_tagged_data('orientationFingersRight')
-    joint_angles_zxy_fingersLeft_deg             = get_tagged_data('jointAngleFingersLeft')
-    joint_angles_zxy_fingersRight_deg            = get_tagged_data('jointAngleFingersRight')
-    joint_angles_xzy_fingersLeft_deg             = get_tagged_data('jointAngleFingersLeftXZY')
-    joint_angles_xzy_fingersRight_deg            = get_tagged_data('jointAngleFingersRightXZY')
-    segment_positions_all_cm = np.concatenate((segment_positions_body_cm,
-                                               segment_positions_fingersLeft_cm,
-                                               segment_positions_fingersRight_cm),
-                                              axis=1)
-    segment_orientations_all_quaternion = np.concatenate((segment_orientations_body_quaternion,
-                                                          segment_orientations_fingersLeft_quaternion,
-                                                          segment_orientations_fingersRight_quaternion),
-                                                         axis=1)
-    joint_angles_zxy_all_deg = np.concatenate((joint_angles_zxy_body_deg,
-                                               joint_angles_zxy_fingersLeft_deg,
-                                               joint_angles_zxy_fingersRight_deg),
-                                              axis=1)
-    joint_angles_xzy_all_deg = np.concatenate((joint_angles_xzy_body_deg,
-                                               joint_angles_xzy_fingersLeft_deg,
-                                               joint_angles_xzy_fingersRight_deg),
-                                              axis=1)
-  except IndexError: # fingers were not included in the data
-    segment_positions_all_cm = segment_positions_body_cm
-    segment_orientations_all_quaternion = segment_orientations_body_quaternion
-    joint_angles_zxy_all_deg = joint_angles_zxy_body_deg
-    joint_angles_xzy_all_deg = joint_angles_xzy_body_deg
-
-  # Get the number of segments and sensors
-  num_segments_body = segment_orientations_body_quaternion.shape[1]/4
-  assert num_segments_body == int(num_segments_body)
-  num_segments_body = int(num_segments_body)
-  num_segments_all = segment_orientations_all_quaternion.shape[1]/4
-  assert num_segments_all == int(num_segments_all)
-  num_segments_all = int(num_segments_all)
-  num_sensors = sensor_orientations_quaternion.shape[1]/4
-  assert num_sensors == int(num_sensors)
-  num_sensors = int(num_sensors)
-
-  # Create Euler orientations from quaternion orientations.
-  segment_orientations_all_euler_deg = np.empty([num_frames, 3*num_segments_all])
-  for segment_index in range(num_segments_all):
-    for frame_index in range(num_frames):
-      eulers_deg = euler_from_quaternion(*segment_orientations_all_quaternion[frame_index, (segment_index*4):(segment_index*4+4)])
-      segment_orientations_all_euler_deg[frame_index, (segment_index*3):(segment_index*3+3)] = eulers_deg
-  sensor_orientations_euler_deg = np.empty([num_frames, 3*num_sensors])
-  for sensor_index in range(num_sensors):
-    for frame_index in range(num_frames):
-      eulers_deg = euler_from_quaternion(*sensor_orientations_quaternion[frame_index, (sensor_index*4):(sensor_index*4+4)])
-      sensor_orientations_euler_deg[frame_index, (sensor_index*3):(sensor_index*3+3)] = eulers_deg
+  center_of_mass_positions_m                = center_of_mass[:, 0:3]
+  center_of_mass_velocities_m_s             = center_of_mass[:, 3:6]
+  center_of_mass_accelerations_m_ss         = center_of_mass[:, 6:9]
+  
 
   ###################################################
 
@@ -271,24 +230,24 @@ for mvnx_filepath in mvnx_filepaths[0:]:
                                subplot_kw={'frame_on': True},
                                figsize=figure_size
                                )
-  joint_angles_zxy_body_deg = joint_angles_zxy_body_deg.reshape(joint_angles_zxy_body_deg.shape[0], -1, 3)
-  joint_angles_xzy_body_deg = joint_angles_xzy_body_deg.reshape(joint_angles_xzy_body_deg.shape[0], -1, 3)
+  joint_angles_body_eulerZXY_xyz_rad = joint_angles_body_eulerZXY_xyz_rad.reshape(joint_angles_body_eulerZXY_xyz_rad.shape[0], -1, 3)
+  joint_angles_body_eulerXZY_xyz_rad = joint_angles_body_eulerXZY_xyz_rad.reshape(joint_angles_body_eulerXZY_xyz_rad.shape[0], -1, 3)
   for (plt_index, joint_label) in enumerate(joint_labels_toPlot):
-    data = joint_angles_zxy_body_deg[:, bodyJoint_labels.index(joint_label), :]
-    data = data[:, [1, 2, 0]]
+    data = joint_angles_body_eulerZXY_xyz_rad[:, bodyJoint_labels.index(joint_label), :]
+    data = data[:, [0, 1, 2]]
     data = np.unwrap(data, axis=0, discont=None, period=2*np.pi)
-    axs[plt_index][0].plot(times_s_np, data)
+    axs[plt_index][0].plot(times_s, data)
     axs[plt_index][0].set_title('ZXY: %s' % joint_label)
     axs[plt_index][0].grid(True, color='lightgray')
-    data = joint_angles_xzy_body_deg[:, bodyJoint_labels.index(joint_label), :]
-    data = data[:, [0, 2, 1]]
+    data = joint_angles_body_eulerXZY_xyz_rad[:, bodyJoint_labels.index(joint_label), :]
+    data = data[:, [0, 1, 2]]
     data = np.unwrap(data, axis=0, discont=None, period=2*np.pi)
-    axs[plt_index][1].plot(times_s_np, data)
+    axs[plt_index][1].plot(times_s, data)
     axs[plt_index][1].set_title('XZY: %s' % joint_label)
     axs[plt_index][1].grid(True, color='lightgray')
     if plt_index == num_joints_toPlot-1:
-      axs[plt_index][0].legend(['x', 'y', 'z'])
-      axs[plt_index][1].legend(['x', 'y', 'z'])
+      axs[plt_index][0].legend(['x (abduction)', 'y (internal)', 'z (flexion)'])
+      axs[plt_index][1].legend(['x (abduction)', 'y (internal)', 'z (flexion)'])
   title = '%s' % os.path.splitext(os.path.basename(mvnx_filepath))[0]
   fig.suptitle(title.replace('_', ' '))
   fig.canvas.manager.set_window_title(title.replace('_', ' '))

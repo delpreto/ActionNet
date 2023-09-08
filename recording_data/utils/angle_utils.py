@@ -26,6 +26,7 @@
 
 import math
 import numpy as np
+from scipy.spatial.transform import Rotation
 
 def wrapTo180(angle_deg):
   # reduce the angle
@@ -40,21 +41,25 @@ def wrapTo180(angle_deg):
   return angle_deg
 
 
-def euler_from_quaternion(w, x, y, z):
-  t0 = +2.0 * (w * x + y * z)
-  t1 = +1.0 - 2.0 * (x * x + y * y)
-  roll_x_rad = math.atan2(t0, t1)
-  
-  t2 = +2.0 * (w * y - z * x)
-  t2 = +1.0 if t2 > +1.0 else t2
-  t2 = -1.0 if t2 < -1.0 else t2
-  pitch_y_rad = math.asin(t2)
-  
-  t3 = +2.0 * (w * z + x * y)
-  t4 = +1.0 - 2.0 * (y * y + z * z)
-  yaw_z_rad = math.atan2(t3, t4)
-  
-  eulers_rad = np.array([roll_x_rad, pitch_y_rad, yaw_z_rad])
-  return eulers_rad*180/np.pi
+def euler_from_quaternion(w, x, y, z, euler_sequence='ZXY', degrees=False):
+  return Rotation.from_quat([x, y, z, w]).as_euler(euler_sequence, degrees=degrees)
+
+# # See https://math.stackexchange.com/questions/2975109/how-to-convert-euler-angles-to-quaternions-and-get-the-same-euler-angles-back-fr
+# def euler_from_quaternion(w, x, y, z):
+#   t0 = +2.0 * (w * x + y * z)
+#   t1 = +1.0 - 2.0 * (x * x + y * y)
+#   roll_x_rad = math.atan2(t0, t1)
+#
+#   t2 = +2.0 * (w * y - z * x)
+#   t2 = +1.0 if t2 > +1.0 else t2
+#   t2 = -1.0 if t2 < -1.0 else t2
+#   pitch_y_rad = math.asin(t2)
+#
+#   t3 = +2.0 * (w * z + x * y)
+#   t4 = +1.0 - 2.0 * (y * y + z * z)
+#   yaw_z_rad = math.atan2(t3, t4)
+#
+#   eulers_rad = np.array([roll_x_rad, pitch_y_rad, yaw_z_rad])
+#   return eulers_rad*180/np.pi
 
 

@@ -49,7 +49,7 @@ training_data_file = h5py.File(training_data_filepath, 'r')
 #   T is the number of timesteps in each trial
 #   30 is the concatenation of:
 #     xyz position for hand > elbow > shoulder
-#     xyzw quaternion for hand > lower arm > upper arm
+#     wijk quaternion for hand > lower arm > upper arm
 #     xzy joint angle for wrist > elbow > shoulder
 feature_matrices = np.squeeze(np.array(training_data_file['feature_matrices']))
 labels = training_data_file['labels']

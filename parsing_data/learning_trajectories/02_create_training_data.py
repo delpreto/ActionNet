@@ -33,10 +33,11 @@ import os
 script_dir = os.path.dirname(os.path.realpath(__file__))
 
 # CHOOSE THE ACTIVITY TO PROCESS
-configure_for_pouring = False # otherwise will be scooping
+configure_for_pouring = True # otherwise will be scooping
 
 # Specify the folder of experiments to parse.
-data_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'results', 'learning_trajectories'))
+data_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'results', 'learning_trajectories', 'S00'))
+# data_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'results', 'learning_trajectories', 'S11'))
 # Specify the input files of extracted trajectory data.
 trajectory_data_filepath_humans = os.path.join(data_dir, '%s_paths_humans.hdf5' % ('pouring' if configure_for_pouring else 'scooping'))
 trajectory_data_filepath_robots = os.path.join(data_dir, '%s_paths_robots.hdf5' % ('pouring' if configure_for_pouring else 'scooping'))

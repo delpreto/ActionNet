@@ -46,8 +46,11 @@ subject_ids_filter = None # None to consider all subjects
 
 # Specify the folder of experiments to parse.
 data_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'data'))
-experiments_dir = os.path.join(data_dir, 'experiments', '2023-08-18_experiment_S10')
-output_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'results', 'learning_trajectories'))
+# experiments_dir = os.path.join(data_dir, 'experiments', '2023-08-18_experiment_S10')
+experiments_dir = os.path.join(data_dir, 'experiments', '2023-09-10_experiment_S00')
+# experiments_dir = os.path.join(data_dir, 'experiments', '2023-09-10_experiment_S11')
+output_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'results', 'learning_trajectories', 'S00'))
+# output_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'results', 'learning_trajectories', 'S11'))
 os.makedirs(output_dir, exist_ok=True)
 
 animate_trajectory_plots = False # show an animated plot of the skeleton for each trial
@@ -60,7 +63,7 @@ save_results_data = True
 resampled_fs_hz = 50
 
 # CHOOSE THE ACTIVITY TO PROCESS
-configure_for_pouring = True # if False, will be scooping
+configure_for_pouring = False # if False, will be scooping
 
 if configure_for_pouring:
   target_activity_label = 'Pour water from a pitcher into a glass'

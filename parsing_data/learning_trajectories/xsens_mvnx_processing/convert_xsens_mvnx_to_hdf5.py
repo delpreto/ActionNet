@@ -842,7 +842,9 @@ if __name__ == '__main__':
 
   # Specify the folder of experiments to parse.
   data_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', '..', 'data'))
-  experiments_dir = os.path.join(data_dir, 'tests', '2023-08-31_experiment_S00_xsens_joint_angles')
+  # experiments_dir = os.path.join(data_dir, 'tests', '2023-08-31_experiment_S00_xsens_joint_angles')
+  # experiments_dir = os.path.join(data_dir, 'experiments', '2023-09-10_xsens_controlled_rotations_S00')
+  experiments_dir = os.path.join(data_dir, 'experiments', '2023-09-10_xsens_controlled_rotations_S11')
   output_dir = experiments_dir
   os.makedirs(output_dir, exist_ok=True)
   

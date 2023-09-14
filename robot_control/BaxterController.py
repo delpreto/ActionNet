@@ -37,6 +37,15 @@ from helpers import *
 ##############################################
 ##############################################
 
+# s0: increasing moves outward, -45 is straight in front
+# w0: increasing moves inward, 0 is straight out from arm
+
+# s1: increasing moves arm down, 0 is horizontal
+# e1: increasing moves arm down, 0 is horizontal
+# w1: increasing moves arm down, 0 is straight to arm
+
+# for straight wrist, want s1+e1+w1 = 0
+
 class BaxterController:
   # initialize the baxter controller
   # @param limbName [str] left or right
@@ -59,9 +68,9 @@ class BaxterController:
     self._joint_names = ['s0', 's1', 'e0', 'e1', 'w0', 'w1', 'w2']
     self._joint_names = ['%s_%s' % (limb_name, joint_name) for joint_name in self._joint_names]
     self._limb = baxter_interface.Limb(limb_name)
-    self._resting_joint_angles_rad = None # will use Baxter's default neutral position
+    self._neutral_joint_angles_rad = None # will use Baxter's default neutral position
     self._resting_joint_angles_rad = self.prepend_limb_name(OrderedDict([
-                                                            ('s0', -0.80),
+                                                            ('s0', -0.80 if self._limb_name == 'left' else 0.80),
                                                             ('s1', -0.25),
                                                             ('e0',  0.00),
                                                             ('e1',  1.50),
@@ -123,7 +132,7 @@ class BaxterController:
     if move_to_resting:
       self.move_to_resting()
     if prompt_before_disabling:
-      entry = input('Press Enter to disable Baxter (or q to abort): ')
+      entry = raw_input('Press Enter to disable Baxter (or q to abort): ').strip()
       if entry.lower() == 'q':
         return
     self._print('Disabling Baxter', should_print=should_print)
@@ -186,7 +195,7 @@ class BaxterController:
   @return [OrderedDict] map from joint name to joint angle (in radians)
   """
   def get_neutral_joint_angles_rad(self, should_print=None):
-    neutral_angles_rad = self._resting_joint_angles_rad
+    neutral_angles_rad = self._neutral_joint_angles_rad
     if neutral_angles_rad is None: # using Baxter's default neutral (-30, 43, 72 deg)
       neutral_angles_rad = OrderedDict([('s0', 0), ('s1', -0.55), ('e0', 0), ('e1', 0.75), ('w0', 0), ('w1', 1.26), ('w2', 0)])
       neutral_angles_rad = self.prepend_limb_name(neutral_angles_rad)
@@ -269,15 +278,38 @@ class BaxterController:
     # parse the angles into a dict
     if isinstance(joint_angles_rad, (list, tuple)):
       if len(joint_angles_rad) != len(self._joint_names):
-        raise AssertionError('Invalid argument given to setNeutralAngles')
+        raise AssertionError('Invalid argument given to set_neutral_joint_angles_rad')
       joint_angles_rad = OrderedDict([(jointName, joint_angles_rad[i]) for i, jointName in enumerate(self._joint_names)])
     if not isinstance(joint_angles_rad, dict):
-      raise AssertionError('Invalid argument given to setNeutralAngles')
+      raise AssertionError('Invalid argument given to set_neutral_joint_angles_rad')
     # record the joint angles
-    self._resting_joint_angles_rad = joint_angles_rad
+    self._neutral_joint_angles_rad = joint_angles_rad
     self._print('Saved neutral joint angles [deg]: %s' % getVariableStr(rad2deg(joint_angles_rad)), should_print=should_print)
     return joint_angles_rad
-    
+
+  """
+  set the joint angles to use as 'resting'
+  @param angles [list, tuple, dict, OrderedDict] the angles to record (in radians)
+    if a list or tuple, assumes it corresponds to the joints in self._jointNames
+    if a dict, assumes is map from joint name to desired angle (unspecified joints will not be set)
+  @return [OrderedDict] map from joint name to recorded joint angle
+  @raise [AssertionError] if input angles is not of an appropriate format
+  """
+  def set_resting_joint_angles_rad(self, joint_angles_rad, should_print=None):
+    # parse the angles into a dict
+    if isinstance(joint_angles_rad, (list, tuple)):
+      if len(joint_angles_rad) != len(self._joint_names):
+        raise AssertionError('Invalid argument given to set_resting_joint_angles_rad')
+      joint_angles_rad = OrderedDict(
+        [(jointName, joint_angles_rad[i]) for i, jointName in enumerate(self._joint_names)])
+    if not isinstance(joint_angles_rad, dict):
+      raise AssertionError('Invalid argument given to set_resting_joint_angles_rad')
+    # record the joint angles
+    self._resting_joint_angles_rad = joint_angles_rad
+    self._print('Saved resting joint angles [deg]: %s' % getVariableStr(rad2deg(joint_angles_rad)),
+                should_print=should_print)
+    return joint_angles_rad
+
   """
   set the joint angles (non-blocking by default)
   @param angles [list, tuple, dict, OrderedDict] the angles to apply (in radians)
@@ -308,8 +340,8 @@ class BaxterController:
   """
   def move_to_neutral(self, should_print=None):
     self._print('Moving to neutral', should_print=should_print)
-    if self._resting_joint_angles_rad is not None:
-      self._limb.move_to_joint_positions(self._resting_joint_angles_rad)
+    if self._neutral_joint_angles_rad is not None:
+      self._limb.move_to_joint_positions(self._neutral_joint_angles_rad)
     else:
       self._limb.move_to_neutral()
     
@@ -358,7 +390,7 @@ class BaxterController:
                                 ),
                               )))
     # Request inverse kinematics from base to hand link of the target limb.
-    ikreq.tip_names.append('%s_hand' % self._limb_name)
+    #ikreq.tip_names.append('%s_hand' % self._limb_name)
     if seed_joint_angles_rad is not None:
       # Parse the angles into a list of angles
       if isinstance(seed_joint_angles_rad, (list, tuple)):
@@ -373,24 +405,23 @@ class BaxterController:
       # Add the seed.
       ikreq.seed_mode = ikreq.SEED_USER
       seed = JointState()
-      seed.name = ['right_j0', 'right_j1', 'right_j2', 'right_j3',
-                   'right_j4', 'right_j5', 'right_j6']
+      seed.name = ['%s_j%d' % (self._limb_name, joint_index) for joint_index in range(7)]
       seed.position = seed_joint_angles_rad
       ikreq.seed_angles.append(seed)
-    if nullspace_goal_position is not None:
-      # Once the primary IK task is solved, the solver will then try to bias
-      # the joint angles toward the goal joint configuration. The null space is
-      # the extra degrees of freedom the joints can move without affecting the
-      # primary IK task.
-      ikreq.use_nullspace_goal.append(True)
-      # The nullspace goal can either be the full set or subset of joint angles
-      goal = JointState()
-      goal.name = ['right_j1', 'right_j2', 'right_j3']
-      goal.position = nullspace_goal_position #[0.1, -0.3, 0.5]
-      ikreq.nullspace_goal.append(goal)
-      # The gain used to bias toward the nullspace goal. Must be [0.0, 1.0]
-      # If empty, the default gain of 0.4 will be used
-      ikreq.nullspace_gain.append(0.4)
+    #if nullspace_goal_position is not None:
+    #  # Once the primary IK task is solved, the solver will then try to bias
+    #  # the joint angles toward the goal joint configuration. The null space is
+    #  # the extra degrees of freedom the joints can move without affecting the
+    #  # primary IK task.
+    #  ikreq.use_nullspace_goal.append(True)
+    #  # The nullspace goal can either be the full set or subset of joint angles
+    #  goal = JointState()
+    #  goal.name = ['right_j1', 'right_j2', 'right_j3']
+    #  goal.position = nullspace_goal_position #[0.1, -0.3, 0.5]
+    #  ikreq.nullspace_goal.append(goal)
+    #  # The gain used to bias toward the nullspace goal. Must be [0.0, 1.0]
+    #  # If empty, the default gain of 0.4 will be used
+    #  ikreq.nullspace_gain.append(0.4)
       
     # Send the request to compute a joint angle solution.
     try:
@@ -460,7 +491,7 @@ class BaxterController:
         raise AssertionError('Invalid joint angles given to build_trajectory')
       joint_angles_rad_forTimestep = list(joint_angles_rad_forTimestep.values())
       # Add the trajectory point.
-      self._print('Adding trajectory point at %6.2f s: %s' % (times_from_start_s[timestep_index], getVariableStr(joint_angles_rad_forTimestep)), should_print=should_print)
+      self._print('Adding trajectory point at %6.2f s [deg]: %s' % (times_from_start_s[timestep_index], getVariableStr(rad2deg(joint_angles_rad_forTimestep))), should_print=should_print)
       self._trajectory.add_point(joint_angles_rad_forTimestep, times_from_start_s[timestep_index])
   
   """
@@ -470,6 +501,14 @@ class BaxterController:
   def run_trajectory(self, wait_for_completion=True, should_print=None):
     self._print('Running the current trajectory', should_print=should_print)
     self._trajectory.run(wait_for_completion=wait_for_completion)
+    result = self._trajectory.result()
+    if result.error_code == -4:
+      self._print('ERROR running trajectory: code [%d], string [%s]' % (result.error_code, result.error_string))
+      return False
+    else:
+      # TODO check what the other codes mean?
+      # So far have seen 0 and -5 after successful trajectories.
+      return True
   
   ##############################################
   # Miscellaneous helper functions
@@ -491,25 +530,28 @@ class BaxterController:
 ##############################################
 
 if __name__ == '__main__':
-  limb_name = 'left'
+  limb_name = 'right'
   controller = BaxterController(limb_name=limb_name, print_debug=True)
   
   # Test direct movements to positions.
-  controller.move_to_neutral()
+  controller.move_to_resting()
   time.sleep(5)
   controller.move_to_joint_angles_rad(controller.get_joint_angles_rad(), wait_for_completion=True)
   time.sleep(5)
-  controller.move_to_resting()
+  controller.move_to_neutral()
   time.sleep(5)
   
   # Test a trajectory.
-  controller.build_trajectory(times_from_start_s=[1, 10],
+  print(list(controller.get_neutral_joint_angles_rad().values()))
+  print(list(controller.get_resting_joint_angles_rad().values()))
+  controller.build_trajectory(times_from_start_s=[5, 10, 15],
                               joint_angles_rad=[
+                                list(controller.get_resting_joint_angles_rad().values()),
                                 list(controller.get_neutral_joint_angles_rad().values()),
                                 list(controller.get_resting_joint_angles_rad().values()),
                               ])
-  controller.run_trajectory(wait_for_completion=True)
-  
+  success = controller.run_trajectory(wait_for_completion=True)
+
   # Test solving inverse kinematics.
   test_gripper_positions_m = {
     'left':  [0.657579481614,  0.851981417433, 0.0388352386502],
@@ -522,10 +564,13 @@ if __name__ == '__main__':
   joint_angles_rad = controller.get_joint_angles_rad_for_gripper_pose(
     gripper_position_m=test_gripper_positions_m[limb_name],
     gripper_orientation_quaternion_wijk=test_gripper_quaternions_wijk[limb_name])
-  
+  printVariable(rad2deg(joint_angles_rad), 'joint_angles_deg', level=1)
+
   # Disable Baxter and quit.
   controller.disable_baxter(move_to_resting=True, prompt_before_disabling=True)
   controller.quit()
+
+  print('Done!')
   
 
   

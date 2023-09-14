@@ -18,8 +18,17 @@ class BaxterTrajectory(object):
   def __init__(self, limb_name, goal_time_tolerance_s=0.1):
     self._goal_time_tolerance_s = goal_time_tolerance_s
     self._limb_name = limb_name
+    self._limb = baxter_interface.Limb(limb_name)
     self._trajectory_duration_s = 0
     self.clear()
+    try: # node may already be initialized by someone using this class
+      rospy.init_node('baxterTrajectory')
+    except Exception as e:
+      errMessage = str(e)
+      if 'init_node' in errMessage.lower() and 'already been called' in errMessage.lower():
+        pass
+      else:
+        raise
     ns = 'robot/limb/' + self._limb_name + '/'
     self._client = actionlib.SimpleActionClient(
       ns + "follow_joint_trajectory",
@@ -65,8 +74,23 @@ class BaxterTrajectory(object):
     self.set_goal_time_tolerance_s(self._goal_time_tolerance_s)
     self._goal.trajectory.joint_names = [self._limb_name + '_' + joint for joint in \
       ['s0', 's1', 'e0', 'e1', 'w0', 'w1', 'w2']]
+    # Add the current position at time 0,
+    #  since otherwise it seems to often do nothing when the trajectory is run.
+    joint_angles_rad = self._limb.joint_angles()
+    joint_angles_rad = [joint_angles_rad[joint_name] for joint_name in self._goal.trajectory.joint_names]
+    self.add_point(joint_angles_rad, 0)
     
   def set_goal_time_tolerance_s(self, goal_time_tolerance_s):
     self._goal_time_tolerance_s = goal_time_tolerance_s
     self._goal.goal_time_tolerance = rospy.Time(self._goal_time_tolerance_s)
-    
+
+if __name__ == '__main__':
+  limb_name = 'right'
+  trajectory = BaxterTrajectory(limb_name=limb_name)
+  a1 = [0.80, 0.21, 0.00, 0.73, 0.00, -0.94, 0]
+  a2 = [-0.80, 0.21, 0.00, 0.73, 0.00, -0.94, 0]
+  a3 = [0.80, 0.21, 0.00, 0.73, 0.00, -0.94, 0]
+  trajectory.add_point(a1, 5)
+  trajectory.add_point(a2, 10)
+  trajectory.add_point(a3, 15)
+  trajectory.run(True)

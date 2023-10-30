@@ -34,7 +34,13 @@ experiments_dir = os.path.join(data_dir, 'experiments')
 
 log_dirs = [
   # os.path.join(experiments_dir, '2023-08-18_experiment_S10', '2023-08-18_19-49-19_actionNet-wearables_S10'),
-  os.path.join(experiments_dir, '2023-08-18_experiment_S10', '2023-08-18_20-50-18_actionNet-wearables_S10'),
+  # os.path.join(experiments_dir, '2023-08-18_experiment_S10', '2023-08-18_20-50-18_actionNet-wearables_S10'),
+  os.path.join(experiments_dir, '2023-10-13_experiment_S07', '2023-10-13_15-35-30_actionNet-wearables_S07'),
+  os.path.join(experiments_dir, '2023-10-13_experiment_S12', '2023-10-13_16-54-46_actionNet-wearables_S12'),
+  os.path.join(experiments_dir, '2023-10-13_experiment_S12', '2023-10-13_17-17-32_actionNet-wearables_S12'),
+  os.path.join(experiments_dir, '2023-10-13_experiment_S13', '2023-10-13_18-01-27_actionNet-wearables_S13'),
+  os.path.join(experiments_dir, '2023-10-13_experiment_S13', '2023-10-13_18-15-33_actionNet-wearables_S13'),
+  os.path.join(experiments_dir, '2023-10-13_experiment_S13', '2023-10-13_18-41-49_actionNet-wearables_S13'),
   ]
 
 for log_dir in log_dirs:

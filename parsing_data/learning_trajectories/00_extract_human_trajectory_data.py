@@ -55,15 +55,15 @@ os.makedirs(output_dir, exist_ok=True)
 
 animate_trajectory_plots = False # show an animated plot of the skeleton for each trial
 plot_all_trajectories = False # make a subplot for each subject, which shows all paths from that subject
-save_plot_all_trajectories = True # make a subplot for each subject, which shows all paths from that subject
-save_eye_videos = True # save the eye-tracking video for each trial
-save_composite_videos = True # save the eye-tracking video and animated plot for each trial
+save_plot_all_trajectories = False # make a subplot for each subject, which shows all paths from that subject
+save_eye_videos = False # save the eye-tracking video for each trial
+save_composite_videos = False # save the eye-tracking video and animated plot for each trial
 save_results_data = True
 
 resampled_fs_hz = 50
 
 # CHOOSE THE ACTIVITY TO PROCESS
-configure_for_pouring = False # if False, will be scooping
+configure_for_pouring = True # if False, will be scooping
 
 if configure_for_pouring:
   target_activity_label = 'Pour water from a pitcher into a glass'
@@ -82,6 +82,16 @@ stationary_position_buffer_duration_s = 2 if configure_for_pouring else 1
 
 # Specify the segment that is a proxy for the reference object.
 referenceObject_bodySegment_name = 'LeftHand'
+referenceObject_offset_cm = np.array([0, 9, -(6-4)]) # [up along thumb, out along forearm axis, out from back of hand]
+referenceObject_diameter_cm = 7.3 # glass top 7.3 bottom 6.3
+
+# hand_box_dimensions_cm = np.array([2, 9, 18]) # open hand
+hand_box_dimensions_cm = np.array([4.8, 3, 1.3])
+hand_box_color = 0.8*np.array([1, 0.6, 0])
+pitcher_box_dimensions_cm = np.array([23, 23, 10.8]) # [height, top length, width]
+pitcher_box_color = 0.8*np.array([1, 1, 1])
+hand_to_pitcher_rotation = Rotation.from_rotvec(np.pi/2 * np.array([1, 0, 0]))
+hand_to_pitcher_offset_cm = np.array([0, -13, 0])
 
 use_manual_startEnd_times = False
 manual_pouring_start_times_s = [
@@ -189,8 +199,6 @@ bodySegment_chains_labels_toPlot = {
   'Right Arm': ['RightUpperArm', 'RightForeArm', 'RightHand'],
 }
 
-# hand_box_dimensions_cm = np.array([2, 9, 18]) # open hand
-hand_box_dimensions_cm = np.array([6, 9, 3])
 
 
 ###################################################################
@@ -296,7 +304,7 @@ def get_activity_bodyPath_data(h5_file, start_times_s, end_times_s):
       position_m = bodyPath_datas[trial_index]['position_m'][body_segment]
       position_m = position_m - origin_cm
       bodyPath_datas[trial_index]['position_m'][body_segment] = position_m
-    
+
     # Use the hip orientation to create the y axis.
     y_axis_right = np.append(bodyPath_datas[trial_index]['position_m']['RightUpperLeg'][0, 0:2], 0)
     # y_axis_left = np.append(bodyPath_datas[trial_index]['position_m']['Left Upper Leg'][0, 0:2], 0)
@@ -308,16 +316,24 @@ def get_activity_bodyPath_data(h5_file, start_times_s, end_times_s):
     #   [bodySegment_datas[trial_index]['position_m']['LeftUpperArm'][0, 0:2],
     #   bodySegment_datas[trial_index]['position_m']['Left Upper Leg'][0, 0:2]]), axis=0)
     # y_axis_center = np.mean(np.array([y_axis_right, y_axis_left]), axis=0)
-    rotation_matrix = rotation_matrix_from_vectors(y_axis_right, [0, 1, 0])
+
+    # Rotate each position.
+    alignment_rotation_matrix = rotation_matrix_from_vectors(y_axis_right, [0, 1, 0])
     for body_segment in bodyPath_data['position_m'].keys():
       position_m = bodyPath_datas[trial_index]['position_m'][body_segment]
       for time_index in range(position_m.shape[0]):
-        position_m[time_index,:] = rotation_matrix.dot(position_m[time_index,:])
-    # NOTE: The segment orientations probably don't need to be adjusted,
-    #   since they represent intrinsic rotations that shouldn't be affected by global frame drift.
-    #  This was visually confirmed with the hand orientation relative to the arm
-    #   (it looks like the pose in the eye-tracking video after imposing the hip frame
-    #    but not changing the quaternion), but it wasn't quantified.
+        position_m[time_index,:] = alignment_rotation_matrix.dot(position_m[time_index,:])
+
+    # Compose the rotation with quaternion orientations.
+    alignment_rotation = Rotation.from_matrix(alignment_rotation_matrix)
+    for body_segment in bodyPath_data['quaternion_wijk'].keys():
+      quaternion_wijk = bodyPath_datas[trial_index]['quaternion_wijk'][body_segment]
+      for time_index in range(quaternion_wijk.shape[0]):
+        quaternion_forTime_ijkw = quaternion_wijk[time_index, [1,2,3,0]]
+        quaternion_rotation = Rotation.from_quat(quaternion_forTime_ijkw)
+        aligned_quaternion_rotation = alignment_rotation * quaternion_rotation # note that multiplication is overloaded for scipy Rotation objects
+        aligned_quaternion_ijkw = aligned_quaternion_rotation.as_quat()
+        quaternion_wijk[time_index,:] = aligned_quaternion_ijkw[[3,0,1,2]]
     
   return (times_s, bodyPath_datas)
 
@@ -417,18 +433,21 @@ def infer_stationary_poses(times_s, bodySegment_datas):
   return (stationary_times_s, body_positions_stationary_cm)
 
 # Infer the hand position at a stationary point (such as when water is being poured)
-def infer_referenceObject_positions(times_s, bodySegment_datas):
+def infer_referenceObject_positions(bodySegment_datas, times_s, referenceObject_times_s):
   referenceObject_positions_m = []
   for trial_index, bodySegment_data in enumerate(bodySegment_datas):
     body_position_m = bodySegment_datas[trial_index]['position_m']
     body_quaternion_wijk = bodySegment_datas[trial_index]['quaternion_wijk']
-    time_s = times_s[trial_index]
-    num_timesteps = time_s.shape[0]
-    fs = (num_timesteps-1)/(time_s[-1] - time_s[0])
-
-    referenceObject_position_m = np.squeeze(np.median(
-                                    body_position_m[referenceObject_bodySegment_name],
-                                    axis=0))
+    referenceObject_index = np.where(np.abs(times_s[trial_index] - referenceObject_times_s[trial_index]) == np.min(np.abs(times_s[trial_index] - referenceObject_times_s[trial_index])))[0]
+    referenceObject_segment_position_m = np.squeeze(
+                                          body_position_m[referenceObject_bodySegment_name][referenceObject_index,:],
+                                          axis=0)
+    referenceObject_segment_quaternion_wijk = np.squeeze(body_quaternion_wijk[referenceObject_bodySegment_name][referenceObject_index, :])
+    quat_ijkw = referenceObject_segment_quaternion_wijk[[1,2,3,0]]
+    quat_ijkw = [-quat_ijkw[0], -quat_ijkw[1], -quat_ijkw[2], quat_ijkw[3]]
+    referenceObject_segment_rot = Rotation.from_quat(quat_ijkw).as_matrix()
+    referenceObject_offset_rotated_cm = np.dot(referenceObject_offset_cm, referenceObject_segment_rot)
+    referenceObject_position_m = referenceObject_segment_position_m + referenceObject_offset_rotated_cm/100
     referenceObject_positions_m.append(referenceObject_position_m)
   return referenceObject_positions_m
 
@@ -438,7 +457,19 @@ def plt_wait_for_keyboard_press(timeout_s=-1.0):
   while keyboardClick == False:
     keyboardClick = plt.waitforbuttonpress(timeout=timeout_s)
 
-def plot_3d_box(ax, center, quaternion_localToGlobal_wijk): # function created using ChatGPT
+def plot_hand_box(ax, hand_quaternion_localToGlobal_wijk, hand_center):
+  return plot_3d_box(ax, hand_quaternion_localToGlobal_wijk, hand_center, np.array([0,0,0]),
+                     hand_box_dimensions_cm, hand_box_color)
+
+def plot_pitcher_box(ax, hand_quaternion_localToGlobal_wijk, hand_center):
+  hand_rotation = Rotation.from_quat(hand_quaternion_localToGlobal_wijk[[1,2,3,0]])
+  pitcher_rotation = hand_rotation * hand_to_pitcher_rotation
+  pitcher_quaternion_localToGlobal_ijkw = pitcher_rotation.as_quat()
+  return plot_3d_box(ax, pitcher_quaternion_localToGlobal_ijkw[[3,0,1,2]],
+                     hand_center, hand_to_pitcher_offset_cm,
+                     pitcher_box_dimensions_cm, pitcher_box_color)
+  
+def plot_3d_box(ax, quaternion_localToGlobal_wijk, center_cm, center_preRotation_cm, box_dimensions_cm, color): # function created using ChatGPT
   # Define vertices of a unit box in the global frame
   corners = np.array([
     [-1, -1, -1],
@@ -452,17 +483,20 @@ def plot_3d_box(ax, center, quaternion_localToGlobal_wijk): # function created u
   ]) * 0.5
   # Define faces of the box in the global frame, using corner indexes
   faces = np.array([
-    [0, 1, 3, 2],
+    [0, 1, 3, 2], # bottom face
     [0, 2, 6, 4],
     [0, 1, 5, 4],
-    [4, 5, 7, 6],
+    [4, 5, 7, 6], # top face
     [1, 3, 7, 5],
-    [2, 3, 7, 6]
+    [2, 3, 7, 6], # hand-side face
   ])
   # Scale the box
-  corners = corners * hand_box_dimensions_cm
+  corners = corners * box_dimensions_cm
   
-  # Invert quaternion.
+  # Translate the box
+  corners = corners + center_preRotation_cm
+  
+  # Invert the quaternion.
   quaternion_globalToLocal_ijkw = [
     -quaternion_localToGlobal_wijk[1],
     -quaternion_localToGlobal_wijk[2],
@@ -474,7 +508,7 @@ def plot_3d_box(ax, center, quaternion_localToGlobal_wijk): # function created u
   corners = np.dot(corners, rot)
   
   # Translate the box
-  corners = corners + center
+  corners = corners + center_cm
   
   # Plot the box
   # ax.set_box_aspect([np.ptp(corners[:,dim]) for dim in range(3)])
@@ -483,8 +517,8 @@ def plot_3d_box(ax, center, quaternion_localToGlobal_wijk): # function created u
   # ax.set_zlim3d(corners[:,2].min(), corners[:,2].max())
   box = art3d.Poly3DCollection([corners[face] for face in faces],
                                alpha=0.8,
-                               facecolor=0.5*np.array([1,1,1]),
-                               edgecolor=0.3*np.array([1,1,1]))
+                               facecolor=color,
+                               edgecolor=0.4*color)
   ax.add_collection3d(box)
   return box
 
@@ -558,6 +592,7 @@ def plot_handPath_data(fig, subplot_index,
       h_chains = []
       h_scatters = []
       h_hand = None
+      h_pitcher = None
       sampling_rate_hz = (time_s.shape[0]-1)/(time_s[-1] - time_s[0])
       spf = spf or 1/sampling_rate_hz
       timestep_interval = max([1, int(sampling_rate_hz*spf)])
@@ -573,9 +608,12 @@ def plot_handPath_data(fig, subplot_index,
           h_scatters[i].remove()
         if h_hand is not None:
           h_hand.remove()
+        if h_pitcher is not None:
+          h_pitcher.remove()
         h_chains = []
         h_scatters = []
         h_hand = None
+        h_pitcher = None
         
         # Draw the skeleton chains
         for chain_name, segment_names in bodySegment_chains_labels_toPlot.items():
@@ -602,8 +640,10 @@ def plot_handPath_data(fig, subplot_index,
         # hand_colors = np.empty(hand_dimensions_cm + [4], dtype=np.float32)
         # hand_colors[:] = [1, 0, 0, 0.8]
         # h_hand = ax.voxels(hand_box_data, facecolors=hand_colors)
-        h_hand = plot_3d_box(ax, center=100*bodySegment_data['position_m']['RightHand'][time_index, :],
-                             quaternion_localToGlobal_wijk=bodySegment_data['quaternion_wijk']['RightHand'][time_index, :])
+        h_hand = plot_hand_box(ax, hand_center=100*bodySegment_data['position_m']['RightHand'][time_index, :],
+                               hand_quaternion_localToGlobal_wijk=bodySegment_data['quaternion_wijk']['RightHand'][time_index, :])
+        h_pitcher = plot_pitcher_box(ax, hand_center=100*bodySegment_data['position_m']['RightHand'][time_index, :],
+                                  hand_quaternion_localToGlobal_wijk=bodySegment_data['quaternion_wijk']['RightHand'][time_index, :])
         
         # Set the aspect ratio
         ax.set_xlim(x_lim)
@@ -742,7 +782,6 @@ def save_activity_composite_videos(h5_file, eyeVideo_filepath,
                                        (composite_frame.shape[1], composite_frame.shape[0])
                                        )
       video_writer.write(composite_frame)
-    video_writer.release()
     video_reader.release()
 
 def export_path_data(times_s_allSubjects, bodyPath_datas_allSubjects,
@@ -754,7 +793,7 @@ def export_path_data(times_s_allSubjects, bodyPath_datas_allSubjects,
     print()
     print('Output file exists at [%s]' % hdf5_output_filepath)
     print('  Overwrite the file? [y/N] ', end='')
-    overwrite_file = input()
+    overwrite_file = 'y'#input()
     if overwrite_file.lower().strip() != 'y':
       print('  Aborting')
       return
@@ -1017,7 +1056,7 @@ for subject_id, subject_hdf5_filepaths in hdf5_filepaths.items():
     # Infer the hand position while being relatively stationary
     (stationary_times_s, stationary_poses) = infer_stationary_poses(times_s, bodyPath_datas)
     # Infer the reference object position
-    referenceObject_positions_m = infer_referenceObject_positions(times_s, bodyPath_datas)
+    referenceObject_positions_m = infer_referenceObject_positions(bodyPath_datas, times_s, stationary_times_s)
 
     # Store the results
     times_s_allSubjects[subject_id].extend(times_s)

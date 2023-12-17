@@ -36,20 +36,22 @@ script_dir = os.path.dirname(os.path.realpath(__file__))
 configure_for_pouring = True # otherwise will be scooping
 
 # Specify the folder of experiments to parse.
-data_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'results', 'learning_trajectories', 'S00'))
+subject_id_toProcess = 'S00' # S00, S10, S11
+data_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'results', 'learning_trajectories', subject_id_toProcess))
+# data_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'results', 'learning_trajectories', 'S00'))
 # data_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'results', 'learning_trajectories', 'S11'))
 # Specify the input files of extracted trajectory data.
-trajectory_data_filepath_humans = os.path.join(data_dir, '%s_paths_humans.hdf5' % ('pouring' if configure_for_pouring else 'scooping'))
-trajectory_data_filepath_robots = os.path.join(data_dir, '%s_paths_robots.hdf5' % ('pouring' if configure_for_pouring else 'scooping'))
+trajectory_data_filepath_humans = os.path.join(data_dir, '%s_paths_humans_%s.hdf5' % ('pouring' if configure_for_pouring else 'scooping', subject_id_toProcess))
+trajectory_data_filepath_robots = os.path.join(data_dir, '%s_paths_robots_%s.hdf5' % ('pouring' if configure_for_pouring else 'scooping', subject_id_toProcess))
 # Specify the output file for the feature matrices and labels.
-training_data_filepath = os.path.join(data_dir, '%s_training_data.hdf5' % ('pouring' if configure_for_pouring else 'scooping')) # None to not save
-referenceOjbect_positions_filepath = os.path.join(data_dir, '%s_training_referenceObject_positions.hdf5' % ('pouring' if configure_for_pouring else 'scooping')) # None to not save
+training_data_filepath = os.path.join(data_dir, '%s_training_data_%s.hdf5' % ('pouring' if configure_for_pouring else 'scooping', subject_id_toProcess)) # None to not save
+referenceOjbect_positions_filepath = os.path.join(data_dir, '%s_training_referenceObject_positions_%s.hdf5' % ('pouring' if configure_for_pouring else 'scooping', subject_id_toProcess)) # None to not save
 
 # Specify how to standardize training data segment lengths.
 # Will currently normalize time of each trial to be from 0 to 1,
 #  then resample it to have the following number of samples.
-num_normalized_timesteps = 100
-normalized_timestamps = np.linspace(0, 1, num_normalized_timesteps)
+num_resampled_timesteps = 100
+normalize_time = False
 
 plot_hand_path_features = False
 
@@ -102,10 +104,11 @@ def add_training_segment(time_s, body_segment_position_m, body_segment_quaternio
                          joint_angle_eulerZXY_xyz_rad, joint_angle_eulerXZY_xyz_rad, is_human):
   
   # Concatenate position and orientation features.
-  # Result will be Tx30, where T is timesteps and 30 is:
+  # Result will be Tx31, where T is timesteps and 31 is:
   #   [9] positions: (xyz hand), (xyz elbow), (xyz shoulder)
   #  [12] orientation quaternions: (wijk hand), (wijk forearm), (wijk upper arm)
   #   [9] joint angles: (xyz wrist), (xyz elbow), (xyz shoulder)
+  #   [1] time since trial start for each sample
   num_timesteps = body_segment_position_m.shape[0]
   if is_human:
     position_features = np.reshape(body_segment_position_m[:, [hand_segment_index_humans, elbow_segment_index_humans, shoulder_segment_index_humans], :], (num_timesteps, -1)) # unwrap xyz from each segment
@@ -118,11 +121,15 @@ def add_training_segment(time_s, body_segment_position_m, body_segment_quaternio
     position_features = np.reshape(body_segment_position_m[:, [hand_segment_index_robots, elbow_segment_index_robots, shoulder_segment_index_robots], :], (num_timesteps, -1)) # unwrap xyz from each segment
     orientation_features =  np.reshape(body_segment_quaternion_wijk[:, [hand_segment_index_robots, elbow_segment_index_robots, shoulder_segment_index_robots], :], (num_timesteps, -1))
     joint_angle_features = np.nan*np.ones(shape=(num_timesteps, 9))
-  feature_matrix = np.concatenate([position_features, orientation_features, joint_angle_features], axis=1)
+  feature_matrix = np.concatenate([position_features, orientation_features, joint_angle_features, np.reshape(time_s, (-1,1))], axis=1)
 
-  # Normalize time and resample.
-  time_s = time_s - min(time_s)
-  time_s = time_s / max(time_s)
+  # Resample the data, normalizing if desired.
+  if normalize_time:
+    target_timestamps = np.linspace(0, 1, num_resampled_timesteps)
+    time_s = time_s - min(time_s)
+    time_s = time_s / max(time_s)
+  else:
+    target_timestamps = np.linspace(min(time_s), max(time_s), num_resampled_timesteps)
   fn_interpolate_data = interpolate.interp1d(
       time_s,         # x values
       feature_matrix, # y values
@@ -130,7 +137,7 @@ def add_training_segment(time_s, body_segment_position_m, body_segment_quaternio
       kind='linear',  # interpolation method, such as 'linear', 'zero', 'nearest', 'quadratic', 'cubic', etc.
       fill_value='extrapolate' # how to handle x values outside the original range
   )
-  feature_matrix_resampled = fn_interpolate_data(normalized_timestamps)
+  feature_matrix_resampled = fn_interpolate_data(target_timestamps)
 
   if plot_hand_path_features:
     fig = plt.figure()

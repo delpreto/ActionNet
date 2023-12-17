@@ -3,9 +3,11 @@ import numpy as np
 from scipy.spatial.transform import Rotation
 
 import matplotlib
+default_matplotlib_backend = matplotlib.rcParams['backend']
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from mpl_toolkits.mplot3d import art3d
+import os
 
 from utils.numpy_scipy_utils import *
 
@@ -50,7 +52,8 @@ def parse_feature_matrix(feature_matrix):
       'hand':     feature_matrix[:, 21:24], 
       'elbow':    feature_matrix[:, 24:27],
       'shoulder': feature_matrix[:, 27:30],
-    }
+    },
+    'time_s': feature_matrix[:, 30]
   }
 
 def rotate_3d_box(quaternion_localToGlobal_wijk, center_preRotation_cm, box_dimensions_cm):
@@ -156,6 +159,8 @@ def plot_timestep(feature_matrix, times_s, time_index,
   if fig is None:
     if hide_figure_window:
       matplotlib.use('Agg')
+    else:
+      matplotlib.use(default_matplotlib_backend)
     fig = plt.figure()
     if not hide_figure_window:
       figManager = plt.get_current_fig_manager()
@@ -275,7 +280,7 @@ def plot_timestep(feature_matrix, times_s, time_index,
     ax.set_box_aspect([ub - lb for lb, ub in (x_lim, y_lim, z_lim)])
     
     # Set the title.
-    ax.set_title('Subject %02d Trial %02d\nt=%0.2fs' % (subject_id, trial_index, times_s[time_index] - times_s[0]))
+    ax.set_title('Subject %s Trial %02d\nt=%0.2fs' % (str(subject_id), trial_index, times_s[time_index] - times_s[0]))
     
     # Show the plot.
     plt.draw()
@@ -286,7 +291,7 @@ def plot_timestep(feature_matrix, times_s, time_index,
     # Set the aspect ratio
     ax.set_box_aspect([ub - lb for lb, ub in (ax.get_xlim(), ax.get_ylim(), ax.get_zlim())])
     # Set the title.
-    ax.set_title('Subject %02d' % (subject_id))
+    ax.set_title('Subject %s' % (str(subject_id)))
     # Show the plot.
     plt.draw()
     # Save the previous handles.
@@ -311,7 +316,8 @@ def plot_trajectory(feature_matrix, duration_s, referenceObject_position_m, paus
                                      pause_after_plotting=pause_after_timesteps)
 
 def save_trajectory_animation(feature_matrix, duration_s, referenceObject_position_m,
-                              output_filepath):
+                              output_filepath, subject_id=-1, trial_index=-1):
+  os.makedirs(os.path.split(output_filepath)[0], exist_ok=True)
   times_s = np.linspace(start=0, stop=duration_s, num=feature_matrix.shape[0])
   fps = int(round((len(times_s)-1)/(times_s[-1] - times_s[0])))
   video_writer = None
@@ -319,6 +325,7 @@ def save_trajectory_animation(feature_matrix, duration_s, referenceObject_positi
   for (time_index, time_s) in enumerate(times_s):
     previous_handles = plot_timestep(feature_matrix,
                                      time_index=time_index, times_s=times_s,
+                                     subject_id=subject_id, trial_index=trial_index,
                                      referenceObject_position_m=referenceObject_position_m,
                                      previous_handles=previous_handles,
                                      pause_after_plotting=False,
@@ -338,16 +345,21 @@ def save_trajectory_animation(feature_matrix, duration_s, referenceObject_positi
   
 def plot_pour_tilting(feature_matrix, shade_pouring_region=False,
                       fig=None, hide_figure_window=False, output_filepath=None):
+  if output_filepath is not None:
+    os.makedirs(os.path.split(output_filepath)[0], exist_ok=True)
   if fig is None:
     if hide_figure_window:
       try:
         matplotlib.use('Agg')
       except:
         pass
+    else:
+      matplotlib.use(default_matplotlib_backend)
     fig = plt.figure()
     if not hide_figure_window:
       figManager = plt.get_current_fig_manager()
       figManager.window.showMaximized()
+      plt_wait_for_keyboard_press(0.5)
     plt.ion()
     fig.add_subplot(1, 1, 1)
   ax = fig.get_axes()[0]
@@ -373,6 +385,7 @@ def plot_pour_tilting(feature_matrix, shade_pouring_region=False,
   ax.set_xlabel('Time Index')
   ax.set_ylabel('Tilt Angle to XY Plane [deg]')
   ax.grid(True, color='lightgray')
+  plt.title('Tilt angle of the pitcher')
   
   # Show the plot.
   plt.draw()
@@ -392,10 +405,13 @@ def plot_pour_relativePosition(feature_matrix, referenceObject_position_m,
         matplotlib.use('Agg')
       except:
         pass
+    else:
+      matplotlib.use(default_matplotlib_backend)
     fig = plt.figure()
     if not hide_figure_window:
       figManager = plt.get_current_fig_manager()
       figManager.window.showMaximized()
+      plt_wait_for_keyboard_press(0.5)
     plt.ion()
     fig.add_subplot(1, 1, 1)
     ax = fig.get_axes()[0]
@@ -438,6 +454,7 @@ def plot_pour_relativePosition(feature_matrix, referenceObject_position_m,
   ax.set_ylabel('Vertical Relative to Pouring Direction [cm]')
   ax.grid(True, color='lightgray')
   ax.set_axisbelow(True)
+  plt.title('Spout projected onto table, along pouring axis')
   
   # Show the plot.
   plt.draw()
@@ -447,6 +464,139 @@ def plot_pour_relativePosition(feature_matrix, referenceObject_position_m,
     fig.savefig(output_filepath, dpi=300)
   
   return fig
+
+def plot_spout_dynamics(feature_matrix, shade_pouring_region=False,
+                         fig=None, hide_figure_window=False, output_filepath=None):
+  if fig is None:
+    if hide_figure_window:
+      try:
+        matplotlib.use('Agg')
+      except:
+        pass
+    else:
+      matplotlib.use(default_matplotlib_backend)
+    fig = plt.figure()
+    if not hide_figure_window:
+      figManager = plt.get_current_fig_manager()
+      figManager.window.showMaximized()
+      plt_wait_for_keyboard_press(0.5)
+    plt.ion()
+    fig.add_subplot(2, 1, 1)
+    fig.add_subplot(2, 1, 2)
+  
+  # Get the spout dynamics for each timestep.
+  spout_speed_m_s = infer_spout_speed_m_s(feature_matrix)
+  spout_jerk_m_s_s_s = infer_spout_jerk_m_s_s_s(feature_matrix)
+  
+  # Get the pouring times.
+  if shade_pouring_region:
+    pouring_inference = infer_pour_pose(feature_matrix)
+    pour_start_index = pouring_inference['start_time_index']
+    pour_end_index = pouring_inference['end_time_index']
+  
+  # Plot.
+  ax = fig.get_axes()[0]
+  ax.plot(spout_speed_m_s)
+  if shade_pouring_region:
+    ax.axvspan(pour_start_index, pour_end_index, alpha=0.5, color='gray')
+  ax = fig.get_axes()[1]
+  ax.plot(spout_jerk_m_s_s_s)
+  if shade_pouring_region:
+    ax.axvspan(pour_start_index, pour_end_index, alpha=0.5, color='gray')
+  
+  # Plot formatting.
+  ax = fig.get_axes()[0]
+  # ax.set_xlabel('Time Index')
+  ax.set_ylabel('Spout Speed [m/s]')
+  ax.grid(True, color='lightgray')
+  ax.title.set_text('Speed of spout position')
+  ax = fig.get_axes()[1]
+  ax.set_xlabel('Time Index')
+  ax.set_ylabel('Spout Jerk [m/s/s/s]')
+  ax.grid(True, color='lightgray')
+  ax.title.set_text('Jerk of spout position')
+  
+  # Show the plot.
+  plt.draw()
+  
+  # Save the plot if desired.
+  if output_filepath is not None:
+    fig.savefig(output_filepath, dpi=300)
+
+  return fig
+
+
+def plot_body_dynamics(feature_matrix, shade_pouring_region=False,
+                       fig=None, hide_figure_window=False, output_filepath=None):
+  if output_filepath is not None:
+    os.makedirs(os.path.split(output_filepath)[0], exist_ok=True)
+  if fig is None:
+    if hide_figure_window:
+      try:
+        matplotlib.use('Agg')
+      except:
+        pass
+    else:
+      matplotlib.use(default_matplotlib_backend)
+    fig, axs = plt.subplots(nrows=2, ncols=3,
+                               squeeze=False, # if False, always return 2D array of axes
+                               sharex=True, sharey=False,
+                               subplot_kw={'frame_on': True},
+                               )
+    if not hide_figure_window:
+      figManager = plt.get_current_fig_manager()
+      figManager.window.showMaximized()
+      plt_wait_for_keyboard_press(0.5)
+    plt.ion()
+  else:
+    (fig, axs) = fig
+  
+  # Get the body dynamics for each timestep.
+  speeds_m_s = get_body_speed_m_s(feature_matrix)
+  jerks_m_s_s_s = get_body_jerk_m_s_s_s(feature_matrix)
+  
+  # Get the pouring times.
+  if shade_pouring_region:
+    pouring_inference = infer_pour_pose(feature_matrix)
+    pour_start_index = pouring_inference['start_time_index']
+    pour_end_index = pouring_inference['end_time_index']
+  
+  # Plot.
+  for (body_index, body_key) in enumerate(list(speeds_m_s.keys())):
+    ax = axs[0][body_index]
+    ax.plot(speeds_m_s[body_key])
+    if shade_pouring_region:
+      ax.axvspan(pour_start_index, pour_end_index, alpha=0.5, color='gray')
+    ax = axs[1][body_index]
+    ax.plot(jerks_m_s_s_s[body_key])
+    if shade_pouring_region:
+      ax.axvspan(pour_start_index, pour_end_index, alpha=0.5, color='gray')
+  
+    # Plot formatting.
+    ax = axs[0][body_index]
+    # ax.set_xlabel('Time Index')
+    if body_index == 0:
+      ax.set_ylabel('Speed [m/s]')
+    ax.grid(True, color='lightgray')
+    ax.title.set_text('%s Speed' % body_key)
+    ax = axs[1][body_index]
+    ax.set_xlabel('Time Index')
+    if body_index == 0:
+      ax.set_ylabel('Jerk [m/s/s/s]')
+    ax.grid(True, color='lightgray')
+    ax.title.set_text('%s Jerk' % body_key)
+  
+  # Show the plot.
+  plt.draw()
+  
+  # Save the plot if desired.
+  if output_filepath is not None:
+    fig.savefig(output_filepath, dpi=300)
+
+  return (fig, axs)
+
+
+
 
 def infer_pour_position(feature_matrix):
   pass
@@ -494,7 +644,14 @@ def infer_pour_pose(feature_matrix):
     'end_time_index': min_average_distance_buffer_end_index,
     }
 
-def infer_spout_tilting(feature_matrix, time_index):
+def infer_spout_tilting(feature_matrix, time_index=None):
+  # Get tilt for all time if desired
+  if time_index is None:
+    spout_tilts = []
+    for time_index in range(feature_matrix.shape[0]):
+      spout_tilts.append(infer_spout_tilting(feature_matrix, time_index=time_index))
+    return np.array(spout_tilts)
+  
   # Parse the feature matrix.
   parsed_data = parse_feature_matrix(feature_matrix)
   # Rotate a box for the pitcher according to the hand quaternion.
@@ -511,7 +668,14 @@ def infer_spout_tilting(feature_matrix, time_index):
   angle_toXY_rad = (np.pi/2) - angle_toZ_rad
   return angle_toXY_rad
 
-def infer_spout_position_m(feature_matrix, time_index):
+def infer_spout_position_m(feature_matrix, time_index=None):
+  # Get position for all time if desired
+  if time_index is None:
+    spout_position_m = []
+    for time_index in range(feature_matrix.shape[0]):
+      spout_position_m.append(infer_spout_position_m(feature_matrix, time_index=time_index))
+    return np.array(spout_position_m)
+  
   # Parse the feature matrix.
   parsed_data = parse_feature_matrix(feature_matrix)
   # Rotate a box for the pitcher according to the hand quaternion.
@@ -531,7 +695,53 @@ def infer_spout_position_m(feature_matrix, time_index):
   # Average two points at the front of the pitcher to get the spout position.
   return np.mean(corners[[4,5],:], axis=0)
 
-def infer_spout_yawvector(feature_matrix, time_index):
+def infer_spout_speed_m_s(feature_matrix, time_index=None):
+  # Get the spout position.
+  spout_position_m = infer_spout_position_m(feature_matrix, time_index=None)
+  times_s = feature_matrix[:,-1]
+  # Infer the speed.
+  dxdydz = np.diff(spout_position_m, axis=0)
+  dt = np.reshape(np.diff(times_s, axis=0), (-1, 1))
+  spout_speed_m_s = np.hstack([np.squeeze([0]), np.linalg.norm(dxdydz, axis=1)/np.squeeze(dt)])
+  if time_index is None:
+    return spout_speed_m_s
+  else:
+    return spout_speed_m_s[time_index]
+
+def infer_spout_acceleration_m_s_s(feature_matrix, time_index=None):
+  # Get the spout speed.
+  spout_speed_m_s = infer_spout_speed_m_s(feature_matrix, time_index=None)
+  times_s = feature_matrix[:,-1]
+  # Infer the acceleration.
+  dv = np.diff(spout_speed_m_s, axis=0)
+  dt = np.reshape(np.diff(times_s, axis=0), (-1, 1))
+  spout_acceleration_m_s_s = np.hstack([np.squeeze([0]), dv/np.squeeze(dt)])
+  if time_index is None:
+    return spout_acceleration_m_s_s
+  else:
+    return spout_acceleration_m_s_s[time_index]
+
+def infer_spout_jerk_m_s_s_s(feature_matrix, time_index=None):
+  # Get the spout speed.
+  spout_acceleration_m_s_s = infer_spout_acceleration_m_s_s(feature_matrix, time_index=None)
+  times_s = feature_matrix[:,-1]
+  # Infer the acceleration.
+  da = np.diff(spout_acceleration_m_s_s, axis=0)
+  dt = np.reshape(np.diff(times_s, axis=0), (-1, 1))
+  spout_jerk_m_s_s_s = np.hstack([np.squeeze([0]), da/np.squeeze(dt)])
+  if time_index is None:
+    return spout_jerk_m_s_s_s
+  else:
+    return spout_jerk_m_s_s_s[time_index]
+
+def infer_spout_yawvector(feature_matrix, time_index=None):
+  # Get vector for all time indexes if desired.
+  if time_index is None:
+    spout_yawvectors = []
+    for time_index in range(feature_matrix.shape[0]):
+      spout_yawvectors.append(infer_spout_yawvector(feature_matrix, time_index=time_index))
+    return np.array(spout_yawvectors)
+  
   # Parse the feature matrix.
   parsed_data = parse_feature_matrix(feature_matrix)
   # Rotate a box for the pitcher according to the hand quaternion.
@@ -556,6 +766,55 @@ def infer_spout_yawvector(feature_matrix, time_index):
   spoutside_point[2] = 0
   yawvector = spoutside_point - handside_point
   return yawvector/np.linalg.norm(yawvector)
+
+
+
+# Will return a dict with 'hand', 'elbow', and 'shoulder' each of which has xyz positions.
+def get_body_position_m(feature_matrix):
+  parsed_data = parse_feature_matrix(feature_matrix)
+  return parsed_data['position_m']
+
+# Will return a dict with 'hand', 'elbow', and 'shoulder' each of which has a speed vector.
+def get_body_speed_m_s(feature_matrix):
+  positions_m = get_body_position_m(feature_matrix)
+  times_s = feature_matrix[:,-1]
+  dt = np.reshape(np.diff(times_s, axis=0), (-1, 1))
+  speeds_m_s = {}
+  for (body_key, position_m) in positions_m.items():
+    # Infer the speed.
+    dxdydz = np.diff(position_m, axis=0)
+    speed_m_s = np.hstack([np.squeeze([0]), np.linalg.norm(dxdydz, axis=1)/np.squeeze(dt)])
+    speeds_m_s[body_key] = speed_m_s
+  return speeds_m_s
+  
+# Will return a dict with 'hand', 'elbow', and 'shoulder' each of which has an acceleration vector.
+def get_body_acceleration_m_s_s(feature_matrix):
+  speeds_m = get_body_speed_m_s(feature_matrix)
+  times_s = feature_matrix[:,-1]
+  dt = np.reshape(np.diff(times_s, axis=0), (-1, 1))
+  accelerations_m_s_s = {}
+  for (body_key, speed_m_s) in speeds_m.items():
+    # Infer the acceleration.
+    dv = np.diff(speed_m_s, axis=0)
+    dt = np.reshape(np.diff(times_s, axis=0), (-1, 1))
+    acceleration_m_s_s = np.hstack([np.squeeze([0]), dv/np.squeeze(dt)])
+    accelerations_m_s_s[body_key] = acceleration_m_s_s
+  return accelerations_m_s_s
+
+# Will return a dict with 'hand', 'elbow', and 'shoulder' each of which has a jerk vector.
+def get_body_jerk_m_s_s_s(feature_matrix):
+  accelerations_m_s_s = get_body_acceleration_m_s_s(feature_matrix)
+  times_s = feature_matrix[:,-1]
+  dt = np.reshape(np.diff(times_s, axis=0), (-1, 1))
+  jerks_m_s_s_s = {}
+  for (body_key, acceleration_m_s_s) in accelerations_m_s_s.items():
+    # Infer the jerk.
+    da = np.diff(acceleration_m_s_s, axis=0)
+    dt = np.reshape(np.diff(times_s, axis=0), (-1, 1))
+    jerk_m_s_s_s = np.hstack([np.squeeze([0]), da/np.squeeze(dt)])
+    jerks_m_s_s_s[body_key] = jerk_m_s_s_s
+  return jerks_m_s_s_s
+  
 
 
 
@@ -594,16 +853,25 @@ if __name__ == '__main__':
       print('Main loop plotting trial_index %d' % trial_index)
       feature_matrix = np.squeeze(feature_matrices[trial_index])
       referenceObject_position_m = np.squeeze(referenceObject_positions_m[trial_index])
-      # plot_trajectory(feature_matrix, duration_s, referenceObject_position_m,
-      #                 pause_after_timesteps=True)
+      plot_trajectory(feature_matrix, duration_s, referenceObject_position_m,
+                      pause_after_timesteps=True)
       # save_trajectory_animation(feature_matrix, duration_s, referenceObject_position_m,
       #                           output_filepath=os.path.join(output_dir, 'trajectory_animation_trial%02d.mp4' % trial_index))
-      fig = plot_pour_tilting(feature_matrix, fig=fig, shade_pouring_region=False,
-                              output_filepath=os.path.join(output_dir, 'tilts_all.jpg') if trial_index >= len(labels)-2 else None)
+      # fig = plot_pour_tilting(feature_matrix, fig=fig, shade_pouring_region=False,
+      #                         output_filepath=os.path.join(output_dir, 'tilts_all.jpg') if trial_index >= len(labels)-2 else None)
       # plot_pour_tilting(feature_matrix,
       #                   output_filepath=os.path.join(output_dir, 'tilt_individualTrials', 'tilt_trial%02d.jpg' % trial_index),
       #                   shade_pouring_region=True, hide_figure_window=True)
       # fig = plot_pour_relativePosition(feature_matrix, referenceObject_position_m,
       #                                  fig=fig, hide_figure_window=False,
       #                                  output_filepath=os.path.join(output_dir, 'glassOffsets_all.jpg') if trial_index >= len(labels)-2 else None)
+      # infer_spout_speed_m_s(feature_matrix, time_index=None)
+      # infer_spout_acceleration_m_s_s(feature_matrix, time_index=None)
+      # infer_spout_jerk_m_s_s_s(feature_matrix, time_index=None)
+      # fig = plot_spout_dynamics(feature_matrix,
+      #                            output_filepath=os.path.join(output_dir, 'spout_dynamics_individualTrials', 'tilt_trial%02d.jpg' % trial_index),
+      #                            shade_pouring_region=False, fig=fig, hide_figure_window=False)
+      # fig = plot_body_dynamics(feature_matrix,
+      #                            output_filepath=os.path.join(output_dir, 'body_jerk_individualTrials', 'body_jerk_trial%02d.jpg' % trial_index),
+      #                            shade_pouring_region=False, fig=fig, hide_figure_window=False)
   plt.show(block=True)

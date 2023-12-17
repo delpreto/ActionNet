@@ -36,15 +36,17 @@ script_dir = os.path.dirname(os.path.realpath(__file__))
 configure_for_pouring = True # otherwise will be scooping
 
 # Specify the folder of experiments to parse.
-data_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'results', 'learning_trajectories', 'S00'))
+subject_id_toProcess = 'S00' # S00, S10, S11
+data_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'results', 'learning_trajectories', subject_id_toProcess))
+# data_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'results', 'learning_trajectories', 'S00'))
 # data_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'results', 'learning_trajectories', 'S11'))
 # Specify the input file of extracted trajectory data.
-trajectory_data_filepath_humans = os.path.join(data_dir, '%s_paths_humans.hdf5' % ('pouring' if configure_for_pouring else 'scooping'))
+trajectory_data_filepath_humans = os.path.join(data_dir, '%s_paths_humans_%s.hdf5' % ('pouring' if configure_for_pouring else 'scooping', subject_id_toProcess))
 # Specify the output file for robot trajectory data.
-trajectory_data_filepath_robots = os.path.join(data_dir, '%s_paths_robots.hdf5' % ('pouring' if configure_for_pouring else 'scooping'))
+trajectory_data_filepath_robots = os.path.join(data_dir, '%s_paths_robots_%s.hdf5' % ('pouring' if configure_for_pouring else 'scooping', subject_id_toProcess))
 
 show_plot_human_and_robot_hand_paths = False
-save_plot_human_and_robot_hand_paths = True
+save_plot_human_and_robot_hand_paths = False
 stationary_duration_s = 2 if configure_for_pouring else 1 # might want to match stationary_position_variance_buffer_duration_s used when extracting human demonstrations?
 
 ###################################################################

@@ -45,11 +45,20 @@ from utils.print_utils import *
 subject_ids_filter = None # None to consider all subjects
 
 # Specify the folder of experiments to parse.
+subject_id_toProcess = 'S00' # S00, S10, S11
 data_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'data'))
+if subject_id_toProcess == 'S00':
+  experiments_dir = os.path.join(data_dir, 'experiments', '2023-09-10_experiment_%s' % subject_id_toProcess)
+elif subject_id_toProcess == 'S10':
+  experiments_dir = os.path.join(data_dir, 'experiments', '2023-08-18_experiment_%s' % subject_id_toProcess)
+elif subject_id_toProcess == 'S11':
+  experiments_dir = os.path.join(data_dir, 'experiments', '2023-09-10_experiment_%s' % subject_id_toProcess)
+# experiments_dir = os.path.join(data_dir, 'experiments', '2023-09-10_experiment_S00')
 # experiments_dir = os.path.join(data_dir, 'experiments', '2023-08-18_experiment_S10')
-experiments_dir = os.path.join(data_dir, 'experiments', '2023-09-10_experiment_S00')
 # experiments_dir = os.path.join(data_dir, 'experiments', '2023-09-10_experiment_S11')
-output_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'results', 'learning_trajectories', 'S00'))
+output_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'results', 'learning_trajectories', subject_id_toProcess))
+# output_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'results', 'learning_trajectories', 'S00'))
+# output_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'results', 'learning_trajectories', 'S10'))
 # output_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'results', 'learning_trajectories', 'S11'))
 os.makedirs(output_dir, exist_ok=True)
 
@@ -788,12 +797,12 @@ def export_path_data(times_s_allSubjects, bodyPath_datas_allSubjects,
                      stationary_times_s_allSubjects, stationary_pose_allSubjects,
                      referenceObject_positions_m_allSubjects):
   # Open the output HDF5 file
-  hdf5_output_filepath = os.path.join(output_dir, '%s_paths_humans.hdf5' % target_activity_keyword)
+  hdf5_output_filepath = os.path.join(output_dir, '%s_paths_humans_%s.hdf5' % (target_activity_keyword, subject_id_toProcess))
   if os.path.exists(hdf5_output_filepath):
     print()
     print('Output file exists at [%s]' % hdf5_output_filepath)
     print('  Overwrite the file? [y/N] ', end='')
-    overwrite_file = 'y'#input()
+    overwrite_file = input()
     if overwrite_file.lower().strip() != 'y':
       print('  Aborting')
       return

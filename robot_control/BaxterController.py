@@ -556,8 +556,8 @@ class BaxterController:
   @param wait_for_completion whether to wait for the trajectory to finish.
   """
   def run_trajectory(self, wait_for_completion=True, should_print=None):
+    self.move_to_trajectory_start(wait_for_completion=True, should_print=should_print)
     self._print('Running the current trajectory', should_print=should_print)
-    self.move_to_joint_angles_rad(self._trajectory.get_joint_angles_rad(step_index=0), wait_for_completion=True)
     self._trajectory.run(wait_for_completion=wait_for_completion)
     result = self._trajectory.result()
     if result.error_code == -4:
@@ -567,6 +567,10 @@ class BaxterController:
       # TODO check what the other codes mean?
       # So far have seen 0 and -5 after successful trajectories.
       return True
+  
+  def move_to_trajectory_start(self, wait_for_completion=True, should_print=None):
+    self._print('Moving to the trajectory start point', should_print=should_print)
+    self.move_to_joint_angles_rad(self._trajectory.get_joint_angles_rad(step_index=0), wait_for_completion=True)
   
   ##############################################
   # Miscellaneous helper functions

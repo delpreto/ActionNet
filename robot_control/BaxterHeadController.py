@@ -23,7 +23,11 @@ class BaxterHeadController():
         pass
       else:
         raise
-
+    
+    # general state
+    self._screen_width = 1024
+    self._screen_height = 600
+    
     # set up publishers
     self._screenPub = rospy.Publisher('/robot/xdisplay', Image, queue_size=1, latch=True)
     self._headPub = rospy.Publisher('/robot/head/command_head_pan', HeadPanCommand, queue_size=5, latch=True)
@@ -104,7 +108,25 @@ class BaxterHeadController():
         self.log("Showing image message")
       self._screenPub.publish(imageMsg)
       rospy.sleep(0.1)
-
+  
+  def showColor(self, color_bgr=(0,0,0)):
+    if isinstance(color_bgr, str):
+      if color_bgr.lower() in ['w', 'white']:
+        color_bgr = (255, 255, 255)
+      elif color_bgr.lower() in ['k', 'black']:
+        color_bgr = (0, 0, 0)
+      elif color_bgr.lower() in ['r', 'red']:
+        color_bgr = (0, 0, 255)
+      elif color_bgr.lower() in ['b', 'blue']:
+        color_bgr = (255, 0, 0)
+      elif color_bgr.lower() in ['g', 'green']:
+        color_bgr = (0, 255, 0)
+    img = np.zeros((self._screen_height, self._screen_width, 3), dtype=np.uint8)
+    img[:,:,:] = color_bgr
+    imageMsg = cv_bridge.CvBridge().cv2_to_imgmsg(img, encoding="bgr8")
+    self._screenPub.publish(imageMsg)
+    rospy.sleep(0.1)
+    
   """
   Show a video on the screen [blocking]
   """
@@ -119,27 +141,24 @@ class BaxterHeadController():
       self.log("Playing video file %s" % videoFile)
     have_frame = True
     while have_frame:
-      # try:
       frame = None
       for i in range(int(round(fps_vid / fps_display))):
         have_frame, frame = videoCapture.read()
       if have_frame:
         frame = np.array(frame)
-        scale_factor_width = 1024.0/float(frame.shape[1])
-        scale_factor_height = 600.0/float(frame.shape[0])
+        scale_factor_width = float(self._screen_width)/float(frame.shape[1])
+        scale_factor_height = float(self._screen_height)/float(frame.shape[0])
         scale_factor = min([scale_factor_width, scale_factor_height])
         frame = cv2.resize(frame, (0,0), None, scale_factor, scale_factor)
-        pad_width = int(round((1024 - frame.shape[1])/2))
-        pad_height = int(round((600 - frame.shape[0])/2))
+        pad_width = int(round((self._screen_width - frame.shape[1])/2))
+        pad_height = int(round((self._screen_height - frame.shape[0])/2))
         if pad_width > 1:
           frame = cv2.copyMakeBorder(frame, pad_height, pad_height,
                                      pad_width, pad_width,
                                      cv2.BORDER_CONSTANT, value=(0,0,0))
         imageMsg = cv_bridge.CvBridge().cv2_to_imgmsg(frame, encoding="bgr8")
         self._screenPub.publish(imageMsg)
-        fpsRate.sleep()
-      # except:
-      #   break
+      fpsRate.sleep()
     videoCapture.release()
     cv2.destroyAllWindows()
     if logStatus:

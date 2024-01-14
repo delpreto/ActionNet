@@ -96,7 +96,7 @@ referenceObject_offset_cm = np.array([0, 9, -(6-4)]) # [up along thumb, out alon
 referenceObject_diameter_cm = 7.3 # glass top 7.3 bottom 6.3
 
 # hand_box_dimensions_cm = np.array([2, 9, 18]) # open hand
-hand_box_dimensions_cm = np.array([6, 3, 1.3])
+hand_box_dimensions_cm = np.array([4.8, 3, 1.3])
 hand_box_color = 0.8*np.array([1, 0.6, 0])
 pitcher_box_dimensions_cm = np.array([23, 23, 10.8]) # [height, top length, width]
 pitcher_box_color = 0.8*np.array([1, 1, 1])
@@ -468,27 +468,27 @@ def plt_wait_for_keyboard_press(timeout_s=-1.0):
     keyboardClick = plt.waitforbuttonpress(timeout=timeout_s)
 
 def plot_hand_box(ax, hand_quaternion_localToGlobal_wijk, hand_center):
-  # Used for testing the conversion from xsens/human poses to Baxter poses:
-  quat_wijk = [1, 0, 0, 0]
-  rotates_by_deg = [
-    # [90, 0, 0],
-    # [0, 0, 90],
-    [0, 90, 0],
-    [0, 0, 90],
-    # [45, 0, 0], # pour 45
-    [0, 0, -45], # inward 45
-    # [0, -45, 0], # outward 45
-    ]
-  rotation_quat = Rotation.from_quat([quat_wijk[1], quat_wijk[2], quat_wijk[3], quat_wijk[0]])
-  for i in range(len(rotates_by_deg)-1, -1, -1):
-    rotate_by_deg = rotates_by_deg[i]
-    rotation_toApply = Rotation.from_rotvec(np.radians(rotate_by_deg))
-    rotation_quat = rotation_quat * rotation_toApply
-  ijkw = rotation_quat.as_quat()
-  quat_wijk = [ijkw[3], ijkw[0], ijkw[1], ijkw[2]]
-  hand_quaternion_localToGlobal_wijk = quat_wijk
-  print(list(hand_center))
-  print(list(hand_quaternion_localToGlobal_wijk))
+  # # Used for testing the conversion from xsens/human poses to Baxter poses:
+  # quat_wijk = [1, 0, 0, 0]
+  # rotates_by_deg = [
+  #   # [90, 0, 0],
+  #   # [0, 0, 90],
+  #   [0, 90, 0],
+  #   [0, 0, 90],
+  #   # [45, 0, 0], # pour 45
+  #   [0, 0, -45], # inward 45
+  #   # [0, -45, 0], # outward 45
+  #   ]
+  # rotation_quat = Rotation.from_quat([quat_wijk[1], quat_wijk[2], quat_wijk[3], quat_wijk[0]])
+  # for i in range(len(rotates_by_deg)-1, -1, -1):
+  #   rotate_by_deg = rotates_by_deg[i]
+  #   rotation_toApply = Rotation.from_rotvec(np.radians(rotate_by_deg))
+  #   rotation_quat = rotation_quat * rotation_toApply
+  # ijkw = rotation_quat.as_quat()
+  # quat_wijk = [ijkw[3], ijkw[0], ijkw[1], ijkw[2]]
+  # hand_quaternion_localToGlobal_wijk = quat_wijk
+  # print(list(hand_center))
+  # print(list(hand_quaternion_localToGlobal_wijk))
   
   return plot_3d_box(ax, hand_quaternion_localToGlobal_wijk, hand_center, np.array([0,0,0]),
                      hand_box_dimensions_cm, hand_box_color)
@@ -674,8 +674,8 @@ def plot_handPath_data(fig, subplot_index,
         # h_hand = ax.voxels(hand_box_data, facecolors=hand_colors)
         h_hand = plot_hand_box(ax, hand_center=100*bodySegment_data['position_m']['RightHand'][time_index, :],
                                hand_quaternion_localToGlobal_wijk=bodySegment_data['quaternion_wijk']['RightHand'][time_index, :])
-        # h_pitcher = plot_pitcher_box(ax, hand_center=100*bodySegment_data['position_m']['RightHand'][time_index, :],
-        #                           hand_quaternion_localToGlobal_wijk=bodySegment_data['quaternion_wijk']['RightHand'][time_index, :])
+        h_pitcher = plot_pitcher_box(ax, hand_center=100*bodySegment_data['position_m']['RightHand'][time_index, :],
+                                  hand_quaternion_localToGlobal_wijk=bodySegment_data['quaternion_wijk']['RightHand'][time_index, :])
         
         # Set the aspect ratio
         ax.set_xlim(x_lim)

@@ -29,29 +29,6 @@ trajectory_indexes_toRun = [0] # None to run all
 
 ################################################
 
-# # Convert from Xsens quaternion to Baxter quaternion.
-# def xsens_to_baxter_quaternion(xsens_quaternion_wijk):
-#   return [
-#     xsens_quaternion_wijk[0],
-#     -xsens_quaternion_wijk[1],
-#     -xsens_quaternion_wijk[2],
-#     -xsens_quaternion_wijk[3]
-#   ]
-#
-# # Translate a position from Xsens human frame to Baxter frame.
-# def xsens_to_baxter_position(xsens_position_xyz_m):
-#   # A sample home for a human demonstration was [-0.3, 0.26, 0.17]
-#   #  with x point backwards, y pointing right, and z pointing up.
-#   # Baxter has a home position of about [1, -0.25, 0]
-#   #  with x pointing forwards, y pointing left, and z pointing down.
-#   return [
-#     -xsens_position_xyz_m[0] + 0.7,
-#     -xsens_position_xyz_m[1] + 0.0,
-#     xsens_position_xyz_m[2] - 0.2,
-#     ]
-
-################################################
-
 # Create a Baxter controller.
 controller = BaxterController(limb_name='right', print_debug=True)
 headController = BaxterHeadController()
@@ -61,16 +38,7 @@ headController = BaxterHeadController()
 # time.sleep(5)
 
 # Extract the data.
-if 'hdf' in os.path.splitext(data_filepath)[-1].lower():
-  import h5py
-  h5_file = h5py.File(data_filepath, 'r')
-  feature_matrices = np.squeeze(h5_file['feature_matrices'])
-  labels = np.array([str(x) for x in h5_file['labels']])
-  feature_matrices = feature_matrices[np.where(labels == 'human')[0], :, :]
-elif 'npy' in os.path.splitext(data_filepath)[-1].lower():
-  feature_matrices = np.load(data_filepath)
-else:
-  raise AssertionError('Unknown input data file extension [%s]' % os.path.splitext(data_filepath)[-1].lower())
+feature_matrices = np.load(data_filepath)
 
 # Loop through each trajectory.
 for trajectory_index in range(feature_matrices.shape[0]):
@@ -78,6 +46,9 @@ for trajectory_index in range(feature_matrices.shape[0]):
     continue
   print('='*50)
   print('TRAJECTORY %02d' % trajectory_index)
+  
+  headController.showColor('black')
+  headController.setHaloLED(green_percent=0, red_percent=0)
   
   # Get the position and quaternion for each timestep.
   feature_matrix = np.squeeze(feature_matrices[trajectory_index, :, :])
@@ -92,11 +63,6 @@ for trajectory_index in range(feature_matrices.shape[0]):
   Fs = (len(times_s)-1)/(times_s[-1] - times_s[0])
   Ts = 1/Fs
   
-  # # Convert to Baxter coordinates.
-  # for timestep_index in range(len(times_s)):
-  #   gripper_positions_xyz_m[timestep_index] = xsens_to_baxter_position(gripper_positions_xyz_m[timestep_index])
-  #   gripper_quaternions_wijk[timestep_index] = xsens_to_baxter_quaternion(gripper_quaternions_wijk[timestep_index])
-  
   # Build the trajectory.
   success = controller.build_trajectory_from_gripper_poses(
     times_from_start_s=[times_s[i] for i in range(0,len(times_s))],
@@ -107,10 +73,13 @@ for trajectory_index in range(feature_matrices.shape[0]):
     should_print=False)
 
   if success:
+    headController.showColor('black')
+    headController.setHaloLED(green_percent=100, red_percent=100)
+    # Move to the starting position.
+    controller.move_to_trajectory_start(wait_for_completion=True)
     # Start the video animation if one exists.
     animation_video_filepath = 'pouring_animation_S00_%02d.mp4' % trajectory_index
     if os.path.exists(animation_video_filepath):
-      video_thread = None
       done_playing_video = True
       def showVideo_thread():
         global done_playing_video
@@ -121,21 +90,27 @@ for trajectory_index in range(feature_matrices.shape[0]):
       video_thread.start()
     else:
       video_thread = None
+      done_playing_video = True
     # Run the trajectory.
     controller.run_trajectory(wait_for_completion=True)
-    # Nod and wait.
-    headController.nod(times=3)
-    time.sleep(2)
+    # Nod.
+    headController.setHaloLED(green_percent=100, red_percent=0)
+    headController.nod(times=2)
     # Wait for the video to finish.
     if video_thread is not None and not done_playing_video:
       video_thread.join()
   else:
     print('Error building trajectory')
+    headController.setHaloLED(green_percent=0, red_percent=100)
 
-  # Wait and then return to resting.
-  # time.sleep(5)
+  # Wait
+  time.sleep(3)
+  
+  # Return to resting.
   # controller.move_to_resting()
 
+headController.showColor('black')
+headController.setHaloLED(green_percent=0, red_percent=0)
 controller.quit()
 headController.quit()
 

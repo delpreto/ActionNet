@@ -2,6 +2,10 @@
 import numpy as np
 from scipy.spatial.transform import Rotation
 
+# This script was run, and the printed result was manually copied to
+#  testing_converted_baxter_quaternions_positions open on the Linux computer
+#  (since that computer doesn't have the Rotation module)
+
 # Process that worked:
 #   Move Baxter to a unit quaternion
 #     Move Baxter to a unit quaternion rotated about each axis, to see the coordinate frame
@@ -22,9 +26,10 @@ from scipy.spatial.transform import Rotation
 #   Add a rotation to make the human data example match the previous example
 #     The result can probably be simplified
 
-quat_wijk = [1,0,0,0]
-# quat_wijk = [0.5, -0.5, 0.5, 0.5] # pitcher start
-quat_wijk = [0.6532814824381883, -0.27059805007309834, 0.2705980500730985, 0.6532814824381883] # pour 45 degrees
+# quat_wijk = [1,0,0,0]
+
+# quat_wijk = [0.5, -0.5, 0.5, 0.5] # pitcher start (idealized)
+# quat_wijk = [0.6532814824381883, -0.27059805007309834, 0.2705980500730985, 0.6532814824381883] # pour 45 degrees
 # quat_wijk = [0.29883623873011994, -0.6408563820557884, 0.2988362387301199, 0.6408563820557885] # rotate inwards 45 degrees
 # quat_wijk = [0.6532814824381884, -0.27059805007309845, 0.6532814824381883, 0.2705980500730985] # rotate outwards 45 degrees
 # quat_wijk = [0.3535533905932738, -0.35355339059327373, 0.1464466094067262, 0.8535533905932738] # pour 45 and inwards 45

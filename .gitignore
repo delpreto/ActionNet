@@ -20,4 +20,7 @@
 *.pptx
 
 
-
+# Archived and notes
+###################################
+robot_control/archived*/
+robot_control/old_scripts/

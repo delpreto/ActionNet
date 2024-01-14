@@ -101,7 +101,11 @@ hand_box_color = 0.8*np.array([1, 0.6, 0])
 pitcher_box_dimensions_cm = np.array([23, 23, 10.8]) # [height, top length, width]
 pitcher_box_color = 0.8*np.array([1, 1, 1])
 hand_to_pitcher_rotation = Rotation.from_rotvec(np.pi/2 * np.array([1, 0, 0]))
-hand_to_pitcher_offset_cm = np.array([0, -13, 0])
+hand_to_pitcher_offset_cm = np.array([0, -13, 0]) # used -15 for Baxter videos so the orange hides behind pitcher less
+
+animation_view_angle_backRight = (16, 44)
+animation_view_angle_forBaxter = (30, -179.9)
+animation_view_angle = animation_view_angle_backRight
 
 use_manual_startEnd_times = False
 manual_pouring_start_times_s = [
@@ -592,7 +596,7 @@ def plot_handPath_data(fig, subplot_index,
     ax.set_zlabel('Z [cm]')
     
     # Set the view angle
-    ax.view_init(16, 44)
+    ax.view_init(*animation_view_angle)
     # ax.view_init(90, 0)
     
     # Plot trajectories of the right arm and pelvis.
@@ -690,6 +694,7 @@ def plot_handPath_data(fig, subplot_index,
         plt.draw()
         if pause_between_frames:
           plt_wait_for_keyboard_press(timeout_s=-1)#spf)
+          # print('view elev/azim:', ax.elev, ax.azim)
     else:
       # Set the aspect ratio
       ax.set_box_aspect([ub - lb for lb, ub in (ax.get_xlim(), ax.get_ylim(), ax.get_zlim())])

@@ -355,6 +355,29 @@ class BaxterController:
     else:
       self._print('  *** No resting angles have been set', should_print=should_print)
   
+  """
+  set the gripper pose (non-blocking by default)
+  @return [OrderedDict] map from joint name to applied joint angle (in radians)
+  @raise [AssertionError] if input angles is not of an appropriate format
+  """
+  def move_to_gripper_pose(self, gripper_position_m,
+                           gripper_orientation_quaternion_wijk,
+                           timeout_s=15, wait_for_completion=False,
+                           seed_joint_angles_rad=None,
+                           tolerance_rad=settings.JOINT_ANGLE_TOLERANCE, should_print=None):
+    # Compute joint angles.
+    joint_angles_rad = self.get_joint_angles_rad_for_gripper_pose(
+                            gripper_position_m,
+                            gripper_orientation_quaternion_wijk,
+                            seed_joint_angles_rad=seed_joint_angles_rad,
+                            nullspace_goal_position=None,
+                            should_print=should_print)
+    # Move to the position.
+    if joint_angles_rad is not None:
+      self.move_to_joint_angles_rad(joint_angles_rad,
+                                    timeout_s=timeout_s, wait_for_completion=wait_for_completion,
+                                    tolerance_rad=tolerance_rad, should_print=should_print)
+    
   ##############################################
   # Inverse kinematics
   ##############################################
@@ -401,12 +424,11 @@ class BaxterController:
         seed_joint_angles_rad = OrderedDict([(joint_name, seed_joint_angles_rad[joint_name]) for joint_name in self._joint_names])
       else:
         raise AssertionError('Invalid seed given to get_joint_angles_rad_for_gripper_pose')
-      seed_joint_angles_rad = list(seed_joint_angles_rad.values())
       # Add the seed.
       ikreq.seed_mode = ikreq.SEED_USER
       seed = JointState()
-      seed.name = ['%s_j%d' % (self._limb_name, joint_index) for joint_index in range(7)]
-      seed.position = seed_joint_angles_rad
+      seed.name = list(seed_joint_angles_rad.keys())
+      seed.position = list(seed_joint_angles_rad.values())
       ikreq.seed_angles.append(seed)
     #if nullspace_goal_position is not None:
     #  # Once the primary IK task is solved, the solver will then try to bias
@@ -458,7 +480,7 @@ class BaxterController:
   ##############################################
   
   """
-  Build a trajectory that achieves a sequence of positions at specified times.
+  Build a trajectory that achieves a sequence of joint angles at specified times.
   @param times_from_start_s list of times at which each position should be achieved, as seconds since trajectory start
   @param joint_angles_rad list of [list, tuple, dict, OrderedDict] the angles to apply (in radians)
     Each entry corresponds to a position for that timestep.
@@ -466,7 +488,7 @@ class BaxterController:
     If an entry is a dict, assumes it maps from joint name to desired angle (unspecified joints will not be set)
   @raise [AssertionError] if input angles is not of an appropriate format
   """
-  def build_trajectory(self, times_from_start_s, joint_angles_rad, goal_time_tolerance_s=0.1, should_print=None):
+  def build_trajectory_from_joint_angles(self, times_from_start_s, joint_angles_rad, goal_time_tolerance_s=0.1, should_print=None):
     if not isinstance(times_from_start_s, (list, tuple)) \
         or not isinstance(joint_angles_rad, (list, tuple)) \
         or len(times_from_start_s) != len(joint_angles_rad):
@@ -495,11 +517,47 @@ class BaxterController:
       self._trajectory.add_point(joint_angles_rad_forTimestep, times_from_start_s[timestep_index])
   
   """
+  Build a trajectory that achieves a sequence of gripper poses at specified times.
+  @param times_from_start_s list of times at which each position should be achieved, as seconds since trajectory start
+  @param joint_angles_rad list of [list, tuple, dict, OrderedDict] the angles to apply (in radians)
+    Each entry corresponds to a position for that timestep.
+    If an entry is a list or tuple, assumes it corresponds to the joints in self._jointNames
+    If an entry is a dict, assumes it maps from joint name to desired angle (unspecified joints will not be set)
+  @raise [AssertionError] if input angles is not of an appropriate format
+  """
+  def build_trajectory_from_gripper_poses(self, times_from_start_s,
+                                          gripper_positions_m,
+                                          gripper_orientations_quaternion_wijk,
+                                          goal_time_tolerance_s=0.1,
+                                          initial_seed_joint_angles_rad=None,
+                                          should_print=None):
+    # Compute inverse kinematics for each pose.
+    joint_angles_rad = []
+    seed_joint_angles_rad = initial_seed_joint_angles_rad
+    for timestep_index in range(len(times_from_start_s)):
+      # Seed the solver with the previous solution to help make motion more continuous/smooth.
+      if timestep_index > 0:
+        seed_joint_angles_rad = joint_angles_rad[timestep_index-1]
+      # Compute joint angles for this timestep.
+      joint_angles_rad.append(self.get_joint_angles_rad_for_gripper_pose(
+        gripper_position_m=gripper_positions_m[timestep_index],
+        gripper_orientation_quaternion_wijk=gripper_orientations_quaternion_wijk[timestep_index],
+        seed_joint_angles_rad=seed_joint_angles_rad, should_print=should_print))
+      if joint_angles_rad[-1] is None:
+        return False
+    
+    # Build a trajectory using the computed joint angles.
+    self.build_trajectory_from_joint_angles(times_from_start_s=times_from_start_s, joint_angles_rad=joint_angles_rad,
+                                            goal_time_tolerance_s=goal_time_tolerance_s, should_print=should_print)
+    return True
+    
+  """
   Run the current trajectory.
   @param wait_for_completion whether to wait for the trajectory to finish.
   """
   def run_trajectory(self, wait_for_completion=True, should_print=None):
     self._print('Running the current trajectory', should_print=should_print)
+    self.move_to_joint_angles_rad(self._trajectory.get_joint_angles_rad(step_index=0), wait_for_completion=True)
     self._trajectory.run(wait_for_completion=wait_for_completion)
     result = self._trajectory.result()
     if result.error_code == -4:
@@ -534,6 +592,10 @@ if __name__ == '__main__':
   controller = BaxterController(limb_name=limb_name, print_debug=True)
   
   # Test direct movements to positions.
+  print()
+  print('='*50)
+  print('Testing direct movements')
+  print('='*50)
   controller.move_to_resting()
   time.sleep(5)
   controller.move_to_joint_angles_rad(controller.get_joint_angles_rad(), wait_for_completion=True)
@@ -542,17 +604,26 @@ if __name__ == '__main__':
   time.sleep(5)
   
   # Test a trajectory.
+  print()
+  print('='*50)
+  print('Testing a trajectory from joint angles')
+  print('='*50)
   print(list(controller.get_neutral_joint_angles_rad().values()))
   print(list(controller.get_resting_joint_angles_rad().values()))
-  controller.build_trajectory(times_from_start_s=[5, 10, 15],
-                              joint_angles_rad=[
-                                list(controller.get_resting_joint_angles_rad().values()),
-                                list(controller.get_neutral_joint_angles_rad().values()),
-                                list(controller.get_resting_joint_angles_rad().values()),
-                              ])
+  controller.build_trajectory_from_joint_angles(
+    times_from_start_s=[5, 10, 15],
+    joint_angles_rad=[
+    list(controller.get_resting_joint_angles_rad().values()),
+    list(controller.get_neutral_joint_angles_rad().values()),
+    list(controller.get_resting_joint_angles_rad().values()),
+  ])
   success = controller.run_trajectory(wait_for_completion=True)
 
   # Test solving inverse kinematics.
+  print()
+  print('='*50)
+  print('Testing inverse kinematics')
+  print('='*50)
   test_gripper_positions_m = {
     'left':  [0.657579481614,  0.851981417433, 0.0388352386502],
     'right': [0.656982770038, -0.852598021641, 0.0388609422173]
@@ -567,10 +638,16 @@ if __name__ == '__main__':
   printVariable(rad2deg(joint_angles_rad), 'joint_angles_deg', level=1)
 
   # Disable Baxter and quit.
+  print()
+  print('='*50)
+  print('Quitting')
+  print('='*50)
   controller.disable_baxter(move_to_resting=True, prompt_before_disabling=True)
   controller.quit()
-
+  
+  print()
   print('Done!')
+  print()
   
 
   

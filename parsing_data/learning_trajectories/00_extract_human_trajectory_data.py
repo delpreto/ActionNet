@@ -66,8 +66,9 @@ animate_trajectory_plots = False # show an animated plot of the skeleton for eac
 plot_all_trajectories = False # make a subplot for each subject, which shows all paths from that subject
 save_plot_all_trajectories = False # make a subplot for each subject, which shows all paths from that subject
 save_eye_videos = False # save the eye-tracking video for each trial
+save_animation_videos = True # save the animated plot for each trial
 save_composite_videos = False # save the eye-tracking video and animated plot for each trial
-save_results_data = True
+save_results_data = False
 
 resampled_fs_hz = 50
 
@@ -95,7 +96,7 @@ referenceObject_offset_cm = np.array([0, 9, -(6-4)]) # [up along thumb, out alon
 referenceObject_diameter_cm = 7.3 # glass top 7.3 bottom 6.3
 
 # hand_box_dimensions_cm = np.array([2, 9, 18]) # open hand
-hand_box_dimensions_cm = np.array([4.8, 3, 1.3])
+hand_box_dimensions_cm = np.array([6, 3, 1.3])
 hand_box_color = 0.8*np.array([1, 0.6, 0])
 pitcher_box_dimensions_cm = np.array([23, 23, 10.8]) # [height, top length, width]
 pitcher_box_color = 0.8*np.array([1, 1, 1])
@@ -441,7 +442,7 @@ def infer_stationary_poses(times_s, bodySegment_datas):
   # print(stationary_times_s)
   return (stationary_times_s, body_positions_stationary_cm)
 
-# Infer the hand position at a stationary point (such as when water is being poured)
+# Infer the left hand position, which is holding the reference object.
 def infer_referenceObject_positions(bodySegment_datas, times_s, referenceObject_times_s):
   referenceObject_positions_m = []
   for trial_index, bodySegment_data in enumerate(bodySegment_datas):
@@ -467,6 +468,28 @@ def plt_wait_for_keyboard_press(timeout_s=-1.0):
     keyboardClick = plt.waitforbuttonpress(timeout=timeout_s)
 
 def plot_hand_box(ax, hand_quaternion_localToGlobal_wijk, hand_center):
+  # Used for testing the conversion from xsens/human poses to Baxter poses:
+  quat_wijk = [1, 0, 0, 0]
+  rotates_by_deg = [
+    # [90, 0, 0],
+    # [0, 0, 90],
+    [0, 90, 0],
+    [0, 0, 90],
+    # [45, 0, 0], # pour 45
+    [0, 0, -45], # inward 45
+    # [0, -45, 0], # outward 45
+    ]
+  rotation_quat = Rotation.from_quat([quat_wijk[1], quat_wijk[2], quat_wijk[3], quat_wijk[0]])
+  for i in range(len(rotates_by_deg)-1, -1, -1):
+    rotate_by_deg = rotates_by_deg[i]
+    rotation_toApply = Rotation.from_rotvec(np.radians(rotate_by_deg))
+    rotation_quat = rotation_quat * rotation_toApply
+  ijkw = rotation_quat.as_quat()
+  quat_wijk = [ijkw[3], ijkw[0], ijkw[1], ijkw[2]]
+  hand_quaternion_localToGlobal_wijk = quat_wijk
+  print(list(hand_center))
+  print(list(hand_quaternion_localToGlobal_wijk))
+  
   return plot_3d_box(ax, hand_quaternion_localToGlobal_wijk, hand_center, np.array([0,0,0]),
                      hand_box_dimensions_cm, hand_box_color)
 
@@ -651,8 +674,8 @@ def plot_handPath_data(fig, subplot_index,
         # h_hand = ax.voxels(hand_box_data, facecolors=hand_colors)
         h_hand = plot_hand_box(ax, hand_center=100*bodySegment_data['position_m']['RightHand'][time_index, :],
                                hand_quaternion_localToGlobal_wijk=bodySegment_data['quaternion_wijk']['RightHand'][time_index, :])
-        h_pitcher = plot_pitcher_box(ax, hand_center=100*bodySegment_data['position_m']['RightHand'][time_index, :],
-                                  hand_quaternion_localToGlobal_wijk=bodySegment_data['quaternion_wijk']['RightHand'][time_index, :])
+        # h_pitcher = plot_pitcher_box(ax, hand_center=100*bodySegment_data['position_m']['RightHand'][time_index, :],
+        #                           hand_quaternion_localToGlobal_wijk=bodySegment_data['quaternion_wijk']['RightHand'][time_index, :])
         
         # Set the aspect ratio
         ax.set_xlim(x_lim)
@@ -792,6 +815,57 @@ def save_activity_composite_videos(h5_file, eyeVideo_filepath,
                                        )
       video_writer.write(composite_frame)
     video_reader.release()
+
+def save_activity_animation_videos(h5_file,
+                                   times_s, bodySegment_datas,
+                                   stationary_poses, referenceObject_positions_cm,
+                                   subject_id, num_subjects, trial_indexes_filter=None,
+                                   trial_start_index_offset=0):
+  
+  fig = None
+  for trial_index, time_s in enumerate(times_s):
+    trial_index_withOffset = trial_index + trial_start_index_offset
+    print('Saving animation video for Subject S%02d trial %02d' % (subject_id, trial_index_withOffset))
+    if trial_indexes_filter is not None and trial_index not in trial_indexes_filter:
+      continue
+    start_time_s = min(time_s)
+    end_time_s = max(time_s)
+    num_frames = len(time_s)
+    fps = (num_frames-1)/(end_time_s - start_time_s)
+    video_writer = None
+    for i in range(num_frames):
+      if i % (np.ceil(num_frames/5)) == 0 and i > 0:
+        print('  Completed %d/%d frames (%0.1f%%)' % (i, num_frames, 100*i/num_frames))
+      target_time_s = time_s[i]
+      # Plot the skeleton at the closest time to the eye-video frame timestamp
+      target_times_s = [None]*len(times_s) # an entry for each trial
+      target_times_s[trial_index] = target_time_s
+      fig = plot_handPath_data(fig, 0,
+                               times_s, bodySegment_datas,
+                               stationary_poses, referenceObject_positions_cm,
+                               subject_id, 1,
+                               spf=None,  # scan all frames for the closest time match
+                               include_skeleton=True,
+                               trial_indexes_filter=[trial_index],
+                               trial_start_index_offset=trial_start_index_offset,
+                               target_times_s=target_times_s,
+                               pause_between_trials=False, pause_between_frames=False,
+                               hide_figure_window=True,
+                               clear_axes_each_trial=True)
+      plot_img = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+      plot_img = plot_img.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+      plot_img = cv2.cvtColor(plot_img, cv2.COLOR_RGB2BGR)
+      # cv2.imshow('my frame', plot_img)
+      # cv2.waitKey(10)
+      
+      # Write to the output video
+      if video_writer is None:
+        video_writer = cv2.VideoWriter(os.path.join(output_dir, '%s_animation_S%02d_%02d.mp4' % (target_activity_keyword, subject_id, trial_index_withOffset)),
+                                       cv2.VideoWriter_fourcc(*'MP4V'), # for AVI: cv2.VideoWriter_fourcc(*'MJPG'),
+                                       fps,
+                                       (plot_img.shape[1], plot_img.shape[0])
+                                       )
+      video_writer.write(plot_img)
 
 def export_path_data(times_s_allSubjects, bodyPath_datas_allSubjects,
                      stationary_times_s_allSubjects, stationary_pose_allSubjects,
@@ -1099,6 +1173,12 @@ for subject_id, subject_hdf5_filepaths in hdf5_filepaths.items():
                            trial_indexes_filter=None)
     if save_composite_videos:
       save_activity_composite_videos(h5_file, eyeVideo_filepath,
+                                     times_s, bodyPath_datas,
+                                     stationary_poses, referenceObject_positions_m,
+                                     subject_id, num_subjects, trial_indexes_filter=None,
+                                     trial_start_index_offset=targetActivity_trial_index_start, )
+    if save_animation_videos:
+      save_activity_animation_videos(h5_file,
                                      times_s, bodyPath_datas,
                                      stationary_poses, referenceObject_positions_m,
                                      subject_id, num_subjects, trial_indexes_filter=None,

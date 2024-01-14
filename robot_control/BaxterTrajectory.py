@@ -20,6 +20,7 @@ class BaxterTrajectory(object):
     self._limb_name = limb_name
     self._limb = baxter_interface.Limb(limb_name)
     self._trajectory_duration_s = 0
+    self._joint_angles_rad = []
     self.clear()
     try: # node may already be initialized by someone using this class
       rospy.init_node('baxterTrajectory')
@@ -48,6 +49,7 @@ class BaxterTrajectory(object):
     point.time_from_start = rospy.Duration(time_from_start_s)
     self._goal.trajectory.points.append(point)
     self._trajectory_duration_s = max(self._trajectory_duration_s, time_from_start_s)
+    self._joint_angles_rad.append(joint_angles_rad)
 
   def start(self):
     self._goal.trajectory.header.stamp = rospy.Time.now()
@@ -79,10 +81,14 @@ class BaxterTrajectory(object):
     joint_angles_rad = self._limb.joint_angles()
     joint_angles_rad = [joint_angles_rad[joint_name] for joint_name in self._goal.trajectory.joint_names]
     self.add_point(joint_angles_rad, 0)
+    self._joint_angles_rad = []
     
   def set_goal_time_tolerance_s(self, goal_time_tolerance_s):
     self._goal_time_tolerance_s = goal_time_tolerance_s
     self._goal.goal_time_tolerance = rospy.Time(self._goal_time_tolerance_s)
+    
+  def get_joint_angles_rad(self, step_index):
+    return self._joint_angles_rad[step_index]
 
 if __name__ == '__main__':
   limb_name = 'right'

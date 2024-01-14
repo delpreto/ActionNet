@@ -44,13 +44,14 @@ training_data_filepath = os.path.join(data_dir, 'scooping_training_data.hdf5')
 training_data_file = h5py.File(training_data_filepath, 'r')
 
 # Get the feature matrices and their labels.
-# Feature_matrices will be NxTx30, where
+# Feature_matrices will be NxTx31, where
 #   N is the number of examples
 #   T is the number of timesteps in each trial
 #   30 is the concatenation of:
-#     xyz position for hand > elbow > shoulder
-#     wijk quaternion for hand > lower arm > upper arm
-#     xzy joint angle for wrist > elbow > shoulder
+#     [9] positions: (xyz hand), (xyz elbow), (xyz shoulder)
+#    [12] orientation quaternions: (wijk hand), (wijk forearm), (wijk upper arm)
+#     [9] joint angles: (xyz wrist), (xyz elbow), (xyz shoulder)
+#     [1] time since trial start for each sample
 feature_matrices = np.squeeze(np.array(training_data_file['feature_matrices']))
 labels = training_data_file['labels']
 labels = [label.decode('utf-8') for label in labels]

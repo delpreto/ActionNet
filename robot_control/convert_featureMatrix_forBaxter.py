@@ -82,11 +82,16 @@ def convert_position_trajectoryHand(xyz_xsens_m):
 
 def convert_position_referenceHand(xyz_xsens_m):
   # The reference object position is at the top of the glass,
-  #  but Baxter's hand should be in the center of the glass.
+  #  but Baxter's hand should be in the center of the glass
+  #  so decrease the z axis by half of the glass height.
+  # Also move the glass back a bit to account for Baxter's
+  #  parallel attachment thickness.
+  #  Note that may also need to account for the gripper itself,
+  #   but then would need to do that on the pitcher hand too.
   xyz_baxter_m = convert_position(xyz_xsens_m)
   return [
-    xyz_baxter_m[0],
-    xyz_baxter_m[1],
+    xyz_baxter_m[0] - (1)/100,
+    xyz_baxter_m[1] + (1)/100,
     xyz_baxter_m[2] - (referenceObject_height_cm/2)/100,
   ]
 

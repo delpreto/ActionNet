@@ -10,6 +10,7 @@ from baxter_core_msgs.srv import (
     SolvePositionIK,
     SolvePositionIKRequest,
 )
+from baxter_core_msgs.msg import EndEffectorCommand
 from geometry_msgs.msg import (
     PoseStamped,
     Pose,
@@ -21,6 +22,7 @@ from std_msgs.msg import Header
 from std_msgs.msg import Int32, UInt16
 
 import struct
+import json
 from time import sleep
 from time import time as curTime
 from collections import OrderedDict
@@ -63,7 +65,18 @@ class BaxterController:
       else:
         raise
     self._baxter = RobotEnable()
-    
+
+    # Create a publisher for the gripper state.
+    try: # node may already be initialized by someone using this class
+      rospy.init_node('gripper_publisher', anonymous=True)
+    except Exception as e:
+      errMessage = str(e)
+      if 'init_node' in errMessage.lower() and 'already been called' in errMessage.lower():
+        pass
+      else:
+        raise
+    self._gripper_publisher = rospy.Publisher('/emg/gripperState', EndEffectorCommand, queue_size=10, latch=True)
+
     # Set up the limb.
     self._joint_names = ['s0', 's1', 'e0', 'e1', 'w0', 'w1', 'w2']
     self._joint_names = ['%s_%s' % (limb_name, joint_name) for joint_name in self._joint_names]
@@ -571,7 +584,29 @@ class BaxterController:
   def move_to_trajectory_start(self, wait_for_completion=True, should_print=None):
     self._print('Moving to the trajectory start point', should_print=should_print)
     self.move_to_joint_angles_rad(self._trajectory.get_joint_angles_rad(step_index=0), wait_for_completion=True)
-  
+
+  ##############################################
+  # Gripper
+  ##############################################
+  """
+  Open or close the gripper.
+  @param 
+  """
+  def control_gripper(self, close_gripper):
+    args = {}
+    args['hands'] = 0 if self._limb_name == 'left' else 1
+    args['fingers'] = 0
+    args['state'] = close_gripper
+    msg = EndEffectorCommand()
+    msg.args = json.dumps(args)
+    self._gripper_publisher.publish(msg)
+
+  def close_gripper(self):
+    self.control_gripper(close_gripper=1)
+
+  def open_gripper(self):
+    self.control_gripper(close_gripper=0)
+
   ##############################################
   # Miscellaneous helper functions
   ##############################################

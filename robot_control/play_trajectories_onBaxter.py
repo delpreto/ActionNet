@@ -33,7 +33,8 @@ trajectory_indexes_toRun = [0] # None to run all
 
 # Specify the reference hand orientation.
 # referenceHand_quaternion_wijk = [-0.5, -0.5, -0.5, -0.5]
-referenceHand_quaternion_wijk = [-0.6123724356957947, -0.6123724356957945, -0.35355339059327384, -0.3535533905932738] # [-0.5, -0.5, -0.5, -0.5] rotated by 30 degrees
+# referenceHand_quaternion_wijk = [-0.6123724356957947, -0.6123724356957945, -0.35355339059327384, -0.3535533905932738] # gripper vertical, forearm rotated out by 30 degrees
+referenceHand_quaternion_wijk = [-0.18301270189221933, -0.6830127018922194, 0.18301270189221922, -0.6830127018922194] # gripper horizontal, forearm rotated out by 30 degrees
 
 # Specify resting joint angles for each arm.
 resting_joint_angles_rad = {
@@ -46,9 +47,11 @@ resting_joint_angles_rad = {
 # Create a Baxter controller.
 controller_right = BaxterController(limb_name='right', print_debug=True)
 controller_right.set_resting_joint_angles_rad(resting_joint_angles_rad['right'])
+controller_right.open_gripper()
 if referenceHandData_filepath is not None:
   controller_left = BaxterController(limb_name='left', print_debug=True)
   controller_left.set_resting_joint_angles_rad(resting_joint_angles_rad['left'])
+  controller_left.open_gripper()
 else:
   controller_left = None
 headController = BaxterHeadController()
@@ -106,12 +109,25 @@ for trajectory_index in range(feature_matrices.shape[0]):
     headController.showColor('black')
     headController.setHaloLED(green_percent=100, red_percent=100)
     # Move to the starting position.
+    if controller_left is not None:
+      controller_left.open_gripper()
+    abort = raw_input('Press enter to move to the starting position or q to quit: ').strip().lower() == 'q'
+    if abort:
+      break
     controller_right.move_to_trajectory_start(wait_for_completion=True)
-    if referenceHand_position_m is not None:
+    if controller_left is not None:
       controller_left.move_to_gripper_pose(gripper_position_m=referenceHand_position_m,
                                            gripper_orientation_quaternion_wijk=referenceHand_quaternion_wijk,
                                            wait_for_completion=True,
                                            seed_joint_angles_rad=controller_left.get_resting_joint_angles_rad())
+      abort = raw_input('Press enter to close the left hand or q to quit: ').strip().lower() == 'q'
+      if abort:
+        break
+      controller_left.close_gripper()
+    # Wait for confirmation.
+    abort = raw_input('Press enter to start the trajectory or q to quit: ').strip().lower() == 'q'
+    if abort:
+      break
     # Start the video animation if one exists.
     animation_video_filepath = get_animation_filepath(trajectory_index)
     if os.path.exists(animation_video_filepath):
@@ -146,8 +162,12 @@ for trajectory_index in range(feature_matrices.shape[0]):
 
 headController.showColor('black')
 headController.setHaloLED(green_percent=0, red_percent=0)
-controller_right.quit()
 headController.quit()
+controller_right.quit()
+if controller_left is not None:
+  controller_left.quit()
+
+
 
   
   

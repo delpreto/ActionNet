@@ -102,6 +102,16 @@ quaternions_wijk = [
 
   # *** Human pour > -180 z >> negate i j > 180 about z > -90 about y > 90 about z > 180 about y > negate i j
   [-0.376, 0.673, -0.123, 0.624],
+  
+  # Testing for the left hand.
+  # [-0.6123724356957947, -0.6123724356957945, -0.35355339059327384, -0.3535533905932738],
+  # [-0.683, -0.183, 0.183, -0.683],
+  # [-0.683, -0.683, 0.183, 0.183],
+  # [-0.5, -0.5, -0.5, -0.5],
+  # [0.612, -0.612, 0.353, -0.353],
+  # [-0.612, -0.612, -0.353, -0.353],
+  # [-0.183, -0.683, 0.183, -0.683], *** gripper horizontal, forearm rotated out 30 degrees
+  # [0, -0.866, 0, -0.5],
   ]
 
 xyz = [
@@ -147,7 +157,7 @@ for i in range(len(quaternions_wijk)):
   print('Moving to xyz %s quaternion %s' % (str(pos), str(quat_wijk)))
   controller.move_to_gripper_pose(gripper_position_m=pos,
                                   gripper_orientation_quaternion_wijk=quat_wijk,
-                                  seed_joint_angles_rad=None,#controller.get_resting_joint_angles_rad(should_print=False),
+                                  seed_joint_angles_rad=controller.get_resting_joint_angles_rad(should_print=False),
                                   wait_for_completion=True)
   print('Waiting')
   time.sleep(3)

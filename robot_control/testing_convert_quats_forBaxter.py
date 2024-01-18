@@ -37,6 +37,13 @@ from scipy.spatial.transform import Rotation
 quat_wijk = [-0.34846608187950395, 0.6646458463561292, 0.267898035291973, 0.6041919656763008] # human start
 # quat_wijk = [-0.775413100771162, 0.22540388321922272, 0.27472229555907957, 0.521972444913735] # human pour
 
+# For hand holding glass:
+# quat_wijk = [-0.5, -0.5, -0.5, -0.5] # glass start (idealized)
+# rotates_by_deg = [
+#     [0, 0, 90],
+#     [0, -30, 0],
+#     ]
+# Then use the result *before* i and j components are negated
 
 rotates_by_deg = [
     [0, 0, -180],

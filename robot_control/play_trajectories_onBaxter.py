@@ -17,7 +17,7 @@ from threading import Thread
 trajectoryData_filepath = 'pouring_training_data_S00_forBaxter.npy'
 referenceHandData_filepath = 'pouring_training_referenceObject_positions_S00_forBaxter.npy'
 def get_animation_filepath(trajectory_index):
-  return os.path.join('trajectory_animations_S00_front',
+  return os.path.join('trajectory_animations_front',
                       'trajectory_animation_S00_trial%02d.mp4' % trajectory_index)
 
 # Specify columns in the data file.

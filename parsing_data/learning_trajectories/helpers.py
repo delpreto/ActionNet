@@ -1,6 +1,6 @@
-
 import numpy as np
 from scipy.spatial.transform import Rotation
+from scipy import stats
 
 import matplotlib
 default_matplotlib_backend = matplotlib.rcParams['backend']
@@ -15,7 +15,9 @@ from utils.numpy_scipy_utils import *
 
 import cv2
 
-#############################################
+##################################################################
+# Configuration
+##################################################################
 
 stationary_position_buffer_length = 15
 stationary_position_minIndex = 10
@@ -43,7 +45,7 @@ animation_view_angle_forBaxter = (30, -179.9)
 animation_view_angle = animation_view_angle_backLeft
 
 # Used to artificially shift distributions for demonstration purposes.
-example_types_to_offset = ['model']
+example_types_to_offset = []#['model']
 if len(example_types_to_offset) > 0:
   print()
   print('*'*50)
@@ -58,8 +60,11 @@ if len(example_types_to_offset) > 0:
   print()
   print()
   
-#############################################
+##################################################################
+# Helpers to parse feature matrices
+##################################################################
 
+# ================================================================
 # Feature_matrices should be Tx30, where
 #   T is the number of timesteps in each trial
 #   30 is the concatenation of:
@@ -86,6 +91,74 @@ def parse_feature_matrix(feature_matrix):
     'time_s': feature_matrix[:, 30]
   }
 
+# ================================================================
+# Get the 3D positions of body segments.
+# Will return a dict with 'hand', 'elbow', and 'shoulder' each of which has xyz positions.
+def get_body_position_m(feature_matrix):
+  parsed_data = parse_feature_matrix(feature_matrix)
+  return parsed_data['position_m']
+
+# ================================================================
+# Get the 3D rotation angles of each joint.
+# Will return a dict with 'hand', 'elbow', and 'shoulder' each of which has xyz rotations.
+def get_body_joint_angles_rad(feature_matrix):
+  parsed_data = parse_feature_matrix(feature_matrix)
+  return parsed_data['joint_angle_rad']
+
+# ================================================================
+# Get the 3D speeds of body segments.
+# Will return a dict with 'hand', 'elbow', and 'shoulder' each of which has a speed vector.
+def get_body_speed_m_s(feature_matrix):
+  positions_m = get_body_position_m(feature_matrix)
+  times_s = feature_matrix[:,-1]
+  dt = np.reshape(np.diff(times_s, axis=0), (-1, 1))
+  speeds_m_s = {}
+  for (body_key, position_m) in positions_m.items():
+    # Infer the speed.
+    dxdydz = np.diff(position_m, axis=0)
+    speed_m_s = np.hstack([np.squeeze([0]), np.linalg.norm(dxdydz, axis=1)/np.squeeze(dt)])
+    speeds_m_s[body_key] = speed_m_s
+  return speeds_m_s
+  
+# ================================================================
+# Get the 3D accelerations of body segments.
+# Will return a dict with 'hand', 'elbow', and 'shoulder' each of which has an acceleration vector.
+def get_body_acceleration_m_s_s(feature_matrix):
+  speeds_m = get_body_speed_m_s(feature_matrix)
+  times_s = feature_matrix[:,-1]
+  dt = np.reshape(np.diff(times_s, axis=0), (-1, 1))
+  accelerations_m_s_s = {}
+  for (body_key, speed_m_s) in speeds_m.items():
+    # Infer the acceleration.
+    dv = np.diff(speed_m_s, axis=0)
+    dt = np.reshape(np.diff(times_s, axis=0), (-1, 1))
+    acceleration_m_s_s = np.hstack([np.squeeze([0]), dv/np.squeeze(dt)])
+    accelerations_m_s_s[body_key] = acceleration_m_s_s
+  return accelerations_m_s_s
+
+# ================================================================
+# Get the 3D jerks of body segments.
+# Will return a dict with 'hand', 'elbow', and 'shoulder' each of which has a jerk vector.
+def get_body_jerk_m_s_s_s(feature_matrix):
+  accelerations_m_s_s = get_body_acceleration_m_s_s(feature_matrix)
+  times_s = feature_matrix[:,-1]
+  dt = np.reshape(np.diff(times_s, axis=0), (-1, 1))
+  jerks_m_s_s_s = {}
+  for (body_key, acceleration_m_s_s) in accelerations_m_s_s.items():
+    # Infer the jerk.
+    da = np.diff(acceleration_m_s_s, axis=0)
+    dt = np.reshape(np.diff(times_s, axis=0), (-1, 1))
+    jerk_m_s_s_s = np.hstack([np.squeeze([0]), da/np.squeeze(dt)])
+    jerks_m_s_s_s[body_key] = jerk_m_s_s_s
+  return jerks_m_s_s_s
+
+##################################################################
+# Helpers for 3D plotting
+##################################################################
+
+# ================================================================
+# Rotate a box in 3D for visualization purposes.
+# If center_preRotation_cm is provided, will translate box to that location before applying the given quaternion.
 def rotate_3d_box(quaternion_localToGlobal_wijk, center_preRotation_cm, box_dimensions_cm):
   # Define vertices of a unit box in the global frame
   corners = np.array([
@@ -126,6 +199,9 @@ def rotate_3d_box(quaternion_localToGlobal_wijk, center_preRotation_cm, box_dime
   
   return (corners, faces)
 
+# ================================================================
+# Plot a 3D box with a given position and orientation.
+# If center_preRotation_cm is provided, will translate box to that location before applying the given quaternion.
 def plot_3d_box(ax, quaternion_localToGlobal_wijk, center_cm, center_preRotation_cm, box_dimensions_cm, color, alpha=0.8): # function created using ChatGPT
   
   # Rotate the box.
@@ -146,11 +222,15 @@ def plot_3d_box(ax, quaternion_localToGlobal_wijk, center_cm, center_preRotation
   ax.add_collection3d(box)
   return box
 
+# ================================================================
+# Plot a box representing the hand pose.
 def plot_hand_box(ax, hand_quaternion_localToGlobal_wijk, hand_center_cm):
   return plot_3d_box(ax, hand_quaternion_localToGlobal_wijk,
                      hand_center_cm, np.array([0, 0, 0]),
                      hand_box_dimensions_cm, hand_box_color)
 
+# ================================================================
+# Plot a box representing the pitcher pose.
 def plot_pitcher_box(ax, hand_quaternion_localToGlobal_wijk, hand_center_cm):
   hand_rotation = Rotation.from_quat(hand_quaternion_localToGlobal_wijk[[1,2,3,0]])
   pitcher_rotation = hand_rotation * hand_to_pitcher_rotation
@@ -159,13 +239,19 @@ def plot_pitcher_box(ax, hand_quaternion_localToGlobal_wijk, hand_center_cm):
                      hand_center_cm, hand_to_pitcher_offset_cm,
                      pitcher_box_dimensions_cm, pitcher_box_color)
 
-
-
+# ================================================================
+# Wait for the user to press a key while a plot window is active.
 def plt_wait_for_keyboard_press(timeout_s=-1.0):
   keyboardClick=False
   while keyboardClick == False:
     keyboardClick = plt.waitforbuttonpress(timeout=timeout_s)
 
+##################################################################
+# Trajectory animation
+##################################################################
+
+# ================================================================
+# Plot the scene for a single timestep.
 def plot_timestep(feature_matrix, times_s, time_index,
                   referenceObject_position_m,
                   subject_id=-1, trial_index=-1,
@@ -318,7 +404,7 @@ def plot_timestep(feature_matrix, times_s, time_index,
     ax.set_box_aspect([ub - lb for lb, ub in (x_lim, y_lim, z_lim)])
     
     # Set the title.
-    ax.set_title('Subject %s Trial %02d\nt=%0.2fs' % (str(subject_id), trial_index, times_s[time_index] - times_s[0]))
+    ax.set_title('%s Trial %02d\nt=%0.2fs' % (str(subject_id), trial_index, times_s[time_index] - times_s[0]))
     
     # Show the plot.
     plt.draw()
@@ -329,7 +415,7 @@ def plot_timestep(feature_matrix, times_s, time_index,
     # Set the aspect ratio
     ax.set_box_aspect([ub - lb for lb, ub in (ax.get_xlim(), ax.get_ylim(), ax.get_zlim())])
     # Set the title.
-    ax.set_title('Subject %s' % (str(subject_id)))
+    ax.set_title('%s' % (str(subject_id)))
     # Show the plot.
     plt.draw()
     # Save the previous handles.
@@ -343,6 +429,8 @@ def plot_timestep(feature_matrix, times_s, time_index,
     
   return previous_handles
 
+# ================================================================
+# Animate a whole trajectory.
 def plot_trajectory(feature_matrix, duration_s, referenceObject_position_m, pause_after_timesteps):
   times_s = np.linspace(start=0, stop=duration_s, num=feature_matrix.shape[0])
   previous_handles = None
@@ -353,11 +441,13 @@ def plot_trajectory(feature_matrix, duration_s, referenceObject_position_m, paus
                                      previous_handles=previous_handles,
                                      pause_after_plotting=pause_after_timesteps)
 
+# ================================================================
+# Animate a whole trajectory, and save it as a video.
 # If feature_matrices, durations_s, and referenceObject_positions_m are dictionaries,
 #  will assume each key is an example type and each value is the data for that type.
 #  Will make a subplot for each example type, so they animate together.
 def save_trajectory_animation(feature_matrices, durations_s, referenceObject_positions_m,
-                              output_filepath, subject_id=-1, trial_index=-1):
+                              output_filepath, subject_id='', trial_index=-1):
   if not isinstance(feature_matrices, dict):
     feature_matrices = {'': feature_matrices}
     durations_s = {'': durations_s}
@@ -389,7 +479,8 @@ def save_trajectory_animation(feature_matrices, durations_s, referenceObject_pos
         time_index = times_s_forExample.searchsorted(time_s)
         previous_handles_byExampleType[example_type] = plot_timestep(feature_matrix,
                                                          time_index=time_index, times_s=times_s_forExample,
-                                                         subject_id='%s (%s)' % (str(subject_id), example_type) if len(example_type.strip()) > 0 else subject_id,
+                                                         subject_id='%s%s' % ((str(example_type) if len(str(example_type).strip()) > 0 else ''),
+                                                                              (str(subject_id) if len(str(subject_id).strip()) > 0 else '')),
                                                          trial_index=trial_index,
                                                          referenceObject_position_m=referenceObject_positions_m[example_type],
                                                          previous_handles=None,
@@ -416,13 +507,21 @@ def save_trajectory_animation(feature_matrices, durations_s, referenceObject_pos
                         )
     video_writer.write(frame_img)
   video_writer.release()
-  
+
+##################################################################
+# Plot time series or summary metrics about the trajectories.
+##################################################################
+
+# ================================================================
+# Plot the pitcher tilt angle over time.
 def plot_pour_tilting(feature_matrices, shade_pouring_region=False,
                       plot_all_trials=True, plot_std_shading=False, plot_mean=False,
                       label=None, subtitle=None,
                       fig=None, hide_figure_window=False, output_filepath=None):
   if output_filepath is not None:
     os.makedirs(os.path.split(output_filepath)[0], exist_ok=True)
+  if not isinstance(feature_matrices, (list, tuple)) and not (isinstance(feature_matrices, np.ndarray) and feature_matrices.ndim == 3):
+    feature_matrices = [feature_matrices]
   if fig is None:
     if hide_figure_window:
       try:
@@ -459,7 +558,7 @@ def plot_pour_tilting(feature_matrices, shade_pouring_region=False,
   
   # Plot shading if desired.
   if plot_std_shading:
-    if label in example_types_to_offset:
+    if label.lower() in example_types_to_offset:
       angles_toXY_rad += np.radians(10)
     x = np.linspace(start=0, stop=angles_toXY_rad.shape[1], num=angles_toXY_rad.shape[1])
     mean = np.mean(angles_toXY_rad, axis=0)
@@ -475,10 +574,14 @@ def plot_pour_tilting(feature_matrices, shade_pouring_region=False,
     
   # Plot the mean if desired.
   if plot_mean:
+    mean_label = None
+    if not plot_std_shading:
+      mean_label = ('%s: Mean' % label) if label is not None else 'Mean'
     ax.plot(np.mean(np.degrees(angles_toXY_rad), axis=0),
             color='k' if plot_all_trials else None, linewidth=3,
-            label=('%s: Mean' % label) if label is not None else 'Mean')
-    ax.legend()
+            label=mean_label)
+    if mean_label is not None:
+      ax.legend()
     
   # Shade the pouring regions if desired.
   if shade_pouring_region:
@@ -490,7 +593,7 @@ def plot_pour_tilting(feature_matrices, shade_pouring_region=False,
   ax.set_xlabel('Time Index')
   ax.set_ylabel('Tilt Angle to XY Plane [deg]')
   ax.grid(True, color='lightgray')
-  plt.title('Tilt angle of the pitcher%s' % (': %s' % subtitle) if subtitle is not None else '')
+  plt.title('Tilt angle of the pitcher%s' % ((': %s' % subtitle) if subtitle is not None else ''))
   
   # Show the plot.
   plt.draw()
@@ -501,12 +604,24 @@ def plot_pour_tilting(feature_matrices, shade_pouring_region=False,
   
   return fig
 
+# ================================================================
+# Plot the spout projection onto the table relative to the glass.
+#   The blue shaded circle represents the glass.
+#   The y-axis is the pouring direction, as inferred from the yaw of the pitcher in each trial.
+#   A point will be plotted at the spout's projection onto the table, relative to the glass.
+#   So the water would pour upward on the plot from the plotted spout position.
 def plot_pour_relativePosition(feature_matrices, referenceObject_positions_m,
                                plot_all_trials=True, plot_std_shading=False, plot_mean=False,
                                subtitle=None, label=None,
                                fig=None, hide_figure_window=False,
                                color=None,
                                output_filepath=None):
+  if output_filepath is not None:
+    os.makedirs(os.path.split(output_filepath)[0], exist_ok=True)
+  if not isinstance(feature_matrices, (list, tuple)) and not (isinstance(feature_matrices, np.ndarray) and feature_matrices.ndim == 3):
+    feature_matrices = [feature_matrices]
+  if isinstance(fig, (list, tuple)):
+    fig = fig[0]
   if fig is None:
     if hide_figure_window:
       try:
@@ -523,13 +638,6 @@ def plot_pour_relativePosition(feature_matrices, referenceObject_positions_m,
     plt.ion()
     fig.add_subplot(1, 1, 1)
     ax = fig.get_axes()[0]
-    # Plot the reference object and the origin.
-    referenceObject_circle = mpatches.Circle(
-        (0, 0),
-        radius=referenceObject_diameter_cm/2, ec=[0.4,1,1], color=[0.8,1,1],
-        linewidth=3, alpha=0.5)
-    ax.add_patch(referenceObject_circle)
-    ax.scatter(0, 0, s=10, c='k')
   else:
     ax = fig.get_axes()[0]
   
@@ -561,11 +669,11 @@ def plot_pour_relativePosition(feature_matrices, referenceObject_positions_m,
   
   # Plot a standard deviation shaded region if desired.
   if plot_std_shading:
-    if label in example_types_to_offset:
+    if label.lower() in example_types_to_offset:
       spout_relativeOffsets_cm += np.array([1, 2])
       
     # Helper function from https://matplotlib.org/stable/gallery/statistics/confidence_ellipse.html
-    def confidence_ellipse(x, y, ax, n_std=3.0, facecolor='none', **kwargs):
+    def confidence_ellipse(x, y, ax, n_std=3.0, facecolor=None, **kwargs):
       """
       Create a plot of the covariance confidence ellipse of *x* and *y*.
   
@@ -619,8 +727,14 @@ def plot_pour_relativePosition(feature_matrices, referenceObject_positions_m,
     
     # Plot the ellipse for the spout positions.
     confidence_ellipse(x=spout_relativeOffsets_cm[:,0], y=spout_relativeOffsets_cm[:,1], ax=ax,
-                       n_std=1.0, facecolor=color, alpha=0.5,
-                       label=('%s: 1 StdDev' % label) if label is not None else '1 StdDev')
+                       n_std=1.0, facecolor='none', alpha=1, edgecolor=color, linewidth=3)
+    confidence_ellipse(x=spout_relativeOffsets_cm[:,0], y=spout_relativeOffsets_cm[:,1], ax=ax,
+                       n_std=2.0, facecolor='none', alpha=0.2, edgecolor=color, linewidth=3,)
+    confidence_ellipse(x=spout_relativeOffsets_cm[:,0], y=spout_relativeOffsets_cm[:,1], ax=ax,
+                       n_std=3.0, facecolor='none', alpha=0.2, edgecolor=color, linewidth=3)
+    confidence_ellipse(x=spout_relativeOffsets_cm[:,0], y=spout_relativeOffsets_cm[:,1], ax=ax,
+                       n_std=3.0, facecolor=color, alpha=0.2,
+                       label=('%s: StdDevs' % label) if label is not None else 'StdDevs')
     ax.legend()
     
   # Plot all trial results if desired.
@@ -631,14 +745,27 @@ def plot_pour_relativePosition(feature_matrices, referenceObject_positions_m,
   # Plot the mean if desired.
   if plot_mean:
     ax.scatter(*np.mean(spout_relativeOffsets_cm, axis=0), c=color, s=40)
-    
+  
+  # Plot the reference object and the origin.
+  referenceObject_circle = mpatches.Circle(
+      (0, 0),
+      radius=referenceObject_diameter_cm/2, ec=None, color=[0.8,1,1],
+      linewidth=3, alpha=0.13)
+  ax.add_patch(referenceObject_circle)
+  referenceObject_circle = mpatches.Circle(
+      (0, 0),
+      radius=referenceObject_diameter_cm/2, ec=[0.4,1,1], facecolor='none',
+      linewidth=3, alpha=1)
+  ax.add_patch(referenceObject_circle)
+  ax.scatter(0, 0, s=10, c='k')
+  
   # Plot formatting.
   ax.set_aspect('equal')
   ax.set_xlabel('Horizontal Relative to Pouring Direction [cm]')
   ax.set_ylabel('Vertical Relative to Pouring Direction [cm]')
   ax.grid(True, color='lightgray')
   ax.set_axisbelow(True)
-  plt.title('Spout projected onto table, along pouring axis%s' % (': %s' % subtitle) if subtitle is not None else '')
+  plt.title('Spout projected onto table, along pouring axis%s' % ((': %s' % subtitle) if subtitle is not None else ''))
   
   # Show the plot.
   plt.draw()
@@ -647,8 +774,10 @@ def plot_pour_relativePosition(feature_matrices, referenceObject_positions_m,
   if output_filepath is not None:
     fig.savefig(output_filepath, dpi=300)
   
-  return fig
+  return (fig, spout_relativeOffsets_cm)
 
+# ================================================================
+# Plot the height of the spout relative to the top of the glass over time.
 def plot_pour_relativeHeight(feature_matrices, referenceObject_positions_m,
                              shade_pouring_region=False,
                              plot_all_trials=True, plot_std_shading=False, plot_mean=False,
@@ -656,6 +785,12 @@ def plot_pour_relativeHeight(feature_matrices, referenceObject_positions_m,
                              fig=None, hide_figure_window=False,
                              color=None,
                              output_filepath=None):
+  if output_filepath is not None:
+    os.makedirs(os.path.split(output_filepath)[0], exist_ok=True)
+  if not isinstance(feature_matrices, (list, tuple)) and not (isinstance(feature_matrices, np.ndarray) and feature_matrices.ndim == 3):
+    feature_matrices = [feature_matrices]
+  if not isinstance(referenceObject_positions_m, (list, tuple)) and not (isinstance(referenceObject_positions_m, np.ndarray) and referenceObject_positions_m.ndim == 2 and referenceObject_positions_m.shape[0] == len(feature_matrices)):
+    referenceObject_positions_m = [referenceObject_positions_m]
   if fig is None:
     if hide_figure_window:
       try:
@@ -698,7 +833,7 @@ def plot_pour_relativeHeight(feature_matrices, referenceObject_positions_m,
   
   # Plot shading if desired.
   if plot_std_shading:
-    if label in example_types_to_offset:
+    if label.lower() in example_types_to_offset:
       spout_heights_cm += 2
     x = np.linspace(start=0, stop=spout_heights_cm.shape[1], num=spout_heights_cm.shape[1])
     mean = np.mean(spout_heights_cm, axis=0)
@@ -714,10 +849,14 @@ def plot_pour_relativeHeight(feature_matrices, referenceObject_positions_m,
     
   # Plot the mean if desired.
   if plot_mean:
+    mean_label = None
+    if not plot_std_shading:
+      mean_label = ('%s: Mean' % label) if label is not None else 'Mean'
     ax.plot(np.mean(spout_heights_cm, axis=0),
             color='k' if plot_all_trials else None, linewidth=3,
-            label=('%s: Mean' % label) if label is not None else 'Mean')
-    ax.legend()
+            label=mean_label)
+    if mean_label is not None:
+      ax.legend()
     
   # Shade the pouring regions if desired.
   if shade_pouring_region:
@@ -733,7 +872,7 @@ def plot_pour_relativeHeight(feature_matrices, referenceObject_positions_m,
   ax.set_xlabel('Time Index')
   ax.set_ylabel('Spout Height Above Glass [cm]')
   ax.grid(True, color='lightgray')
-  plt.title('Spout height relative to glass%s' % (': %s' % subtitle) if subtitle is not None else '')
+  plt.title('Spout height relative to glass%s' % ((': %s' % subtitle) if subtitle is not None else ''))
   
   # Show the plot.
   plt.draw()
@@ -744,8 +883,19 @@ def plot_pour_relativeHeight(feature_matrices, referenceObject_positions_m,
   
   return fig
 
-def plot_spout_dynamics(feature_matrix, shade_pouring_region=False,
-                         fig=None, hide_figure_window=False, output_filepath=None):
+# ================================================================
+# Plot the speed and jerk of the spout over time.
+def plot_spout_dynamics(feature_matrices,
+                        plot_all_trials=True, plot_mean=False, plot_std_shading=False,
+                        subtitle=None, label=None,
+                        output_filepath=None,
+                        shade_pouring_region=False,
+                        fig=None, hide_figure_window=False):
+    
+  if output_filepath is not None:
+    os.makedirs(os.path.split(output_filepath)[0], exist_ok=True)
+  if not isinstance(feature_matrices, (list, tuple)) and not (isinstance(feature_matrices, np.ndarray) and feature_matrices.ndim == 3):
+    feature_matrices = [feature_matrices]
   if fig is None:
     if hide_figure_window:
       try:
@@ -754,46 +904,92 @@ def plot_spout_dynamics(feature_matrix, shade_pouring_region=False,
         pass
     else:
       matplotlib.use(default_matplotlib_backend)
-    fig = plt.figure()
+    fig, axs = plt.subplots(nrows=2, ncols=1,
+                               squeeze=False, # if False, always return 2D array of axes
+                               sharex=True, sharey=False,
+                               subplot_kw={'frame_on': True},
+                               )
     if not hide_figure_window:
       figManager = plt.get_current_fig_manager()
       figManager.window.showMaximized()
       plt_wait_for_keyboard_press(0.5)
     plt.ion()
-    fig.add_subplot(2, 1, 1)
-    fig.add_subplot(2, 1, 2)
+  else:
+    (fig, axs) = fig
   
   # Get the spout dynamics for each timestep.
-  spout_speed_m_s = infer_spout_speed_m_s(feature_matrix)
-  spout_jerk_m_s_s_s = infer_spout_jerk_m_s_s_s(feature_matrix)
+  speeds_m_s = [None]*len(feature_matrices)
+  jerks_m_s_s_s = [None]*len(feature_matrices)
+  for trial_index, feature_matrix in enumerate(feature_matrices):
+    speeds_m_s[trial_index] = infer_spout_speed_m_s(feature_matrix)
+    jerks_m_s_s_s[trial_index] = infer_spout_jerk_m_s_s_s(feature_matrix)
   
   # Get the pouring times.
   if shade_pouring_region:
-    pouring_inference = infer_pour_pose(feature_matrix)
-    pour_start_index = pouring_inference['start_time_index']
-    pour_end_index = pouring_inference['end_time_index']
+    pour_start_indexes = np.zeros((len(feature_matrices), 1))
+    pour_end_indexes = np.zeros((len(feature_matrices), 1))
+    for trial_index, feature_matrix in enumerate(feature_matrices):
+      pouring_inference = infer_pour_pose(feature_matrix)
+      pour_start_indexes[trial_index] = pouring_inference['start_time_index']
+      pour_end_indexes[trial_index] = pouring_inference['end_time_index']
   
   # Plot.
-  ax = fig.get_axes()[0]
-  ax.plot(spout_speed_m_s)
+  ax_speed = axs[0][0]
+  ax_jerk = axs[1][0]
+  speeds_m_s_toPlot = np.array(speeds_m_s)
+  jerks_m_s_s_s_toPlot = np.array(jerks_m_s_s_s)
+  x = np.linspace(start=0, stop=speeds_m_s_toPlot.shape[1], num=speeds_m_s_toPlot.shape[1])
+  # Plot shading if desired.
+  if plot_std_shading:
+    # Shading for speed
+    mean = np.mean(speeds_m_s_toPlot, axis=0)
+    std = np.std(speeds_m_s_toPlot, axis=0)
+    ax_speed.fill_between(x, mean-std, mean+std, alpha=0.4,
+                          label=('%s: 1 StdDev' % label) if label is not None else '1 StdDev')
+    ax_speed.legend()
+    # Shading for jerk
+    mean = np.mean(jerks_m_s_s_s_toPlot, axis=0)
+    std = np.std(jerks_m_s_s_s_toPlot, axis=0)
+    ax_jerk.fill_between(x, mean-std, mean+std, alpha=0.4,
+                         label=('%s: 1 StdDev' % label) if label is not None else '1 StdDev')
+    ax_jerk.legend()
+  # Plot all traces if desired.
+  if plot_all_trials:
+    for trial_index in range(len(feature_matrices)):
+      ax_speed.plot(speeds_m_s_toPlot[trial_index, :], linewidth=1)
+      ax_jerk.plot(jerks_m_s_s_s_toPlot[trial_index, :], linewidth=1)
+  # Plot the mean if desired.
+  if plot_mean:
+    mean_label = None
+    if not plot_std_shading:
+      mean_label=('%s: Mean' % label) if label is not None else 'Mean'
+    ax_speed.plot(np.mean(speeds_m_s_toPlot, axis=0),
+                  color='k' if plot_all_trials else None, linewidth=3,
+                  label=mean_label)
+    if mean_label is not None:
+      ax_speed.legend()
+    mean_label = None
+    if not plot_std_shading:
+      mean_label=('%s: Mean' % label) if label is not None else 'Mean'
+    ax_jerk.plot(np.mean(jerks_m_s_s_s_toPlot, axis=0),
+                  color='k' if plot_all_trials else None, linewidth=3,
+                  label=mean_label)
+    if mean_label is not None:
+      ax_jerk.legend()
+  # Shade the pouring regions if desired.
   if shade_pouring_region:
-    ax.axvspan(pour_start_index, pour_end_index, alpha=0.5, color='gray')
-  ax = fig.get_axes()[1]
-  ax.plot(spout_jerk_m_s_s_s)
-  if shade_pouring_region:
-    ax.axvspan(pour_start_index, pour_end_index, alpha=0.5, color='gray')
+    for trial_index in range(len(feature_matrices)):
+      ax_speed.axvspan(pour_start_indexes[trial_index], pour_end_indexes[trial_index], alpha=0.5, color='gray')
+      ax_jerk.axvspan(pour_start_indexes[trial_index], pour_end_indexes[trial_index], alpha=0.5, color='gray')
   
   # Plot formatting.
-  ax = fig.get_axes()[0]
-  # ax.set_xlabel('Time Index')
-  ax.set_ylabel('Spout Speed [m/s]')
-  ax.grid(True, color='lightgray')
-  ax.title.set_text('Speed of spout position')
-  ax = fig.get_axes()[1]
-  ax.set_xlabel('Time Index')
-  ax.set_ylabel('Spout Jerk [m/s/s/s]')
-  ax.grid(True, color='lightgray')
-  ax.title.set_text('Jerk of spout position')
+  ax_speed.set_ylabel('Speed [m/s]')
+  ax_jerk.set_ylabel('Jerk [m/s/s/s]')
+  ax_speed.grid(True, color='lightgray')
+  ax_jerk.grid(True, color='lightgray')
+  ax_speed.title.set_text('Spout Speed%s' % ((': %s' % subtitle) if subtitle is not None else ''))
+  ax_jerk.title.set_text('Spout Jerk%s' % ((': %s' % subtitle) if subtitle is not None else ''))
+  ax_jerk.set_xlabel('Time Index')
   
   # Show the plot.
   plt.draw()
@@ -802,13 +998,21 @@ def plot_spout_dynamics(feature_matrix, shade_pouring_region=False,
   if output_filepath is not None:
     fig.savefig(output_filepath, dpi=300)
 
-  return fig
+  return (fig, axs)
 
-
-def plot_body_dynamics(feature_matrix, shade_pouring_region=False,
-                       fig=None, hide_figure_window=False, output_filepath=None):
+# ================================================================
+# Plot the speed and jerk of the hand, elbow, and shoulder over time.
+def plot_body_dynamics(feature_matrices,
+                        plot_all_trials=True, plot_mean=False, plot_std_shading=False,
+                        subtitle=None, label=None,
+                        output_filepath=None,
+                        shade_pouring_region=False,
+                        fig=None, hide_figure_window=False):
+    
   if output_filepath is not None:
     os.makedirs(os.path.split(output_filepath)[0], exist_ok=True)
+  if not isinstance(feature_matrices, (list, tuple)) and not (isinstance(feature_matrices, np.ndarray) and feature_matrices.ndim == 3):
+    feature_matrices = [feature_matrices]
   if fig is None:
     if hide_figure_window:
       try:
@@ -831,39 +1035,191 @@ def plot_body_dynamics(feature_matrix, shade_pouring_region=False,
     (fig, axs) = fig
   
   # Get the body dynamics for each timestep.
-  speeds_m_s = get_body_speed_m_s(feature_matrix)
-  jerks_m_s_s_s = get_body_jerk_m_s_s_s(feature_matrix)
+  speeds_m_s = [None]*len(feature_matrices)
+  jerks_m_s_s_s = [None]*len(feature_matrices)
+  for trial_index, feature_matrix in enumerate(feature_matrices):
+    speeds_m_s[trial_index] = get_body_speed_m_s(feature_matrix)
+    jerks_m_s_s_s[trial_index] = get_body_jerk_m_s_s_s(feature_matrix)
   
   # Get the pouring times.
   if shade_pouring_region:
-    pouring_inference = infer_pour_pose(feature_matrix)
-    pour_start_index = pouring_inference['start_time_index']
-    pour_end_index = pouring_inference['end_time_index']
+    pour_start_indexes = np.zeros((len(feature_matrices), 1))
+    pour_end_indexes = np.zeros((len(feature_matrices), 1))
+    for trial_index, feature_matrix in enumerate(feature_matrices):
+      pouring_inference = infer_pour_pose(feature_matrix)
+      pour_start_indexes[trial_index] = pouring_inference['start_time_index']
+      pour_end_indexes[trial_index] = pouring_inference['end_time_index']
   
   # Plot.
-  for (body_index, body_key) in enumerate(list(speeds_m_s.keys())):
-    ax = axs[0][body_index]
-    ax.plot(speeds_m_s[body_key])
+  for (body_index, body_key) in enumerate(list(speeds_m_s[0].keys())):
+    ax_speed = axs[0][body_index]
+    ax_jerk = axs[1][body_index]
+    speeds_m_s_toPlot = np.array([speed_m_s[body_key] for speed_m_s in speeds_m_s])
+    jerks_m_s_s_s_toPlot = np.array([jerk_m_s_s_s[body_key] for jerk_m_s_s_s in jerks_m_s_s_s])
+    x = np.linspace(start=0, stop=speeds_m_s_toPlot.shape[1], num=speeds_m_s_toPlot.shape[1])
+    # Plot shading if desired.
+    if plot_std_shading:
+      # Shading for speed
+      mean = np.mean(speeds_m_s_toPlot, axis=0)
+      std = np.std(speeds_m_s_toPlot, axis=0)
+      ax_speed.fill_between(x, mean-std, mean+std, alpha=0.4,
+                            label=('%s: 1 StdDev' % label) if label is not None else '1 StdDev')
+      if body_index == len(speeds_m_s[0].keys())-1:
+        ax_speed.legend()
+      # Shading for jerk
+      mean = np.mean(jerks_m_s_s_s_toPlot, axis=0)
+      std = np.std(jerks_m_s_s_s_toPlot, axis=0)
+      ax_jerk.fill_between(x, mean-std, mean+std, alpha=0.4,
+                           label=('%s: 1 StdDev' % label) if label is not None else '1 StdDev')
+      if body_index == len(speeds_m_s[0].keys())-1:
+        ax_jerk.legend()
+    
+    # Plot all traces if desired.
+    if plot_all_trials:
+      for trial_index in range(len(feature_matrices)):
+        ax_speed.plot(speeds_m_s_toPlot[trial_index, :], linewidth=1)
+        ax_jerk.plot(jerks_m_s_s_s_toPlot[trial_index, :], linewidth=1)
+    
+    # Plot the mean if desired.
+    if plot_mean:
+      # Mean for speed
+      mean_label = None
+      if (body_index == len(speeds_m_s[0].keys())-1) and (not plot_std_shading):
+        mean_label = ('%s: Mean' % label) if label is not None else 'Mean'
+      ax_speed.plot(np.mean(speeds_m_s_toPlot, axis=0),
+                    color='k' if plot_all_trials else None, linewidth=3,
+                    label=mean_label)
+      if mean_label is not None:
+        ax_speed.legend()
+      # Mean for jerk
+      mean_label = None
+      if (body_index == len(speeds_m_s[0].keys())-1) and (not plot_std_shading):
+        mean_label = ('%s: Mean' % label) if label is not None else 'Mean'
+      ax_jerk.plot(np.mean(jerks_m_s_s_s_toPlot, axis=0),
+                    color='k' if plot_all_trials else None, linewidth=3,
+                    label=mean_label)
+      if mean_label is not None:
+        ax_jerk.legend()
+    
+    # Shade the pouring regions if desired.
     if shade_pouring_region:
-      ax.axvspan(pour_start_index, pour_end_index, alpha=0.5, color='gray')
-    ax = axs[1][body_index]
-    ax.plot(jerks_m_s_s_s[body_key])
-    if shade_pouring_region:
-      ax.axvspan(pour_start_index, pour_end_index, alpha=0.5, color='gray')
-  
+      for trial_index in range(len(feature_matrices)):
+        ax_speed.axvspan(pour_start_indexes[trial_index], pour_end_indexes[trial_index], alpha=0.5, color='gray')
+        ax_jerk.axvspan(pour_start_indexes[trial_index], pour_end_indexes[trial_index], alpha=0.5, color='gray')
+    
     # Plot formatting.
-    ax = axs[0][body_index]
-    # ax.set_xlabel('Time Index')
     if body_index == 0:
-      ax.set_ylabel('Speed [m/s]')
-    ax.grid(True, color='lightgray')
-    ax.title.set_text('%s Speed' % body_key)
-    ax = axs[1][body_index]
-    ax.set_xlabel('Time Index')
-    if body_index == 0:
-      ax.set_ylabel('Jerk [m/s/s/s]')
-    ax.grid(True, color='lightgray')
-    ax.title.set_text('%s Jerk' % body_key)
+      ax_speed.set_ylabel('Speed [m/s]')
+      ax_jerk.set_ylabel('Jerk [m/s/s/s]')
+    ax_speed.grid(True, color='lightgray')
+    ax_jerk.grid(True, color='lightgray')
+    ax_speed.title.set_text('%s Speed%s' % (body_key.title(), ': %s' % subtitle if subtitle is not None else ''))
+    ax_jerk.title.set_text('%s Jerk%s' % (body_key.title(), ': %s' % subtitle if subtitle is not None else ''))
+    ax_jerk.set_xlabel('Time Index')
+  
+  # Show the plot.
+  plt.draw()
+  
+  # Save the plot if desired.
+  if output_filepath is not None:
+    fig.savefig(output_filepath, dpi=300)
+
+  return (fig, axs)
+
+# ================================================================
+# Plot the joint angles of the hand, elbow, and shoulder over time.
+def plot_body_joint_angles(feature_matrices,
+                            plot_all_trials=True, plot_mean=False, plot_std_shading=False,
+                            subtitle=None, label=None,
+                            output_filepath=None,
+                            shade_pouring_region=False,
+                            fig=None, hide_figure_window=False):
+    
+  if output_filepath is not None:
+    os.makedirs(os.path.split(output_filepath)[0], exist_ok=True)
+  if not isinstance(feature_matrices, (list, tuple)) and not (isinstance(feature_matrices, np.ndarray) and feature_matrices.ndim == 3):
+    feature_matrices = [feature_matrices]
+  if fig is None:
+    if hide_figure_window:
+      try:
+        matplotlib.use('Agg')
+      except:
+        pass
+    else:
+      matplotlib.use(default_matplotlib_backend)
+    fig, axs = plt.subplots(nrows=3, ncols=3,
+                               squeeze=False, # if False, always return 2D array of axes
+                               sharex=True, sharey=False,
+                               subplot_kw={'frame_on': True},
+                               )
+    if not hide_figure_window:
+      figManager = plt.get_current_fig_manager()
+      figManager.window.showMaximized()
+      plt_wait_for_keyboard_press(0.5)
+    plt.ion()
+  else:
+    (fig, axs) = fig
+  
+  # Get the body dynamics for each timestep.
+  joint_angles_rad = [None]*len(feature_matrices)
+  for trial_index, feature_matrix in enumerate(feature_matrices):
+    joint_angles_rad[trial_index] = get_body_joint_angles_rad(feature_matrix)
+  
+  # Get the pouring times.
+  if shade_pouring_region:
+    pour_start_indexes = np.zeros((len(feature_matrices), 1))
+    pour_end_indexes = np.zeros((len(feature_matrices), 1))
+    for trial_index, feature_matrix in enumerate(feature_matrices):
+      pouring_inference = infer_pour_pose(feature_matrix)
+      pour_start_indexes[trial_index] = pouring_inference['start_time_index']
+      pour_end_indexes[trial_index] = pouring_inference['end_time_index']
+  
+  # Plot.
+  for (body_index, body_key) in enumerate(list(joint_angles_rad[0].keys())):
+    for joint_axis_index, joint_axis in enumerate(['x', 'y', 'z']):
+      ax_joint_angles = axs[joint_axis_index][body_index]
+      joint_angles_deg_toPlot = np.degrees(np.array([joint_angle_rad[body_key] for joint_angle_rad in joint_angles_rad]))
+      x = np.linspace(start=0, stop=joint_angles_deg_toPlot.shape[1], num=joint_angles_deg_toPlot.shape[1])
+      # Take the desired angle for each joint.
+      joint_angles_deg_toPlot = np.squeeze(joint_angles_deg_toPlot[:, :, joint_axis_index])
+      
+      # Plot shading if desired.
+      if plot_std_shading:
+        mean = np.mean(joint_angles_deg_toPlot, axis=0)
+        std = np.std(joint_angles_deg_toPlot, axis=0)
+        ax_joint_angles.fill_between(x, mean-std, mean+std, alpha=0.4,
+                                      label=('%s: 1 StdDev' % label) if label is not None else '1 StdDev')
+        if body_index == len(joint_angles_rad[0].keys())-1:
+          ax_joint_angles.legend()
+      
+      # Plot all traces if desired.
+      if plot_all_trials:
+        for trial_index in range(len(feature_matrices)):
+          ax_joint_angles.plot(joint_angles_deg_toPlot[trial_index, :], linewidth=1)
+      
+      # Plot the mean if desired.
+      if plot_mean:
+        mean_label = None
+        if body_index == len(joint_angles_rad[0].keys())-1 and not plot_std_shading:
+          mean_label=('%s: Mean' % label) if label is not None else 'Mean'
+        ax_joint_angles.plot(np.mean(joint_angles_deg_toPlot, axis=0),
+                              color='k' if plot_all_trials else None, linewidth=3,
+                              label=mean_label)
+        if mean_label is not None:
+          ax_joint_angles.legend()
+      
+      # Shade the pouring regions if desired.
+      if shade_pouring_region:
+        for trial_index in range(len(feature_matrices)):
+          ax_joint_angles.axvspan(pour_start_indexes[trial_index], pour_end_indexes[trial_index], alpha=0.5, color='gray')
+      
+      # Plot formatting.
+      if body_index == 0:
+        ax_joint_angles.set_ylabel('Joint Angle [deg]')
+      ax_joint_angles.grid(True, color='lightgray')
+      ax_joint_angles.title.set_text('%s %s Angle%s' % (body_key.title(), joint_axis, ': %s' % subtitle if subtitle is not None else ''))
+      if joint_axis_index == len(joint_angles_rad[0].keys())-1:
+        ax_joint_angles.set_xlabel('Time Index')
   
   # Show the plot.
   plt.draw()
@@ -876,14 +1232,793 @@ def plot_body_dynamics(feature_matrix, shade_pouring_region=False,
 
 
 
+##################################################################
+# Plot and compare distributions of trajectory metrics.
+##################################################################
 
-def infer_pour_position(feature_matrix):
-  pass
+# ================================================================
+# Plot and compare distributions of the spout speed and jerk.
+# feature_matrices_allTypes is a dictionary mapping distribution category to matrices for each trial.
+# If region is provided, will only consider timesteps during that region for each trial.
+#   Can be 'pre_pouring', 'pouring', 'post_pouring', or None for all.
+def plot_compare_distributions_spout_dynamics(feature_matrices_allTypes,
+                        subtitle=None,
+                        output_filepath=None,
+                        region=None, # 'pre_pouring', 'pouring', 'post_pouring', None for all
+                        print_comparison_results=True,
+                        plot_distributions=True,
+                        num_histogram_bins=100, histogram_range_quantiles=(0,1),
+                        fig=None, hide_figure_window=False):
+    
+  if output_filepath is not None:
+    os.makedirs(os.path.split(output_filepath)[0], exist_ok=True)
+  if plot_distributions:
+    if fig is None:
+      if hide_figure_window:
+        try:
+          matplotlib.use('Agg')
+        except:
+          pass
+      else:
+        matplotlib.use(default_matplotlib_backend)
+      fig, axs = plt.subplots(nrows=2, ncols=1,
+                                 squeeze=False, # if False, always return 2D array of axes
+                                 sharex=False, sharey=False,
+                                 subplot_kw={'frame_on': True},
+                                 )
+      if not hide_figure_window:
+        figManager = plt.get_current_fig_manager()
+        figManager.window.showMaximized()
+        plt_wait_for_keyboard_press(0.5)
+      plt.ion()
+    else:
+      (fig, axs) = fig
+  
+  # Initialize results/outputs.
+  example_types = list(feature_matrices_allTypes.keys())
+  distributions_speed_m_s = dict.fromkeys(example_types, None)
+  distributions_jerk_m_s_s_s = dict.fromkeys(example_types, None)
+  results_speed_m_s = dict([(example_type, dict.fromkeys(example_types, None)) for example_type in example_types])
+  results_jerk_m_s_s_s = dict([(example_type, dict.fromkeys(example_types, None)) for example_type in example_types])
+  
+  # Process each example type (each distribution category).
+  for (example_type, feature_matrices) in feature_matrices_allTypes.items():
+    # Get the spout dynamics for each timestep.
+    speeds_m_s = [None]*len(feature_matrices)
+    jerks_m_s_s_s = [None]*len(feature_matrices)
+    for trial_index, feature_matrix in enumerate(feature_matrices):
+      speeds_m_s[trial_index] = infer_spout_speed_m_s(feature_matrix)
+      jerks_m_s_s_s[trial_index] = infer_spout_jerk_m_s_s_s(feature_matrix)
+  
+    # If desired, only extract a certain window of time relative to the inferred pouring time.
+    for trial_index, feature_matrix in enumerate(feature_matrices):
+      pouring_inference = infer_pour_pose(feature_matrix)
+      pour_start_index = pouring_inference['start_time_index']
+      pour_end_index = pouring_inference['end_time_index']
+      if region == 'pouring':
+        speeds_m_s[trial_index] = speeds_m_s[trial_index][pour_start_index:pour_end_index]
+        jerks_m_s_s_s[trial_index] = jerks_m_s_s_s[trial_index][pour_start_index:pour_end_index]
+      if region == 'pre_pouring':
+        speeds_m_s[trial_index] = speeds_m_s[trial_index][0:pour_start_index]
+        jerks_m_s_s_s[trial_index] = jerks_m_s_s_s[trial_index][0:pour_start_index]
+      if region == 'post_pouring':
+        speeds_m_s[trial_index] = speeds_m_s[trial_index][pour_end_index:-1]
+        jerks_m_s_s_s[trial_index] = jerks_m_s_s_s[trial_index][pour_end_index:-1]
+    
+    # Store results.
+    distributions_speed_m_s[example_type] = np.abs(np.stack(np.concatenate(speeds_m_s)))
+    distributions_jerk_m_s_s_s[example_type] = np.abs(np.stack(np.concatenate(jerks_m_s_s_s)))
+  
+  # Statistical tests to compare the distributions.
+  for example_type_1 in example_types:
+    for example_type_2 in example_types:
+      speeds_m_s_1 = distributions_speed_m_s[example_type_1]
+      speeds_m_s_2 = distributions_speed_m_s[example_type_2]
+      jerks_m_s_s_s_1 = distributions_jerk_m_s_s_s[example_type_1]
+      jerks_m_s_s_s_2 = distributions_jerk_m_s_s_s[example_type_2]
+      results_speed_m_s[example_type_1][example_type_2] = \
+        stats.kstest(speeds_m_s_1, speeds_m_s_2,
+                     alternative='two-sided', # 'two-sided', 'less', 'greater'
+                     method='auto', # ‘auto’, ‘exact’, ‘approx’, ‘asymp’
+                     )
+      results_jerk_m_s_s_s[example_type_1][example_type_2] = \
+        stats.kstest(jerks_m_s_s_s_1, jerks_m_s_s_s_2,
+                     alternative='two-sided', # 'two-sided', 'less', 'greater'
+                     method='auto', # ‘auto’, ‘exact’, ‘approx’, ‘asymp’
+                     )
+  
+  # Plot distributions.
+  if plot_distributions:
+    ax_speed = axs[0][0]
+    ax_jerk = axs[1][0]
+    for example_type in example_types:
+      speeds_m_s = distributions_speed_m_s[example_type]
+      jerks_m_s_s_s = distributions_jerk_m_s_s_s[example_type]
+      ax_speed.hist(speeds_m_s, bins=num_histogram_bins,
+                    histtype='stepfilled', # 'bar', 'barstacked', 'step', 'stepfilled'
+                    log=False, density=True,
+                    range=(np.quantile(speeds_m_s, histogram_range_quantiles[0]), np.quantile(speeds_m_s, histogram_range_quantiles[1])),
+                    alpha=0.5, label=example_type.title())
+      ax_jerk.hist(jerks_m_s_s_s, bins=num_histogram_bins,
+                   histtype='stepfilled', # 'bar', 'barstacked', 'step', 'stepfilled'
+                   log=False, density=True,
+                   range=(np.quantile(jerks_m_s_s_s, histogram_range_quantiles[0]), np.quantile(jerks_m_s_s_s, histogram_range_quantiles[1])),
+                   alpha=0.5, label=example_type.title())
+    
+    # Plot formatting.
+    # ax_speed.set_xlabel('Speed [m/s]')
+    # ax_jerk.set_xlabel('Jerk [m/s/s/s]')
+    ax_speed.set_ylabel('Density')
+    ax_jerk.set_ylabel('Density')
+    ax_speed.grid(True, color='lightgray')
+    ax_jerk.grid(True, color='lightgray')
+    speed_title_str = 'Spout Speed [m/s]%s' % ((': %s' % subtitle) if subtitle is not None else '')
+    jerk_title_str = 'Spout Jerk [m/s/s/s]%s' % ((': %s' % subtitle) if subtitle is not None else '')
+    if len(example_types) == 2:
+      stats_results = results_speed_m_s[example_types[0]][example_types[1]]
+      p = stats_results.pvalue
+      speed_title_str += ' | Distributions are different? %s (p = %0.4f)' % ('yes' if p < 0.05 else 'no', p)
+      stats_results = results_jerk_m_s_s_s[example_types[0]][example_types[1]]
+      p = stats_results.pvalue
+      jerk_title_str += ' | Distributions are different? %s (p = %0.4f)' % ('yes' if p < 0.05 else 'no', p)
+    ax_speed.set_title(speed_title_str)
+    ax_jerk.title.set_text(jerk_title_str)
+    ax_speed.legend()
+    ax_jerk.legend()
+    if region is not None:
+      fig.suptitle('During %s' % region.replace('_', '-').title())
+    
+    # Show the plot.
+    plt.draw()
+    
+    # Save the plot if desired.
+    if output_filepath is not None:
+      fig.savefig(output_filepath, dpi=300)
 
+  # Print statistical test results.
+  if print_comparison_results:
+    print(' Statistical comparison results for spout speed:')
+    for example_type_1 in example_types:
+      for example_type_2 in example_types:
+        print('  Comparing [%s] to [%s]: ' % (example_type_1, example_type_2), end='')
+        results = results_speed_m_s[example_type_1][example_type_2]
+        p = results.pvalue
+        print('Different? %s (p = %0.4f)' % ('yes' if p < 0.05 else 'no', p))
+    print(' Statistical comparison results for spout jerk:')
+    for example_type_1 in example_types:
+      for example_type_2 in example_types:
+        print('  Comparing [%s] to [%s]: ' % (example_type_1, example_type_2), end='')
+        results = results_jerk_m_s_s_s[example_type_1][example_type_2]
+        p = results.pvalue
+        print('Different? %s (p = %0.4f)' % ('yes' if p < 0.05 else 'no', p))
+  
+  return (fig, axs)
+
+# ================================================================
+# Plot and compare distributions of the hand, elbow, and shoulder speed and jerk.
+# feature_matrices_allTypes is a dictionary mapping distribution category to matrices for each trial.
+# If region is provided, will only consider timesteps during that region for each trial.
+#   Can be 'pre_pouring', 'pouring', 'post_pouring', or None for all.
+def plot_compare_distributions_body_dynamics(feature_matrices_allTypes,
+                        subtitle=None,
+                        output_filepath=None,
+                        region=None, # 'pre_pouring', 'pouring', 'post_pouring', None for all
+                        print_comparison_results=True,
+                        plot_distributions=True,
+                        num_histogram_bins=100, histogram_range_quantiles=(0,1),
+                        fig=None, hide_figure_window=False):
+    
+  if output_filepath is not None:
+    os.makedirs(os.path.split(output_filepath)[0], exist_ok=True)
+  if plot_distributions:
+    if fig is None:
+      if hide_figure_window:
+        try:
+          matplotlib.use('Agg')
+        except:
+          pass
+      else:
+        matplotlib.use(default_matplotlib_backend)
+      fig, axs = plt.subplots(nrows=2, ncols=3,
+                                 squeeze=False, # if False, always return 2D array of axes
+                                 sharex=False, sharey=False,
+                                 subplot_kw={'frame_on': True},
+                                 )
+      if not hide_figure_window:
+        figManager = plt.get_current_fig_manager()
+        figManager.window.showMaximized()
+        plt_wait_for_keyboard_press(0.5)
+      plt.ion()
+    else:
+      (fig, axs) = fig
+  
+  # Initialize results/outputs.
+  example_types = list(feature_matrices_allTypes.keys())
+  distributions_speed_m_s = dict([(key, {}) for key in example_types])
+  distributions_jerk_m_s_s_s = dict([(key, {}) for key in example_types])
+  results_speed_m_s = dict([(example_type, dict([(key, {}) for key in example_types])) for example_type in example_types])
+  results_jerk_m_s_s_s = dict([(example_type, dict([(key, {}) for key in example_types])) for example_type in example_types])
+  
+  # Process each example type (each distribution category).
+  for (example_type, feature_matrices) in feature_matrices_allTypes.items():
+    # Get the body dynamics for each timestep.
+    speeds_m_s = [None]*len(feature_matrices)
+    jerks_m_s_s_s = [None]*len(feature_matrices)
+    for trial_index, feature_matrix in enumerate(feature_matrices):
+      speeds_m_s[trial_index] = get_body_speed_m_s(feature_matrix)
+      jerks_m_s_s_s[trial_index] = get_body_jerk_m_s_s_s(feature_matrix)
+      body_keys = list(speeds_m_s[trial_index].keys())
+  
+    # If desired, only extract a certain window of time relative to the inferred pouring time.
+    for trial_index, feature_matrix in enumerate(feature_matrices):
+      pouring_inference = infer_pour_pose(feature_matrix)
+      pour_start_index = pouring_inference['start_time_index']
+      pour_end_index = pouring_inference['end_time_index']
+      if region == 'pouring':
+        speeds_m_s[trial_index] = dict([(body_key, speeds_m_s[trial_index][body_key][pour_start_index:pour_end_index]) for body_key in body_keys])
+        jerks_m_s_s_s[trial_index] = dict([(body_key, jerks_m_s_s_s[trial_index][body_key][pour_start_index:pour_end_index]) for body_key in body_keys])
+      if region == 'pre_pouring':
+        speeds_m_s[trial_index] = dict([(body_key, speeds_m_s[trial_index][body_key][0:pour_start_index]) for body_key in body_keys])
+        jerks_m_s_s_s[trial_index] = dict([(body_key, jerks_m_s_s_s[trial_index][body_key][0:pour_start_index]) for body_key in body_keys])
+      if region == 'post_pouring':
+        speeds_m_s[trial_index] = dict([(body_key, speeds_m_s[trial_index][body_key][pour_end_index:-1]) for body_key in body_keys])
+        jerks_m_s_s_s[trial_index] = dict([(body_key, jerks_m_s_s_s[trial_index][body_key][pour_end_index:-1]) for body_key in body_keys])
+    
+    # Store results.
+    for body_key in body_keys:
+      speeds_m_s_allTrials = [speed_m_s[body_key] for speed_m_s in speeds_m_s]
+      jerks_m_s_s_s_allTrials = [jerk_m_s_s_s[body_key] for jerk_m_s_s_s in jerks_m_s_s_s]
+      distributions_speed_m_s[example_type][body_key] = np.abs(np.stack(np.concatenate(speeds_m_s_allTrials)))
+      distributions_jerk_m_s_s_s[example_type][body_key] = np.abs(np.stack(np.concatenate(jerks_m_s_s_s_allTrials)))
+  
+  # Statistical tests to compare the distributions.
+  for example_type_1 in example_types:
+    for example_type_2 in example_types:
+      results_speed_m_s[example_type_1][example_type_2] = dict.fromkeys(body_keys, None)
+      for body_key in body_keys:
+        speeds_m_s_1 = distributions_speed_m_s[example_type_1][body_key]
+        speeds_m_s_2 = distributions_speed_m_s[example_type_2][body_key]
+        jerks_m_s_s_s_1 = distributions_jerk_m_s_s_s[example_type_1][body_key]
+        jerks_m_s_s_s_2 = distributions_jerk_m_s_s_s[example_type_2][body_key]
+        results_speed_m_s[example_type_1][example_type_2][body_key] = \
+          stats.kstest(speeds_m_s_1, speeds_m_s_2,
+                       alternative='two-sided', # 'two-sided', 'less', 'greater'
+                       method='auto', # ‘auto’, ‘exact’, ‘approx’, ‘asymp’
+                       )
+        results_jerk_m_s_s_s[example_type_1][example_type_2][body_key] = \
+          stats.kstest(jerks_m_s_s_s_1, jerks_m_s_s_s_2,
+                       alternative='two-sided', # 'two-sided', 'less', 'greater'
+                       method='auto', # ‘auto’, ‘exact’, ‘approx’, ‘asymp’
+                       )
+  
+  # Plot distributions.
+  if plot_distributions:
+    for (body_index, body_key) in enumerate(body_keys):
+      ax_speed = axs[0][body_index]
+      ax_jerk = axs[1][body_index]
+      for example_type in example_types:
+        speeds_m_s = distributions_speed_m_s[example_type][body_key]
+        jerks_m_s_s_s = distributions_jerk_m_s_s_s[example_type][body_key]
+        ax_speed.hist(speeds_m_s, bins=num_histogram_bins,
+                      histtype='stepfilled', # 'bar', 'barstacked', 'step', 'stepfilled'
+                      log=False, density=True,
+                      range=(np.quantile(speeds_m_s, histogram_range_quantiles[0]), np.quantile(speeds_m_s, histogram_range_quantiles[1])),
+                      alpha=0.5, label=example_type.title())
+        ax_jerk.hist(jerks_m_s_s_s, bins=num_histogram_bins,
+                     histtype='stepfilled', # 'bar', 'barstacked', 'step', 'stepfilled'
+                     log=False, density=True,
+                     range=(np.quantile(jerks_m_s_s_s, histogram_range_quantiles[0]), np.quantile(jerks_m_s_s_s, histogram_range_quantiles[1])),
+                     alpha=0.5, label=example_type.title())
+      
+      # Plot formatting.
+      # ax_speed.set_xlabel('Speed [m/s]')
+      # ax_jerk.set_xlabel('Jerk [m/s/s/s]')
+      ax_speed.set_ylabel('Density')
+      ax_jerk.set_ylabel('Density')
+      ax_speed.grid(True, color='lightgray')
+      ax_jerk.grid(True, color='lightgray')
+      speed_title_str = '%s Speed [m/s]%s' % (body_key.title(), (': %s' % subtitle) if subtitle is not None else '')
+      jerk_title_str = '%s Jerk [m/s/s/s]%s' % (body_key.title(), (': %s' % subtitle) if subtitle is not None else '')
+      if len(example_types) == 2:
+        stats_results = results_speed_m_s[example_types[0]][example_types[1]][body_key]
+        p = stats_results.pvalue
+        speed_title_str += ' | Diff? %s (p = %0.2f)' % ('yes' if p < 0.05 else 'no', p)
+        stats_results = results_jerk_m_s_s_s[example_types[0]][example_types[1]][body_key]
+        p = stats_results.pvalue
+        jerk_title_str += ' | Diff? %s (p = %0.2f)' % ('yes' if p < 0.05 else 'no', p)
+      ax_speed.set_title(speed_title_str)
+      ax_jerk.title.set_text(jerk_title_str)
+      ax_speed.legend()
+      ax_jerk.legend()
+      if region is not None:
+        fig.suptitle('During %s' % region.replace('_', '-').title())
+    
+    # Show the plot.
+    plt.draw()
+    
+    # Save the plot if desired.
+    if output_filepath is not None:
+      fig.savefig(output_filepath, dpi=300)
+
+  # Print statistical test results.
+  if print_comparison_results:
+    for body_key in body_keys:
+      print(' Statistical comparison results for %s speed:' % body_key)
+      for example_type_1 in example_types:
+        for example_type_2 in example_types:
+          print('  Comparing [%s] to [%s]: ' % (example_type_1, example_type_2), end='')
+          results = results_speed_m_s[example_type_1][example_type_2][body_key]
+          p = results.pvalue
+          print('Different? %s (p = %0.4f)' % ('yes' if p < 0.05 else 'no', p))
+      print(' Statistical comparison results for %s jerk:' % body_key)
+      for example_type_1 in example_types:
+        for example_type_2 in example_types:
+          print('  Comparing [%s] to [%s]: ' % (example_type_1, example_type_2), end='')
+          results = results_jerk_m_s_s_s[example_type_1][example_type_2][body_key]
+          p = results.pvalue
+          print('Different? %s (p = %0.4f)' % ('yes' if p < 0.05 else 'no', p))
+  
+  return (fig, axs)
+
+# ================================================================
+# Plot and compare distributions of the hand, elbow, and shoulder joint angles.
+# feature_matrices_allTypes is a dictionary mapping distribution category to matrices for each trial.
+# If region is provided, will only consider timesteps during that region for each trial.
+#   Can be 'pre_pouring', 'pouring', 'post_pouring', or None for all.
+def plot_compare_distributions_joint_angles(feature_matrices_allTypes,
+                        subtitle=None,
+                        output_filepath=None,
+                        region=None, # 'pre_pouring', 'pouring', 'post_pouring', None for all
+                        print_comparison_results=True,
+                        plot_distributions=True,
+                        num_histogram_bins=100, histogram_range_quantiles=(0,1),
+                        fig=None, hide_figure_window=False):
+    
+  if output_filepath is not None:
+    os.makedirs(os.path.split(output_filepath)[0], exist_ok=True)
+  if plot_distributions:
+    if fig is None:
+      if hide_figure_window:
+        try:
+          matplotlib.use('Agg')
+        except:
+          pass
+      else:
+        matplotlib.use(default_matplotlib_backend)
+      fig, axs = plt.subplots(nrows=3, ncols=3,
+                                 squeeze=False, # if False, always return 2D array of axes
+                                 sharex=False, sharey=False,
+                                 subplot_kw={'frame_on': True},
+                                 )
+      if not hide_figure_window:
+        figManager = plt.get_current_fig_manager()
+        figManager.window.showMaximized()
+        plt_wait_for_keyboard_press(0.5)
+      plt.ion()
+    else:
+      (fig, axs) = fig
+  
+  # Initialize results/outputs.
+  example_types = list(feature_matrices_allTypes.keys())
+  distributions_joint_angles_rad = dict([(key, {}) for key in example_types])
+  results_joint_angles_rad = dict([(example_type, dict([(key, {}) for key in example_types])) for example_type in example_types])
+  joint_axes = ['x', 'y', 'z']
+  
+  # Process each example type (each distribution category).
+  for (example_type, feature_matrices) in feature_matrices_allTypes.items():
+    # Get the body joint angles for each timestep.
+    joint_angles_rad = [None]*len(feature_matrices)
+    for trial_index, feature_matrix in enumerate(feature_matrices):
+      joint_angles_rad[trial_index] = get_body_joint_angles_rad(feature_matrix)
+      body_keys = list(joint_angles_rad[trial_index].keys())
+  
+    # If desired, only extract a certain window of time relative to the inferred pouring time.
+    for trial_index, feature_matrix in enumerate(feature_matrices):
+      pouring_inference = infer_pour_pose(feature_matrix)
+      pour_start_index = pouring_inference['start_time_index']
+      pour_end_index = pouring_inference['end_time_index']
+      if region == 'pouring':
+        joint_angles_rad[trial_index] = dict([(body_key, joint_angles_rad[trial_index][body_key][pour_start_index:pour_end_index, :]) for body_key in body_keys])
+      if region == 'pre_pouring':
+        joint_angles_rad[trial_index] = dict([(body_key, joint_angles_rad[trial_index][body_key][0:pour_start_index, :]) for body_key in body_keys])
+      if region == 'post_pouring':
+        joint_angles_rad[trial_index] = dict([(body_key, joint_angles_rad[trial_index][body_key][pour_end_index:-1, :]) for body_key in body_keys])
+    
+    # Store results.
+    for body_key in body_keys:
+      joint_angles_rad_allTrials = [joint_angle_rad[body_key] for joint_angle_rad in joint_angles_rad]
+      distributions_joint_angles_rad[example_type][body_key] = np.vstack(joint_angles_rad_allTrials)
+  
+  # Statistical tests to compare the distributions.
+  for example_type_1 in example_types:
+    for example_type_2 in example_types:
+      results_joint_angles_rad[example_type_1][example_type_2] = dict.fromkeys(body_keys, None)
+      for body_key in body_keys:
+        results_joint_angles_rad[example_type_1][example_type_2][body_key] = dict.fromkeys(joint_axes, None)
+        for joint_axis_index, joint_axis in enumerate(joint_axes):
+          joint_angles_rad_1 = np.reshape(distributions_joint_angles_rad[example_type_1][body_key][:,joint_axis_index], (-1,))
+          joint_angles_rad_2 = np.reshape(distributions_joint_angles_rad[example_type_2][body_key][:,joint_axis_index], (-1,))
+          results_joint_angles_rad[example_type_1][example_type_2][body_key][joint_axis] = \
+            stats.kstest(joint_angles_rad_1, joint_angles_rad_2,
+                         alternative='two-sided', # 'two-sided', 'less', 'greater'
+                         method='auto', # ‘auto’, ‘exact’, ‘approx’, ‘asymp’
+                         )
+  
+  # Plot distributions.
+  if plot_distributions:
+    for (body_index, body_key) in enumerate(body_keys):
+      for joint_axis_index, joint_axis in enumerate(['x', 'y', 'z']):
+        ax = axs[joint_axis_index][body_index]
+        for example_type in example_types:
+          joint_angles_deg = np.degrees(np.reshape(distributions_joint_angles_rad[example_type][body_key][:,joint_axis_index], (-1,)))
+          ax.hist(joint_angles_deg, bins=num_histogram_bins,
+                        histtype='stepfilled', # 'bar', 'barstacked', 'step', 'stepfilled'
+                        log=False, density=True,
+                        range=(np.quantile(joint_angles_deg, histogram_range_quantiles[0]), np.quantile(joint_angles_deg, histogram_range_quantiles[1])),
+                        alpha=0.5, label=example_type.title())
+        
+        # Plot formatting.
+        # ax.set_xlabel('Joint Angle [deg]')
+        ax.set_ylabel('Density')
+        ax.grid(True, color='lightgray')
+        title_str = '%s %s Angle [deg]%s' % (body_key.title(), joint_axis, (': %s' % subtitle) if subtitle is not None else '')
+        if len(example_types) == 2:
+          stats_results = results_joint_angles_rad[example_types[0]][example_types[1]][body_key][joint_axis]
+          p = stats_results.pvalue
+          title_str += ' | Diff? %s (p = %0.2f)' % ('yes' if p < 0.05 else 'no', p)
+        ax.set_title(title_str)
+        ax.legend()
+    if region is not None:
+      fig.suptitle('During %s' % region.replace('_', '-').title())
+    
+    # Show the plot.
+    plt.draw()
+    
+    # Save the plot if desired.
+    if output_filepath is not None:
+      fig.savefig(output_filepath, dpi=300)
+
+  # Print statistical test results.
+  if print_comparison_results:
+    for body_key in body_keys:
+      for joint_axis in joint_axes:
+        print(' Statistical comparison results for %s %s:' % (body_key, joint_axis))
+        for example_type_1 in example_types:
+          for example_type_2 in example_types:
+            print('  Comparing [%s] to [%s]: ' % (example_type_1, example_type_2), end='')
+            results = results_joint_angles_rad[example_type_1][example_type_2][body_key][joint_axis]
+            p = results.pvalue
+            print('Different? %s (p = %0.4f)' % ('yes' if p < 0.05 else 'no', p))
+  
+  return (fig, axs)
+
+# ================================================================
+# Plot and compare distributions of the spout height relative to the top of the glass.
+# feature_matrices_allTypes is a dictionary mapping distribution category to matrices for each trial.
+# If region is provided, will only consider timesteps during that region for each trial.
+#   Can be 'pre_pouring', 'pouring', 'post_pouring', or None for all.
+def plot_compare_distributions_spout_relativeHeights(feature_matrices_allTypes, referenceObject_positions_m_allTypes,
+                                                     subtitle=None,
+                                                     output_filepath=None,
+                                                     region=None,  # 'pre_pouring', 'pouring', 'post_pouring', None for all
+                                                     print_comparison_results=True,
+                                                     plot_distributions=True,
+                                                     num_histogram_bins=100, histogram_range_quantiles=(0,1),
+                                                     fig=None, hide_figure_window=False):
+    
+  if output_filepath is not None:
+    os.makedirs(os.path.split(output_filepath)[0], exist_ok=True)
+  if plot_distributions:
+    if fig is None:
+      if hide_figure_window:
+        try:
+          matplotlib.use('Agg')
+        except:
+          pass
+      else:
+        matplotlib.use(default_matplotlib_backend)
+      fig, axs = plt.subplots(nrows=1, ncols=1,
+                                 squeeze=False, # if False, always return 2D array of axes
+                                 sharex=False, sharey=False,
+                                 subplot_kw={'frame_on': True},
+                                 )
+      if not hide_figure_window:
+        figManager = plt.get_current_fig_manager()
+        figManager.window.showMaximized()
+        plt_wait_for_keyboard_press(0.5)
+      plt.ion()
+    else:
+      (fig, axs) = fig
+  
+  # Initialize results/outputs.
+  example_types = list(feature_matrices_allTypes.keys())
+  distributions_relativeHeights_cm = dict.fromkeys(example_types, None)
+  results_relativeHeights_cm = dict([(example_type, dict.fromkeys(example_types, None)) for example_type in example_types])
+  
+  # Process each example type (each distribution category).
+  for (example_type, feature_matrices) in feature_matrices_allTypes.items():
+    referenceObject_positions_m = referenceObject_positions_m_allTypes[example_type]
+    # Get the spout heights for each timestep of each trial.
+    spout_relativeHeights_cm = []
+    for trial_index in range(len(feature_matrices)):
+      feature_matrix = feature_matrices[trial_index]
+      referenceObject_position_m = referenceObject_positions_m[trial_index]
+      # Get the spout height at each timestep.
+      spout_relativeHeight_cm = np.zeros(shape=(feature_matrix.shape[0],))
+      for time_index in range(feature_matrix.shape[0]):
+        spout_position_cm = 100*infer_spout_position_m(feature_matrix, time_index)
+        spout_relativeHeight_cm[time_index] = spout_position_cm[2] - 100*referenceObject_position_m[2]
+      spout_relativeHeights_cm.append(spout_relativeHeight_cm)
+      
+    # If desired, only extract a certain window of time relative to the inferred pouring time.
+    for trial_index, feature_matrix in enumerate(feature_matrices):
+      pouring_inference = infer_pour_pose(feature_matrix)
+      pour_start_index = pouring_inference['start_time_index']
+      pour_end_index = pouring_inference['end_time_index']
+      if region == 'pouring':
+        spout_relativeHeights_cm[trial_index] = spout_relativeHeights_cm[trial_index][pour_start_index:pour_end_index]
+      if region == 'pre_pouring':
+        spout_relativeHeights_cm[trial_index] = spout_relativeHeights_cm[trial_index][0:pour_start_index]
+      if region == 'post_pouring':
+        spout_relativeHeights_cm[trial_index] = spout_relativeHeights_cm[trial_index][pour_end_index:-1]
+    
+    # Store results.
+    distributions_relativeHeights_cm[example_type] = np.stack(np.concatenate(spout_relativeHeights_cm))
+  
+  # Statistical tests to compare the distributions.
+  for example_type_1 in example_types:
+    for example_type_2 in example_types:
+      relativeHeights_cm_1 = distributions_relativeHeights_cm[example_type_1]
+      relativeHeights_cm_2 = distributions_relativeHeights_cm[example_type_2]
+      results_relativeHeights_cm[example_type_1][example_type_2] = \
+        stats.kstest(relativeHeights_cm_1, relativeHeights_cm_2,
+                     alternative='two-sided', # 'two-sided', 'less', 'greater'
+                     method='auto', # ‘auto’, ‘exact’, ‘approx’, ‘asymp’
+                     )
+  
+  # Plot distributions.
+  if plot_distributions:
+    ax = axs[0][0]
+    for example_type in example_types:
+      relativeHeights_cm = distributions_relativeHeights_cm[example_type]
+      ax.hist(relativeHeights_cm, bins=num_histogram_bins,
+                    histtype='stepfilled', # 'bar', 'barstacked', 'step', 'stepfilled'
+                    log=False, density=True,
+                    range=(np.quantile(relativeHeights_cm, histogram_range_quantiles[0]), np.quantile(relativeHeights_cm, histogram_range_quantiles[1])),
+                    alpha=0.5, label=example_type.title())
+    
+    # Plot formatting.
+    # ax.set_xlabel('Speed [m/s]')
+    ax.set_ylabel('Density')
+    ax.grid(True, color='lightgray')
+    title_str = 'Spout Height Above Glass [cm]%s' % ((': %s' % subtitle) if subtitle is not None else '')
+    if len(example_types) == 2:
+      stats_results = results_relativeHeights_cm[example_types[0]][example_types[1]]
+      p = stats_results.pvalue
+      title_str += ' | Distributions are different? %s (p = %0.4f)' % ('yes' if p < 0.05 else 'no', p)
+    ax.set_title(title_str)
+    ax.legend()
+    if region is not None:
+      fig.suptitle('During %s' % region.replace('_', '-').title())
+    
+    # Show the plot.
+    plt.draw()
+    
+    # Save the plot if desired.
+    if output_filepath is not None:
+      fig.savefig(output_filepath, dpi=300)
+
+  # Print statistical test results.
+  if print_comparison_results:
+    print(' Statistical comparison results for spout height above glass:')
+    for example_type_1 in example_types:
+      for example_type_2 in example_types:
+        print('  Comparing [%s] to [%s]: ' % (example_type_1, example_type_2), end='')
+        results = results_relativeHeights_cm[example_type_1][example_type_2]
+        p = results.pvalue
+        print('Different? %s (p = %0.4f)' % ('yes' if p < 0.05 else 'no', p))
+  
+  return (fig, axs)
+
+# ================================================================
+# Plot and compare distributions of the spout tilt angles.
+# feature_matrices_allTypes is a dictionary mapping distribution category to matrices for each trial.
+# If region is provided, will only consider timesteps during that region for each trial.
+#   Can be 'pre_pouring', 'pouring', 'post_pouring', or None for all.
+def plot_compare_distributions_spout_tilts(feature_matrices_allTypes,
+                                           subtitle=None,
+                                           output_filepath=None,
+                                           region=None,  # 'pre_pouring', 'pouring', 'post_pouring', None for all
+                                           print_comparison_results=True,
+                                           plot_distributions=True,
+                                           num_histogram_bins=100, histogram_range_quantiles=(0,1),
+                                           fig=None, hide_figure_window=False):
+    
+  if output_filepath is not None:
+    os.makedirs(os.path.split(output_filepath)[0], exist_ok=True)
+  if plot_distributions:
+    if fig is None:
+      if hide_figure_window:
+        try:
+          matplotlib.use('Agg')
+        except:
+          pass
+      else:
+        matplotlib.use(default_matplotlib_backend)
+      fig, axs = plt.subplots(nrows=1, ncols=1,
+                                 squeeze=False, # if False, always return 2D array of axes
+                                 sharex=False, sharey=False,
+                                 subplot_kw={'frame_on': True},
+                                 )
+      if not hide_figure_window:
+        figManager = plt.get_current_fig_manager()
+        figManager.window.showMaximized()
+        plt_wait_for_keyboard_press(0.5)
+      plt.ion()
+    else:
+      (fig, axs) = fig
+  
+  # Initialize results/outputs.
+  example_types = list(feature_matrices_allTypes.keys())
+  distributions_tilts_rad = dict.fromkeys(example_types, None)
+  results_tilts_rad = dict([(example_type, dict.fromkeys(example_types, None)) for example_type in example_types])
+  
+  # Process each example type (each distribution category).
+  for (example_type, feature_matrices) in feature_matrices_allTypes.items():
+    # Get the spout tilt for each timestep of each trial.
+    spout_tilts_deg = []
+    for trial_index in range(len(feature_matrices)):
+      feature_matrix = feature_matrices[trial_index]
+      spout_tilt_rad = np.zeros(shape=(feature_matrix.shape[0],))
+      for time_index in range(feature_matrix.shape[0]):
+        spout_tilt_rad[time_index] = infer_spout_tilting(feature_matrix, time_index)
+      spout_tilts_deg.append(spout_tilt_rad)
+      
+    # If desired, only extract a certain window of time relative to the inferred pouring time.
+    for trial_index, feature_matrix in enumerate(feature_matrices):
+      pouring_inference = infer_pour_pose(feature_matrix)
+      pour_start_index = pouring_inference['start_time_index']
+      pour_end_index = pouring_inference['end_time_index']
+      if region == 'pouring':
+        spout_tilts_deg[trial_index] = spout_tilts_deg[trial_index][pour_start_index:pour_end_index]
+      if region == 'pre_pouring':
+        spout_tilts_deg[trial_index] = spout_tilts_deg[trial_index][0:pour_start_index]
+      if region == 'post_pouring':
+        spout_tilts_deg[trial_index] = spout_tilts_deg[trial_index][pour_end_index:-1]
+    
+    # Store results.
+    distributions_tilts_rad[example_type] = np.stack(np.concatenate(spout_tilts_deg))
+  
+  # Statistical tests to compare the distributions.
+  for example_type_1 in example_types:
+    for example_type_2 in example_types:
+      tilts_rad_1 = distributions_tilts_rad[example_type_1]
+      tilts_rad_2 = distributions_tilts_rad[example_type_2]
+      results_tilts_rad[example_type_1][example_type_2] = \
+        stats.kstest(tilts_rad_1, tilts_rad_2,
+                     alternative='two-sided', # 'two-sided', 'less', 'greater'
+                     method='auto', # ‘auto’, ‘exact’, ‘approx’, ‘asymp’
+                     )
+  
+  # Plot distributions.
+  if plot_distributions:
+    ax = axs[0][0]
+    for example_type in example_types:
+      spout_tilts_deg = np.degrees(distributions_tilts_rad[example_type])
+      ax.hist(spout_tilts_deg, bins=num_histogram_bins,
+                    histtype='stepfilled', # 'bar', 'barstacked', 'step', 'stepfilled'
+                    log=False, density=True,
+                    range=(np.quantile(spout_tilts_deg, histogram_range_quantiles[0]), np.quantile(spout_tilts_deg, histogram_range_quantiles[1])),
+                    alpha=0.5, label=example_type.title())
+    
+    # Plot formatting.
+    # ax.set_xlabel('Speed [m/s]')
+    ax.set_ylabel('Density')
+    ax.grid(True, color='lightgray')
+    title_str = 'Spout Tilt Angle [deg]%s' % ((': %s' % subtitle) if subtitle is not None else '')
+    if len(example_types) == 2:
+      stats_results = results_tilts_rad[example_types[0]][example_types[1]]
+      p = stats_results.pvalue
+      title_str += ' | Distributions are different? %s (p = %0.4f)' % ('yes' if p < 0.05 else 'no', p)
+    ax.set_title(title_str)
+    ax.legend()
+    if region is not None:
+      fig.suptitle('During %s' % region.replace('_', '-').title())
+    
+    # Show the plot.
+    plt.draw()
+    
+    # Save the plot if desired.
+    if output_filepath is not None:
+      fig.savefig(output_filepath, dpi=300)
+
+  # Print statistical test results.
+  if print_comparison_results:
+    print(' Statistical comparison results for spout tilt angle:')
+    for example_type_1 in example_types:
+      for example_type_2 in example_types:
+        print('  Comparing [%s] to [%s]: ' % (example_type_1, example_type_2), end='')
+        results = results_tilts_rad[example_type_1][example_type_2]
+        p = results.pvalue
+        print('Different? %s (p = %0.4f)' % ('yes' if p < 0.05 else 'no', p))
+  
+  return (fig, axs)
+
+# ================================================================
+# Plot and compare distributions of the spout position and orientation projected onto the table
+#  during the inferred pouring window.
+#  The projection is such that:
+#   The y-axis is the pouring direction, as inferred from the yaw of the pitcher in each trial.
+#   A point will be plotted at the spout's projection onto the table, relative to the glass.
+#   So the water would pour upward on the plot from the plotted spout position.
+# feature_matrices_byType and referenceObject_positions_m_byType are
+#   dictionaries mapping distribution category to matrices for each trial.
+def plot_compare_distributions_spout_projections(feature_matrices_byType, referenceObject_positions_m_byType,
+                                                  output_filepath=None,
+                                                  print_comparison_results=True,
+                                                  plot_distributions=True,
+                                                  fig=None, hide_figure_window=False):
+  
+  # Plot mean and standard deviation shading for each example type, on the same plot.
+  spout_relativeOffsets_cm_byType = {}
+  example_types = list(feature_matrices_byType.keys())
+  previous_plot_handles = (fig, None)
+  for (example_index, example_type) in enumerate(example_types):
+    is_last_type = example_type == example_types[-1]
+    previous_plot_handles = plot_pour_relativePosition(
+      feature_matrices_byType[example_type], referenceObject_positions_m_byType[example_type],
+      plot_mean=True, plot_std_shading=True, plot_all_trials=False,
+      subtitle=None, label=example_type.title(),
+      color=plt.rcParams['axes.prop_cycle'].by_key()['color'][example_index],
+      output_filepath=output_filepath,
+      fig=previous_plot_handles, hide_figure_window=hide_figure_window or (not plot_distributions))
+    spout_relativeOffsets_cm_byType[example_type] = previous_plot_handles[1]
+  
+  # Statistical tests.
+  results_relativeOffsets = dict([(example_type, dict([(key, {}) for key in example_types])) for example_type in example_types])
+  
+  # Statistical tests to compare the distributions.
+  for example_type_1 in example_types:
+    for example_type_2 in example_types:
+      for (axis_index, axis) in enumerate(['x', 'y']):
+        spout_relativeOffsets_cm_1 = spout_relativeOffsets_cm_byType[example_type_1][:, axis_index]
+        spout_relativeOffsets_cm_2 = spout_relativeOffsets_cm_byType[example_type_2][:, axis_index]
+        results_relativeOffsets[example_type_1][example_type_2][axis] = \
+          stats.kstest(spout_relativeOffsets_cm_1, spout_relativeOffsets_cm_2,
+                       alternative='two-sided', # 'two-sided', 'less', 'greater'
+                       method='auto', # ‘auto’, ‘exact’, ‘approx’, ‘asymp’
+                       )
+  
+  # Print statistical test results.
+  if print_comparison_results:
+    for axis in ['x', 'y']:
+      print(' Statistical comparison results for spout projection, %s axis:' % axis)
+      for example_type_1 in example_types:
+        for example_type_2 in example_types:
+          print('  Comparing [%s] to [%s]: ' % (example_type_1, example_type_2), end='')
+          results = results_relativeOffsets[example_type_1][example_type_2][axis]
+          p = results.pvalue
+          print('Different? %s (p = %0.4f)' % ('yes' if p < 0.05 else 'no', p))
+  
+  return previous_plot_handles
+
+
+
+
+
+
+##################################################################
+# Infer metrics or other quantities about trajectories.
+##################################################################
+
+# ================================================================
+# Get the body position and orientation during an inferred pouring window.
+# Will infer the pouring window by finding a region that is the most stationary.
 def infer_pour_pose(feature_matrix):
   # Parse the feature matrix.
   parsed_data = parse_feature_matrix(feature_matrix)
   
+  # Initialize state.
   body_position_m = parsed_data['position_m']
   body_quaternion_wijk = parsed_data['quaternion_wijk']
   num_timesteps = feature_matrix.shape[0]
@@ -892,13 +2027,14 @@ def infer_pour_pose(feature_matrix):
   min_average_distance_buffer_end_index = None
   body_position_stationary_buffer_m = None
   body_quaternion_wijk_stationary_buffer = None
+  # Find the most stationary buffer.
   for buffer_start_index in range(num_timesteps):
     buffer_end_index = buffer_start_index + stationary_position_buffer_length
     if buffer_end_index >= num_timesteps:
       break
     if buffer_start_index < stationary_position_minIndex:
       continue
-    if buffer_end_index> stationary_position_maxIndex:
+    if buffer_end_index > stationary_position_maxIndex:
       continue
     body_position_buffers_m = dict([(name, position_m[buffer_start_index:buffer_end_index, :]) for (name, position_m) in body_position_m.items()])
     body_quaternion_wijk_buffers = dict([(name, quaternion_wijk[buffer_start_index:buffer_end_index, :]) for (name, quaternion_wijk) in body_quaternion_wijk.items()])
@@ -912,6 +2048,7 @@ def infer_pour_pose(feature_matrix):
       body_position_stationary_buffer_m = body_position_buffers_m
       body_quaternion_wijk_stationary_buffer = body_quaternion_wijk_buffers
   
+  # Return the position and orientation during the most stationary window, and the window bounds.
   return {
     'position_m':
       dict([(name, np.median(position_m, axis=0)) for (name, position_m) in body_position_stationary_buffer_m.items()]),
@@ -923,6 +2060,8 @@ def infer_pour_pose(feature_matrix):
     'end_time_index': min_average_distance_buffer_end_index,
     }
 
+# ================================================================
+# Get the tilt angle of the spout at a specific time index or during the entire trial.
 def infer_spout_tilting(feature_matrix, time_index=None):
   # Get tilt for all time if desired
   if time_index is None:
@@ -947,6 +2086,8 @@ def infer_spout_tilting(feature_matrix, time_index=None):
   angle_toXY_rad = (np.pi/2) - angle_toZ_rad
   return angle_toXY_rad
 
+# ================================================================
+# Get the 3D spout position at a specific time index or during the entire trial.
 def infer_spout_position_m(feature_matrix, time_index=None):
   # Get position for all time if desired
   if time_index is None:
@@ -960,8 +2101,6 @@ def infer_spout_position_m(feature_matrix, time_index=None):
   # Rotate a box for the pitcher according to the hand quaternion.
   hand_center_cm = 100*parsed_data['position_m']['hand'][time_index, :]
   hand_quaternion_localToGlobal_wijk = parsed_data['quaternion_wijk']['hand'][time_index, :]
-  
-  
   hand_rotation = Rotation.from_quat(hand_quaternion_localToGlobal_wijk[[1,2,3,0]])
   pitcher_rotation = hand_rotation * hand_to_pitcher_rotation
   pitcher_quaternion_localToGlobal_ijkw = pitcher_rotation.as_quat()
@@ -974,6 +2113,8 @@ def infer_spout_position_m(feature_matrix, time_index=None):
   # Average two points at the front of the pitcher to get the spout position.
   return np.mean(corners[[4,5],:], axis=0)
 
+# ================================================================
+# Get the spout speed at a specific time index or during the entire trial.
 def infer_spout_speed_m_s(feature_matrix, time_index=None):
   # Get the spout position.
   spout_position_m = infer_spout_position_m(feature_matrix, time_index=None)
@@ -987,6 +2128,8 @@ def infer_spout_speed_m_s(feature_matrix, time_index=None):
   else:
     return spout_speed_m_s[time_index]
 
+# ================================================================
+# Get the spout acceleration at a specific time index or during the entire trial.
 def infer_spout_acceleration_m_s_s(feature_matrix, time_index=None):
   # Get the spout speed.
   spout_speed_m_s = infer_spout_speed_m_s(feature_matrix, time_index=None)
@@ -1000,11 +2143,13 @@ def infer_spout_acceleration_m_s_s(feature_matrix, time_index=None):
   else:
     return spout_acceleration_m_s_s[time_index]
 
+# ================================================================
+# Get the spout jerk at a specific time index or during the entire trial.
 def infer_spout_jerk_m_s_s_s(feature_matrix, time_index=None):
   # Get the spout speed.
   spout_acceleration_m_s_s = infer_spout_acceleration_m_s_s(feature_matrix, time_index=None)
   times_s = feature_matrix[:,-1]
-  # Infer the acceleration.
+  # Infer the jerk.
   da = np.diff(spout_acceleration_m_s_s, axis=0)
   dt = np.reshape(np.diff(times_s, axis=0), (-1, 1))
   spout_jerk_m_s_s_s = np.hstack([np.squeeze([0]), da/np.squeeze(dt)])
@@ -1013,6 +2158,8 @@ def infer_spout_jerk_m_s_s_s(feature_matrix, time_index=None):
   else:
     return spout_jerk_m_s_s_s[time_index]
 
+# ================================================================
+# Get the spout yaw vector at a specific time index or during the entire trial.
 def infer_spout_yawvector(feature_matrix, time_index=None):
   # Get vector for all time indexes if desired.
   if time_index is None:
@@ -1026,8 +2173,6 @@ def infer_spout_yawvector(feature_matrix, time_index=None):
   # Rotate a box for the pitcher according to the hand quaternion.
   hand_center_cm = 100*parsed_data['position_m']['hand'][time_index, :]
   hand_quaternion_localToGlobal_wijk = parsed_data['quaternion_wijk']['hand'][time_index, :]
-  
-  
   hand_rotation = Rotation.from_quat(hand_quaternion_localToGlobal_wijk[[1,2,3,0]])
   pitcher_rotation = hand_rotation * hand_to_pitcher_rotation
   pitcher_quaternion_localToGlobal_ijkw = pitcher_rotation.as_quat()
@@ -1048,51 +2193,6 @@ def infer_spout_yawvector(feature_matrix, time_index=None):
 
 
 
-# Will return a dict with 'hand', 'elbow', and 'shoulder' each of which has xyz positions.
-def get_body_position_m(feature_matrix):
-  parsed_data = parse_feature_matrix(feature_matrix)
-  return parsed_data['position_m']
-
-# Will return a dict with 'hand', 'elbow', and 'shoulder' each of which has a speed vector.
-def get_body_speed_m_s(feature_matrix):
-  positions_m = get_body_position_m(feature_matrix)
-  times_s = feature_matrix[:,-1]
-  dt = np.reshape(np.diff(times_s, axis=0), (-1, 1))
-  speeds_m_s = {}
-  for (body_key, position_m) in positions_m.items():
-    # Infer the speed.
-    dxdydz = np.diff(position_m, axis=0)
-    speed_m_s = np.hstack([np.squeeze([0]), np.linalg.norm(dxdydz, axis=1)/np.squeeze(dt)])
-    speeds_m_s[body_key] = speed_m_s
-  return speeds_m_s
-  
-# Will return a dict with 'hand', 'elbow', and 'shoulder' each of which has an acceleration vector.
-def get_body_acceleration_m_s_s(feature_matrix):
-  speeds_m = get_body_speed_m_s(feature_matrix)
-  times_s = feature_matrix[:,-1]
-  dt = np.reshape(np.diff(times_s, axis=0), (-1, 1))
-  accelerations_m_s_s = {}
-  for (body_key, speed_m_s) in speeds_m.items():
-    # Infer the acceleration.
-    dv = np.diff(speed_m_s, axis=0)
-    dt = np.reshape(np.diff(times_s, axis=0), (-1, 1))
-    acceleration_m_s_s = np.hstack([np.squeeze([0]), dv/np.squeeze(dt)])
-    accelerations_m_s_s[body_key] = acceleration_m_s_s
-  return accelerations_m_s_s
-
-# Will return a dict with 'hand', 'elbow', and 'shoulder' each of which has a jerk vector.
-def get_body_jerk_m_s_s_s(feature_matrix):
-  accelerations_m_s_s = get_body_acceleration_m_s_s(feature_matrix)
-  times_s = feature_matrix[:,-1]
-  dt = np.reshape(np.diff(times_s, axis=0), (-1, 1))
-  jerks_m_s_s_s = {}
-  for (body_key, acceleration_m_s_s) in accelerations_m_s_s.items():
-    # Infer the jerk.
-    da = np.diff(acceleration_m_s_s, axis=0)
-    dt = np.reshape(np.diff(times_s, axis=0), (-1, 1))
-    jerk_m_s_s_s = np.hstack([np.squeeze([0]), da/np.squeeze(dt)])
-    jerks_m_s_s_s[body_key] = jerk_m_s_s_s
-  return jerks_m_s_s_s
   
 
 
@@ -1100,57 +2200,60 @@ def get_body_jerk_m_s_s_s(feature_matrix):
 
 
 
-
-if __name__ == '__main__':
-  
-  import os
-  import h5py
-  
-  duration_s = 10
-  
-  data_dir = 'C:/Users/jdelp/Desktop/ActionSense/results/learning_trajectories/S00'
-  training_data_filepath = os.path.join(data_dir, 'pouring_training_data.hdf5')
-  referenceObjects_filepath = os.path.join(data_dir, 'pouring_training_referenceObject_positions.hdf5')
-  
-  output_dir = 'C:/Users/jdelp/Desktop/ActionSense/results/learning_trajectories/testing_plots'
-  
-  training_data_file = h5py.File(training_data_filepath, 'r')
-  feature_matrices = np.array(training_data_file['feature_matrices'])
-  labels = [x.decode('utf-8') for x in np.array(training_data_file['labels'])]
-  training_data_file.close()
-  referenceObjects_file = h5py.File(referenceObjects_filepath, 'r')
-  referenceObject_positions_m = np.array(referenceObjects_file['position_m'])
-  referenceObjects_file.close()
-  
-  fig = None
-  for (trial_index, label) in enumerate(labels):
-    # # if not (trial_index > 94 and trial_index < 100):
-    # #   continue
-    # if trial_index != 94:
-    #   continue
-    if label == 'human':
-      print('Main loop plotting trial_index %d' % trial_index)
-      feature_matrix = np.squeeze(feature_matrices[trial_index])
-      referenceObject_position_m = np.squeeze(referenceObject_positions_m[trial_index])
-      plot_trajectory(feature_matrix, duration_s, referenceObject_position_m,
-                      pause_after_timesteps=True)
-      # save_trajectory_animation(feature_matrix, duration_s, referenceObject_position_m,
-      #                           output_filepath=os.path.join(output_dir, 'trajectory_animation_trial%02d.mp4' % trial_index))
-      # fig = plot_pour_tilting(feature_matrix, fig=fig, shade_pouring_region=False,
-      #                         output_filepath=os.path.join(output_dir, 'tilts_all.jpg') if trial_index >= len(labels)-2 else None)
-      # plot_pour_tilting(feature_matrix,
-      #                   output_filepath=os.path.join(output_dir, 'tilt_individualTrials', 'tilt_trial%02d.jpg' % trial_index),
-      #                   shade_pouring_region=True, hide_figure_window=True)
-      # fig = plot_pour_relativePosition(feature_matrix, referenceObject_position_m,
-      #                                  fig=fig, hide_figure_window=False,
-      #                                  output_filepath=os.path.join(output_dir, 'glassOffsets_all.jpg') if trial_index >= len(labels)-2 else None)
-      # infer_spout_speed_m_s(feature_matrix, time_index=None)
-      # infer_spout_acceleration_m_s_s(feature_matrix, time_index=None)
-      # infer_spout_jerk_m_s_s_s(feature_matrix, time_index=None)
-      # fig = plot_spout_dynamics(feature_matrix,
-      #                            output_filepath=os.path.join(output_dir, 'spout_dynamics_individualTrials', 'tilt_trial%02d.jpg' % trial_index),
-      #                            shade_pouring_region=False, fig=fig, hide_figure_window=False)
-      # fig = plot_body_dynamics(feature_matrix,
-      #                            output_filepath=os.path.join(output_dir, 'body_jerk_individualTrials', 'body_jerk_trial%02d.jpg' % trial_index),
-      #                            shade_pouring_region=False, fig=fig, hide_figure_window=False)
-  plt.show(block=True)
+# ##################################################################
+# # Testing
+# ##################################################################
+#
+# if __name__ == '__main__':
+#
+#   import os
+#   import h5py
+#
+#   duration_s = 10
+#
+#   data_dir = 'C:/Users/jdelp/Desktop/ActionSense/results/learning_trajectories/S00'
+#   training_data_filepath = os.path.join(data_dir, 'pouring_training_data.hdf5')
+#   referenceObjects_filepath = os.path.join(data_dir, 'pouring_training_referenceObject_positions.hdf5')
+#
+#   output_dir = 'C:/Users/jdelp/Desktop/ActionSense/results/learning_trajectories/testing_plots'
+#
+#   training_data_file = h5py.File(training_data_filepath, 'r')
+#   feature_matrices = np.array(training_data_file['feature_matrices'])
+#   labels = [x.decode('utf-8') for x in np.array(training_data_file['labels'])]
+#   training_data_file.close()
+#   referenceObjects_file = h5py.File(referenceObjects_filepath, 'r')
+#   referenceObject_positions_m = np.array(referenceObjects_file['position_m'])
+#   referenceObjects_file.close()
+#
+#   fig = None
+#   for (trial_index, label) in enumerate(labels):
+#     # # if not (trial_index > 94 and trial_index < 100):
+#     # #   continue
+#     # if trial_index != 94:
+#     #   continue
+#     if label == 'human':
+#       print('Main loop plotting trial_index %d' % trial_index)
+#       feature_matrix = np.squeeze(feature_matrices[trial_index])
+#       referenceObject_position_m = np.squeeze(referenceObject_positions_m[trial_index])
+#       plot_trajectory(feature_matrix, duration_s, referenceObject_position_m,
+#                       pause_after_timesteps=True)
+#       # save_trajectory_animation(feature_matrix, duration_s, referenceObject_position_m,
+#       #                           output_filepath=os.path.join(output_dir, 'trajectory_animation_trial%02d.mp4' % trial_index))
+#       # fig = plot_pour_tilting(feature_matrix, fig=fig, shade_pouring_region=False,
+#       #                         output_filepath=os.path.join(output_dir, 'tilts_all.jpg') if trial_index >= len(labels)-2 else None)
+#       # plot_pour_tilting(feature_matrix,
+#       #                   output_filepath=os.path.join(output_dir, 'tilt_individualTrials', 'tilt_trial%02d.jpg' % trial_index),
+#       #                   shade_pouring_region=True, hide_figure_window=True)
+#       # fig = plot_pour_relativePosition(feature_matrix, referenceObject_position_m,
+#       #                                  fig=fig, hide_figure_window=False,
+#       #                                  output_filepath=os.path.join(output_dir, 'glassOffsets_all.jpg') if trial_index >= len(labels)-2 else None)
+#       # infer_spout_speed_m_s(feature_matrix, time_index=None)
+#       # infer_spout_acceleration_m_s_s(feature_matrix, time_index=None)
+#       # infer_spout_jerk_m_s_s_s(feature_matrix, time_index=None)
+#       # fig = plot_spout_dynamics(feature_matrix,
+#       #                            output_filepath=os.path.join(output_dir, 'spout_dynamics_individualTrials', 'tilt_trial%02d.jpg' % trial_index),
+#       #                            shade_pouring_region=False, fig=fig, hide_figure_window=False)
+#       # fig = plot_body_dynamics(feature_matrix,
+#       #                            output_filepath=os.path.join(output_dir, 'body_jerk_individualTrials', 'body_jerk_trial%02d.jpg' % trial_index),
+#       #                            shade_pouring_region=False, fig=fig, hide_figure_window=False)
+#   plt.show(block=True)

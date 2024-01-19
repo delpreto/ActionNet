@@ -42,10 +42,10 @@ from utils.numpy_scipy_utils import *
 from utils.print_utils import *
 
 # Specify the subjects to consider.
+subject_id_toProcess = 'S00' # S00, S10, S11
 subject_ids_filter = None # None to consider all subjects
 
 # Specify the folder of experiments to parse.
-subject_id_toProcess = 'S00' # S00, S10, S11
 data_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'data'))
 if subject_id_toProcess == 'S00':
   experiments_dir = os.path.join(data_dir, 'experiments', '2023-09-10_experiment_%s' % subject_id_toProcess)
@@ -56,7 +56,7 @@ elif subject_id_toProcess == 'S11':
 # experiments_dir = os.path.join(data_dir, 'experiments', '2023-09-10_experiment_S00')
 # experiments_dir = os.path.join(data_dir, 'experiments', '2023-08-18_experiment_S10')
 # experiments_dir = os.path.join(data_dir, 'experiments', '2023-09-10_experiment_S11')
-output_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'results', 'learning_trajectories', subject_id_toProcess))
+output_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'results', 'learning_trajectories'))
 # output_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'results', 'learning_trajectories', 'S00'))
 # output_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'results', 'learning_trajectories', 'S10'))
 # output_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'results', 'learning_trajectories', 'S11'))

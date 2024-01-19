@@ -66,9 +66,9 @@ animate_trajectory_plots = False # show an animated plot of the skeleton for eac
 plot_all_trajectories = False # make a subplot for each subject, which shows all paths from that subject
 save_plot_all_trajectories = False # make a subplot for each subject, which shows all paths from that subject
 save_eye_videos = False # save the eye-tracking video for each trial
-save_animation_videos = True # save the animated plot for each trial
+save_animation_videos = False # save the animated plot for each trial
 save_composite_videos = False # save the eye-tracking video and animated plot for each trial
-save_results_data = False
+save_results_data = True
 
 resampled_fs_hz = 50
 
@@ -92,8 +92,11 @@ stationary_position_buffer_duration_s = 2 if configure_for_pouring else 1
 
 # Specify the segment that is a proxy for the reference object.
 referenceObject_bodySegment_name = 'LeftHand'
-referenceObject_offset_cm = np.array([0, 9, -(6-4)]) # [up along thumb, out along forearm axis, out from back of hand]
 referenceObject_diameter_cm = 7.3 # glass top 7.3 bottom 6.3
+referenceObject_height_cm = 15.8
+hand_to_referenceObject_bottom_cm = 6
+hand_to_referenceObject_top_cm = referenceObject_height_cm - hand_to_referenceObject_bottom_cm
+referenceObject_offset_cm = np.array([hand_to_referenceObject_top_cm, 8, -4]) # [up along thumb, out along forearm axis, out from back of hand]
 
 # hand_box_dimensions_cm = np.array([2, 9, 18]) # open hand
 hand_box_dimensions_cm = np.array([4.8, 3, 1.3])
@@ -101,7 +104,7 @@ hand_box_color = 0.8*np.array([1, 0.6, 0])
 pitcher_box_dimensions_cm = np.array([23, 23, 10.8]) # [height, top length, width]
 pitcher_box_color = 0.8*np.array([1, 1, 1])
 hand_to_pitcher_rotation = Rotation.from_rotvec(np.pi/2 * np.array([1, 0, 0]))
-hand_to_pitcher_offset_cm = np.array([0, -13, 0]) # used -15 for Baxter videos so the orange hides behind pitcher less
+hand_to_pitcher_offset_cm = np.array([-3, -13, 0]) # used -15 for Baxter videos so the orange hides behind pitcher less
 
 animation_view_angle_backRight = (16, 44)
 animation_view_angle_forBaxter = (30, -179.9)
@@ -679,7 +682,7 @@ def plot_handPath_data(fig, subplot_index,
         h_hand = plot_hand_box(ax, hand_center=100*bodySegment_data['position_m']['RightHand'][time_index, :],
                                hand_quaternion_localToGlobal_wijk=bodySegment_data['quaternion_wijk']['RightHand'][time_index, :])
         h_pitcher = plot_pitcher_box(ax, hand_center=100*bodySegment_data['position_m']['RightHand'][time_index, :],
-                                  hand_quaternion_localToGlobal_wijk=bodySegment_data['quaternion_wijk']['RightHand'][time_index, :])
+                                    hand_quaternion_localToGlobal_wijk=bodySegment_data['quaternion_wijk']['RightHand'][time_index, :])
         
         # Set the aspect ratio
         ax.set_xlim(x_lim)

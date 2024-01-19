@@ -47,6 +47,8 @@ trajectory_data_filepath_robots = os.path.join(data_dir, '%s_paths_robots_%s.hdf
 training_data_filepath = os.path.join(data_dir, '%s_training_data_%s.hdf5' % ('pouring' if configure_for_pouring else 'scooping', subject_id_toProcess)) # None to not save
 referenceOjbect_positions_filepath = os.path.join(data_dir, '%s_training_referenceObject_positions_%s.hdf5' % ('pouring' if configure_for_pouring else 'scooping', subject_id_toProcess)) # None to not save
 
+include_robot_examples = False
+
 # Specify how to standardize training data segment lengths.
 # Will currently normalize time of each trial to be from 0 to 1,
 #  then resample it to have the following number of samples.
@@ -61,15 +63,17 @@ plot_hand_path_features = False
 
 # Open the files of extracted trajectory data.
 data_file_humans = h5py.File(trajectory_data_filepath_humans, 'r')
-data_file_robots = h5py.File(trajectory_data_filepath_robots, 'r')
+if include_robot_examples:
+  data_file_robots = h5py.File(trajectory_data_filepath_robots, 'r')
 
 # Get the list of body segments and joints, which can be used to index data matrices below.
 body_segment_names_humans = data_file_humans['body_segment_names']
 body_segment_names_humans = [name.decode('utf-8') for name in body_segment_names_humans]
 body_joint_names_humans = data_file_humans['body_joint_names']
 body_joint_names_humans = [name.decode('utf-8') for name in body_joint_names_humans]
-body_segment_names_robots = data_file_robots['body_segment_names']
-body_segment_names_robots = [name.decode('utf-8') for name in body_segment_names_robots]
+if include_robot_examples:
+  body_segment_names_robots = data_file_robots['body_segment_names']
+  body_segment_names_robots = [name.decode('utf-8') for name in body_segment_names_robots]
 print()
 print('See the following list of body segments (in the human data).')
 print('The starred segments should be used as the hand/elbow/shoulder chain.')
@@ -89,9 +93,10 @@ shoulder_segment_index_humans = body_segment_names_humans.index('RightUpperArm')
 wrist_joint_index_humans = body_joint_names_humans.index('RightWrist')
 elbow_joint_index_humans = body_joint_names_humans.index('RightElbow')
 shoulder_joint_index_humans = body_joint_names_humans.index('RightShoulder')
-hand_segment_index_robots = body_segment_names_robots.index('RightHand')
-elbow_segment_index_robots = body_segment_names_robots.index('RightForeArm')
-shoulder_segment_index_robots = body_segment_names_robots.index('RightUpperArm')
+if include_robot_examples:
+  hand_segment_index_robots = body_segment_names_robots.index('RightHand')
+  elbow_segment_index_robots = body_segment_names_robots.index('RightForeArm')
+  shoulder_segment_index_robots = body_segment_names_robots.index('RightUpperArm')
 
 # Create feature matrices for each trial, labeled as human or robot.
 # The current matrices will concatenate shoulder, elbow, and hand positions and hand orientation.
@@ -169,18 +174,19 @@ for group_name in data_file_humans.keys():
     continue
   print('See data for subject %02d' % subject_id)
   subject_group_human = data_file_humans[group_name]
-  subject_group_robot = data_file_robots[group_name]
+  if include_robot_examples:
+    subject_group_robot = data_file_robots[group_name]
   
   # Loop through each trial for this subject.
   for (trial_name, trial_group_human) in subject_group_human.items():
     trial_id = int(trial_name.split('trial_')[-1])
-    trial_group_robot = subject_group_robot[trial_name]
+    if include_robot_examples:
+      trial_group_robot = subject_group_robot[trial_name]
     
     # Get the timestamp for each sample, as seconds since trial start.
-    # NOTE: Not currently used in the features, but can be used to ensure
-    #  that the human and robot paths used the same timesteps.
     time_s = np.squeeze(np.array(trial_group_human['time_s']))
-    assert(np.array_equal(np.squeeze(np.array(trial_group_robot['time_s'])), time_s))
+    if include_robot_examples:
+      assert(np.array_equal(np.squeeze(np.array(trial_group_robot['time_s'])), time_s))
     
     # Get the global xyz position of each body segment for the human demonstration.
     # It is a Tx23x3 matrix, indexed as [timestep][body_segment_index][xyz].
@@ -206,14 +212,16 @@ for group_name in data_file_humans.keys():
                          is_human=True)
     
     # Do the same for the robot path based on this trial.
-    body_segment_position_m = np.squeeze(np.array(trial_group_robot['body_segment_position_m']))
-    body_segment_quaternion_wijk = np.squeeze(np.array(trial_group_robot['body_segment_quaternion_wijk']))
-    add_training_segment(time_s, body_segment_position_m, body_segment_quaternion_wijk, None, None, is_human=False)
+    if include_robot_examples:
+      body_segment_position_m = np.squeeze(np.array(trial_group_robot['body_segment_position_m']))
+      body_segment_quaternion_wijk = np.squeeze(np.array(trial_group_robot['body_segment_quaternion_wijk']))
+      add_training_segment(time_s, body_segment_position_m, body_segment_quaternion_wijk, None, None, is_human=False)
 
     # Get the reference object position.
     # Add it twice since it will be the same for human and robot examples that were just added.
     referenceObject_positions_m.append(np.array(trial_group_human['reference_object']['position_m']))
-    referenceObject_positions_m.append(np.array(trial_group_human['reference_object']['position_m']))
+    if include_robot_examples:
+      referenceObject_positions_m.append(np.array(trial_group_human['reference_object']['position_m']))
 
 print()
 
@@ -222,7 +230,8 @@ referenceObject_positions_m = np.stack(referenceObject_positions_m)
 
 # Clean up.
 data_file_humans.close()
-data_file_robots.close()
+if include_robot_examples:
+  data_file_robots.close()
 
 # Save the data if desired
 if training_data_filepath is not None:

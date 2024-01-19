@@ -6,6 +6,8 @@ import matplotlib
 default_matplotlib_backend = matplotlib.rcParams['backend']
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+from matplotlib.patches import Ellipse
+import matplotlib.transforms as transforms
 from mpl_toolkits.mplot3d import art3d
 import os
 
@@ -22,12 +24,40 @@ hand_box_dimensions_cm = np.array([4.8, 3, 1.3])
 hand_box_color = 0.8*np.array([1, 0.6, 0])
 pitcher_box_dimensions_cm = np.array([23, 23, 10.8]) # [height, top length, width]
 pitcher_box_color = 0.8*np.array([1, 1, 1])
-hand_to_pitcher_rotation = Rotation.from_rotvec(np.pi/2 * np.array([1, 0, 0]))
-hand_to_pitcher_offset_cm = np.array([0, -(7-5+pitcher_box_dimensions_cm[1]/2), 0])
+hand_to_pitcher_rotation = Rotation.from_rotvec(np.array([np.radians(90),
+                                                          np.radians(0),
+                                                          np.radians(-5)]))
+hand_to_pitcherTop_cm = 8
+hand_to_pitcher_offset_cm = np.array([hand_to_pitcherTop_cm - pitcher_box_dimensions_cm[0]/2,
+                                      -(0+pitcher_box_dimensions_cm[1]/2),
+                                      2])
 
 referenceObject_diameter_cm = 7.3 # glass top 7.3 bottom 6.3
+referenceObject_height_cm = 15.8
+hand_to_referenceObject_bottom_cm = 6
+hand_to_referenceObject_top_cm = referenceObject_height_cm - hand_to_referenceObject_bottom_cm
 
+animation_view_angle_backLeft = (16, -28)
+animation_view_angle_backRight = (16, 44)
+animation_view_angle_forBaxter = (30, -179.9)
+animation_view_angle = animation_view_angle_backLeft
 
+# Used to artificially shift distributions for demonstration purposes.
+example_types_to_offset = ['model']
+if len(example_types_to_offset) > 0:
+  print()
+  print('*'*50)
+  print('*'*50)
+  print('NOTE THAT DISTRIBUTIONS ARE BEING ARTIFICALLY')
+  print('SHIFTED FOR DEMONSTRATION PURPOSES FOR')
+  print('THE FOLLOWING EXAMPLE TYPES')
+  print(example_types_to_offset)
+  print('*'*50)
+  print('*'*50)
+  input('Press Enter to confirm and continue')
+  print()
+  print()
+  
 #############################################
 
 # Feature_matrices should be Tx30, where
@@ -96,7 +126,7 @@ def rotate_3d_box(quaternion_localToGlobal_wijk, center_preRotation_cm, box_dime
   
   return (corners, faces)
 
-def plot_3d_box(ax, quaternion_localToGlobal_wijk, center_cm, center_preRotation_cm, box_dimensions_cm, color): # function created using ChatGPT
+def plot_3d_box(ax, quaternion_localToGlobal_wijk, center_cm, center_preRotation_cm, box_dimensions_cm, color, alpha=0.8): # function created using ChatGPT
   
   # Rotate the box.
   (corners, faces) = rotate_3d_box(quaternion_localToGlobal_wijk, center_preRotation_cm, box_dimensions_cm)
@@ -110,7 +140,7 @@ def plot_3d_box(ax, quaternion_localToGlobal_wijk, center_cm, center_preRotation
   # ax.set_ylim3d(corners[:,1].min(), corners[:,1].max())
   # ax.set_zlim3d(corners[:,2].min(), corners[:,2].max())
   box = art3d.Poly3DCollection([corners[face] for face in faces],
-                               alpha=0.8,
+                               alpha=alpha,
                                facecolor=color,
                                edgecolor=0.4*color)
   ax.add_collection3d(box)
@@ -169,6 +199,9 @@ def plot_timestep(feature_matrix, times_s, time_index,
     fig.add_subplot(1, 1, 1, projection='3d')
   ax = fig.get_axes()[0]
   
+  # Get the table height.
+  table_z_cm = 100*referenceObject_position_m[2] - referenceObject_height_cm
+  
   # Draw items that remain the same across frames.
   if previous_handles is None:
     ax.clear()
@@ -179,9 +212,7 @@ def plot_timestep(feature_matrix, times_s, time_index,
     ax.set_zlabel('Z [cm]')
     
     # Set the view angle
-    ax.view_init(16, -28)
-    # ax.view_init(16, 44)
-    # ax.view_init(90, 0)
+    ax.view_init(*animation_view_angle)
     
     # Plot trajectories of the right arm and pelvis.
     hand_position_cm = 100*parsed_data['position_m']['hand']
@@ -204,13 +235,20 @@ def plot_timestep(feature_matrix, times_s, time_index,
     # Plot the reference object projection onto the table.
     ax.scatter(100*referenceObject_position_m[0],
                100*referenceObject_position_m[1],
-               100*referenceObject_position_m[2],
+               table_z_cm,
                s=25, color=h_hand_path[0].get_color(), edgecolor='c')
-    referenceObject_circle = mpatches.Circle(
-      (100*referenceObject_position_m[0], 100*referenceObject_position_m[1]),
+    referenceObject_circle = mpatches.Circle((100*referenceObject_position_m[0], 100*referenceObject_position_m[1]),
       radius=referenceObject_diameter_cm/2, ec=[0.4,1,1], color=[0.8,1,1])
     ax.add_patch(referenceObject_circle)
-    art3d.patch_2d_to_3d(referenceObject_circle, z=100*referenceObject_position_m[2], zdir='z')
+    art3d.patch_2d_to_3d(referenceObject_circle, z=table_z_cm, zdir='z')
+    
+    # Plot the reference object.
+    color_hex = h_hand_path[0].get_color().strip('#')
+    color_rgb = tuple(int(color_hex[i:i+2], 16) for i in (0, 2, 4))
+    color_rgb = np.array(color_rgb)/255
+    plot_3d_box(ax, [1, 0, 0, 0], 100*referenceObject_position_m, [0, 0, -referenceObject_height_cm/2],
+                [referenceObject_diameter_cm, referenceObject_diameter_cm, referenceObject_height_cm],
+                color_rgb, alpha=0.2)
   
   if include_skeleton:
     # Animate the whole skeleton.
@@ -245,7 +283,7 @@ def plot_timestep(feature_matrix, times_s, time_index,
     # Draw the pitcher tip projection onto the table.
     position_cm = 100*infer_spout_position_m(feature_matrix, time_index)
     h_scatters.append(ax.scatter(position_cm[0], position_cm[1],
-                                 100*referenceObject_position_m[2],
+                                 table_z_cm,
                                  s=30, color='m'))
     # Draw an indicator of the spout direction on the table.
     spout_yawvector = infer_spout_yawvector(feature_matrix, time_index)
@@ -253,7 +291,7 @@ def plot_timestep(feature_matrix, times_s, time_index,
     spout_yawsegment = np.array([[0,0,0], list(spout_yawvector)])
     spout_yawsegment = spout_yawsegment + position_cm
     h_chains.append(ax.plot3D(spout_yawsegment[:,0], spout_yawsegment[:,1],
-                              100*referenceObject_position_m[2]*np.array([1,1]),
+                              table_z_cm*np.array([1,1]),
                               color='r', linewidth=2))
     
     x_lim = ax.get_xlim()
@@ -315,35 +353,73 @@ def plot_trajectory(feature_matrix, duration_s, referenceObject_position_m, paus
                                      previous_handles=previous_handles,
                                      pause_after_plotting=pause_after_timesteps)
 
-def save_trajectory_animation(feature_matrix, duration_s, referenceObject_position_m,
+# If feature_matrices, durations_s, and referenceObject_positions_m are dictionaries,
+#  will assume each key is an example type and each value is the data for that type.
+#  Will make a subplot for each example type, so they animate together.
+def save_trajectory_animation(feature_matrices, durations_s, referenceObject_positions_m,
                               output_filepath, subject_id=-1, trial_index=-1):
+  if not isinstance(feature_matrices, dict):
+    feature_matrices = {'': feature_matrices}
+    durations_s = {'': durations_s}
+    referenceObject_positions_m = {'': referenceObject_positions_m}
+  example_types = list(feature_matrices.keys())
+  # Determine the times and rates of each provided example.
+  times_s = {}
+  fps = {}
+  for example_type in example_types:
+    times_s[example_type] = np.linspace(start=0, stop=durations_s[example_type],
+                                        num=feature_matrices[example_type].shape[0])
+    fps[example_type] = int(round((len(times_s[example_type])-1)/(times_s[example_type][-1] - times_s[example_type][0])))
+  min_time_s = min([t[0] for t in list(times_s.values())])
+  max_time_s = max([t[-1] for t in list(times_s.values())])
+  max_fps = max(list(fps.values()))
+  duration_s = max_time_s - min_time_s
+  times_s_forVideo = np.arange(start=0, stop=duration_s, step=1/max_fps)
+  
   os.makedirs(os.path.split(output_filepath)[0], exist_ok=True)
-  times_s = np.linspace(start=0, stop=duration_s, num=feature_matrix.shape[0])
-  fps = int(round((len(times_s)-1)/(times_s[-1] - times_s[0])))
+  
   video_writer = None
-  previous_handles = None
-  for (time_index, time_s) in enumerate(times_s):
-    previous_handles = plot_timestep(feature_matrix,
-                                     time_index=time_index, times_s=times_s,
-                                     subject_id=subject_id, trial_index=trial_index,
-                                     referenceObject_position_m=referenceObject_position_m,
-                                     previous_handles=previous_handles,
-                                     pause_after_plotting=False,
-                                     hide_figure_window=True)
-    fig = previous_handles[0]
-    plot_img = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
-    plot_img = plot_img.reshape(fig.canvas.get_width_height()[::-1] + (3,))
-    plot_img = cv2.cvtColor(plot_img, cv2.COLOR_RGB2BGR)
+  previous_handles_byExampleType = dict([(example_type, None) for example_type in example_types])
+  for (frame_index, time_s) in enumerate(times_s_forVideo):
+    plot_imgs = []
+    for example_type in example_types:
+      times_s_forExample = times_s[example_type]
+      feature_matrix = feature_matrices[example_type]
+      if time_s >= times_s_forExample[0] and time_s <= times_s_forExample[-1]:
+        time_index = times_s_forExample.searchsorted(time_s)
+        previous_handles_byExampleType[example_type] = plot_timestep(feature_matrix,
+                                                         time_index=time_index, times_s=times_s_forExample,
+                                                         subject_id='%s (%s)' % (str(subject_id), example_type) if len(example_type.strip()) > 0 else subject_id,
+                                                         trial_index=trial_index,
+                                                         referenceObject_position_m=referenceObject_positions_m[example_type],
+                                                         previous_handles=None,
+                                                         pause_after_plotting=False,
+                                                         hide_figure_window=True)
+        fig = previous_handles_byExampleType[example_type][0]
+        plot_img = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+        plot_img = plot_img.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+        plot_img = cv2.cvtColor(plot_img, cv2.COLOR_RGB2BGR)
+        plt.close(fig)
+      else:
+        plot_img = None
+      plot_imgs.append(plot_img)
+    sample_plot_img = [plot_img for plot_img in plot_imgs if plot_img is not None][0]
+    for i in range(len(plot_imgs)):
+      if plot_imgs[i] is None:
+        plot_imgs[i] = np.zeros(sample_plot_img.shape, dtype=np.uint8)
+    frame_img = cv2.hconcat(plot_imgs)
     if video_writer is None:
       video_writer = cv2.VideoWriter(output_filepath,
                         cv2.VideoWriter_fourcc(*'mp4v'), # for AVI: cv2.VideoWriter_fourcc(*'MJPG'),
-                        fps,
-                        (plot_img.shape[1], plot_img.shape[0])
+                        max_fps,
+                        (frame_img.shape[1], frame_img.shape[0])
                         )
-    video_writer.write(plot_img)
+    video_writer.write(frame_img)
   video_writer.release()
   
-def plot_pour_tilting(feature_matrix, shade_pouring_region=False,
+def plot_pour_tilting(feature_matrices, shade_pouring_region=False,
+                      plot_all_trials=True, plot_std_shading=False, plot_mean=False,
+                      label=None, subtitle=None,
                       fig=None, hide_figure_window=False, output_filepath=None):
   if output_filepath is not None:
     os.makedirs(os.path.split(output_filepath)[0], exist_ok=True)
@@ -364,28 +440,57 @@ def plot_pour_tilting(feature_matrix, shade_pouring_region=False,
     fig.add_subplot(1, 1, 1)
   ax = fig.get_axes()[0]
   
-  # Get the tilt angle for each timestep.
-  angle_toXY_rad = np.zeros(shape=(feature_matrix.shape[0], 1))
-  for time_index in range(feature_matrix.shape[0]):
-    angle_toXY_rad[time_index] = infer_spout_tilting(feature_matrix, time_index)
+  # Get the tilt angle for each timestep of each example.
+  angles_toXY_rad = np.zeros((len(feature_matrices), feature_matrices[0].shape[0]))
+  for trial_index, feature_matrix in enumerate(feature_matrices):
+    angle_toXY_rad = np.zeros(shape=(feature_matrix.shape[0],))
+    for time_index in range(feature_matrix.shape[0]):
+      angle_toXY_rad[time_index] = infer_spout_tilting(feature_matrix, time_index)
+    angles_toXY_rad[trial_index, :] = angle_toXY_rad
   
   # Get the pouring times.
   if shade_pouring_region:
-    pouring_inference = infer_pour_pose(feature_matrix)
-    pour_start_index = pouring_inference['start_time_index']
-    pour_end_index = pouring_inference['end_time_index']
+    pour_start_indexes = np.zeros((len(feature_matrices), 1))
+    pour_end_indexes = np.zeros((len(feature_matrices), 1))
+    for trial_index, feature_matrix in enumerate(feature_matrices):
+      pouring_inference = infer_pour_pose(feature_matrix)
+      pour_start_indexes[trial_index] = pouring_inference['start_time_index']
+      pour_end_indexes[trial_index] = pouring_inference['end_time_index']
   
-  # Plot.
-  ax.plot(np.degrees(angle_toXY_rad))
+  # Plot shading if desired.
+  if plot_std_shading:
+    if label in example_types_to_offset:
+      angles_toXY_rad += np.radians(10)
+    x = np.linspace(start=0, stop=angles_toXY_rad.shape[1], num=angles_toXY_rad.shape[1])
+    mean = np.mean(angles_toXY_rad, axis=0)
+    std = np.std(angles_toXY_rad, axis=0)
+    ax.fill_between(x, np.degrees(mean-std), np.degrees(mean+std), alpha=0.4,
+                    label=('%s: 1 StdDev' % label) if label is not None else '1 StdDev')
+    ax.legend()
+  
+  # Plot all traces if desired.
+  if plot_all_trials:
+    for trial_index in range(len(feature_matrices)):
+      ax.plot(np.degrees(angles_toXY_rad[trial_index, :]), linewidth=1)
+    
+  # Plot the mean if desired.
+  if plot_mean:
+    ax.plot(np.mean(np.degrees(angles_toXY_rad), axis=0),
+            color='k' if plot_all_trials else None, linewidth=3,
+            label=('%s: Mean' % label) if label is not None else 'Mean')
+    ax.legend()
+    
+  # Shade the pouring regions if desired.
   if shade_pouring_region:
-    ax.axvspan(pour_start_index, pour_end_index, alpha=0.5, color='gray')
+    for trial_index in range(len(feature_matrices)):
+      ax.axvspan(pour_start_indexes[trial_index], pour_end_indexes[trial_index], alpha=0.5, color='gray')
   
   # Plot formatting.
   ax.set_ylim([-90, 15])
   ax.set_xlabel('Time Index')
   ax.set_ylabel('Tilt Angle to XY Plane [deg]')
   ax.grid(True, color='lightgray')
-  plt.title('Tilt angle of the pitcher')
+  plt.title('Tilt angle of the pitcher%s' % (': %s' % subtitle) if subtitle is not None else '')
   
   # Show the plot.
   plt.draw()
@@ -396,8 +501,11 @@ def plot_pour_tilting(feature_matrix, shade_pouring_region=False,
   
   return fig
 
-def plot_pour_relativePosition(feature_matrix, referenceObject_position_m,
+def plot_pour_relativePosition(feature_matrices, referenceObject_positions_m,
+                               plot_all_trials=True, plot_std_shading=False, plot_mean=False,
+                               subtitle=None, label=None,
                                fig=None, hide_figure_window=False,
+                               color=None,
                                output_filepath=None):
   if fig is None:
     if hide_figure_window:
@@ -419,42 +527,213 @@ def plot_pour_relativePosition(feature_matrix, referenceObject_position_m,
     referenceObject_circle = mpatches.Circle(
         (0, 0),
         radius=referenceObject_diameter_cm/2, ec=[0.4,1,1], color=[0.8,1,1],
-        alpha=0.5)
+        linewidth=3, alpha=0.5)
     ax.add_patch(referenceObject_circle)
     ax.scatter(0, 0, s=10, c='k')
   else:
     ax = fig.get_axes()[0]
   
-  # Get the pouring time.
-  pouring_inference = infer_pour_pose(feature_matrix)
-  pour_index = pouring_inference['time_index']
-  # Get the spout projection and yaw.
-  spout_position_cm = 100*infer_spout_position_m(feature_matrix, pour_index)
-  spout_yawvector = infer_spout_yawvector(feature_matrix, pour_index)
-  # Project everything to the XY plane.
-  spout_position_cm = spout_position_cm[0:2]
-  spout_yawvector = spout_yawvector[0:2]
-  referenceObject_position_cm = 100*referenceObject_position_m[0:2]
-  # Use the spout projection as the origin.
-  referenceObject_position_cm = referenceObject_position_cm - spout_position_cm
-  # Rotate so the yaw vector is the new y-axis.
-  yaw_rotation_matrix = rotation_matrix_from_vectors([spout_yawvector[0], spout_yawvector[1], 0],
-                                                     [0, 1, 0])
-  referenceObject_position_cm = yaw_rotation_matrix.dot(np.array([referenceObject_position_cm[0], referenceObject_position_cm[1], 0]))
-  referenceObject_position_cm = referenceObject_position_cm[0:2]
-  # Move the origin to the reference object.
-  spout_relativeOffset_cm = -referenceObject_position_cm
+  spout_relativeOffsets_cm = np.zeros((len(feature_matrices), 2))
+  for trial_index in range(len(feature_matrices)):
+    feature_matrix = feature_matrices[trial_index]
+    referenceObject_position_m = referenceObject_positions_m[trial_index]
+    # Get the pouring time.
+    pouring_inference = infer_pour_pose(feature_matrix)
+    pour_index = pouring_inference['time_index']
+    # Get the spout projection and yaw.
+    spout_position_cm = 100*infer_spout_position_m(feature_matrix, pour_index)
+    spout_yawvector = infer_spout_yawvector(feature_matrix, pour_index)
+    # Project everything to the XY plane.
+    spout_position_cm = spout_position_cm[0:2]
+    spout_yawvector = spout_yawvector[0:2]
+    referenceObject_position_cm = 100*referenceObject_position_m[0:2]
+    # Use the spout projection as the origin.
+    referenceObject_position_cm = referenceObject_position_cm - spout_position_cm
+    # Rotate so the yaw vector is the new y-axis.
+    yaw_rotation_matrix = rotation_matrix_from_vectors([spout_yawvector[0], spout_yawvector[1], 0],
+                                                       [0, 1, 0])
+    referenceObject_position_cm = yaw_rotation_matrix.dot(np.array([referenceObject_position_cm[0], referenceObject_position_cm[1], 0]))
+    referenceObject_position_cm = referenceObject_position_cm[0:2]
+    # Move the origin to the reference object.
+    spout_relativeOffset_cm = -referenceObject_position_cm
+    # Store the result.
+    spout_relativeOffsets_cm[trial_index, :] = spout_relativeOffset_cm
   
-  # Plot.
-  ax.scatter(*spout_relativeOffset_cm, s=25)
+  # Plot a standard deviation shaded region if desired.
+  if plot_std_shading:
+    if label in example_types_to_offset:
+      spout_relativeOffsets_cm += np.array([1, 2])
+      
+    # Helper function from https://matplotlib.org/stable/gallery/statistics/confidence_ellipse.html
+    def confidence_ellipse(x, y, ax, n_std=3.0, facecolor='none', **kwargs):
+      """
+      Create a plot of the covariance confidence ellipse of *x* and *y*.
   
+      Parameters
+      ----------
+      x, y : array-like, shape (n, )
+          Input data.
+  
+      ax : matplotlib.axes.Axes
+          The axes object to draw the ellipse into.
+  
+      n_std : float
+          The number of standard deviations to determine the ellipse's radiuses.
+  
+      **kwargs
+          Forwarded to `~matplotlib.patches.Ellipse`
+  
+      Returns
+      -------
+      matplotlib.patches.Ellipse
+      """
+      if x.size != y.size:
+          raise ValueError("x and y must be the same size")
+  
+      cov = np.cov(x, y)
+      pearson = cov[0, 1]/np.sqrt(cov[0, 0] * cov[1, 1])
+      # Using a special case to obtain the eigenvalues of this
+      # two-dimensional dataset.
+      ell_radius_x = np.sqrt(1 + pearson)
+      ell_radius_y = np.sqrt(1 - pearson)
+      ellipse = Ellipse((0, 0), width=ell_radius_x * 2, height=ell_radius_y * 2,
+                        facecolor=facecolor, **kwargs)
+  
+      # Calculating the standard deviation of x from
+      # the squareroot of the variance and multiplying
+      # with the given number of standard deviations.
+      scale_x = np.sqrt(cov[0, 0]) * n_std
+      mean_x = np.mean(x)
+  
+      # calculating the standard deviation of y ...
+      scale_y = np.sqrt(cov[1, 1]) * n_std
+      mean_y = np.mean(y)
+  
+      transf = transforms.Affine2D() \
+          .rotate_deg(45) \
+          .scale(scale_x, scale_y) \
+          .translate(mean_x, mean_y)
+  
+      ellipse.set_transform(transf + ax.transData)
+      return ax.add_patch(ellipse)
+    
+    # Plot the ellipse for the spout positions.
+    confidence_ellipse(x=spout_relativeOffsets_cm[:,0], y=spout_relativeOffsets_cm[:,1], ax=ax,
+                       n_std=1.0, facecolor=color, alpha=0.5,
+                       label=('%s: 1 StdDev' % label) if label is not None else '1 StdDev')
+    ax.legend()
+    
+  # Plot all trial results if desired.
+  if plot_all_trials:
+    for trial_index in range(len(feature_matrices)):
+      ax.scatter(*spout_relativeOffsets_cm[trial_index,:], c=color, s=25)
+  
+  # Plot the mean if desired.
+  if plot_mean:
+    ax.scatter(*np.mean(spout_relativeOffsets_cm, axis=0), c=color, s=40)
+    
   # Plot formatting.
   ax.set_aspect('equal')
   ax.set_xlabel('Horizontal Relative to Pouring Direction [cm]')
   ax.set_ylabel('Vertical Relative to Pouring Direction [cm]')
   ax.grid(True, color='lightgray')
   ax.set_axisbelow(True)
-  plt.title('Spout projected onto table, along pouring axis')
+  plt.title('Spout projected onto table, along pouring axis%s' % (': %s' % subtitle) if subtitle is not None else '')
+  
+  # Show the plot.
+  plt.draw()
+  
+  # Save the plot if desired.
+  if output_filepath is not None:
+    fig.savefig(output_filepath, dpi=300)
+  
+  return fig
+
+def plot_pour_relativeHeight(feature_matrices, referenceObject_positions_m,
+                             shade_pouring_region=False,
+                             plot_all_trials=True, plot_std_shading=False, plot_mean=False,
+                             subtitle=None, label=None,
+                             fig=None, hide_figure_window=False,
+                             color=None,
+                             output_filepath=None):
+  if fig is None:
+    if hide_figure_window:
+      try:
+        matplotlib.use('Agg')
+      except:
+        pass
+    else:
+      matplotlib.use(default_matplotlib_backend)
+    fig = plt.figure()
+    if not hide_figure_window:
+      figManager = plt.get_current_fig_manager()
+      figManager.window.showMaximized()
+      plt_wait_for_keyboard_press(0.5)
+    plt.ion()
+    fig.add_subplot(1, 1, 1)
+    ax = fig.get_axes()[0]
+  else:
+    ax = fig.get_axes()[0]
+  
+  # Get the spout heights for each trial.
+  spout_heights_cm = np.zeros((len(feature_matrices), feature_matrices[0].shape[0]))
+  for trial_index in range(len(feature_matrices)):
+    feature_matrix = feature_matrices[trial_index]
+    referenceObject_position_m = referenceObject_positions_m[trial_index]
+    # Get the spout height at each timestep.
+    spout_relativeHeight_cm = np.zeros(shape=(feature_matrix.shape[0],))
+    for time_index in range(feature_matrix.shape[0]):
+      spout_position_cm = 100*infer_spout_position_m(feature_matrix, time_index)
+      spout_relativeHeight_cm[time_index] = spout_position_cm[2] - 100*referenceObject_position_m[2]
+    spout_heights_cm[trial_index, :] = spout_relativeHeight_cm
+  
+  # Get the pouring times.
+  if shade_pouring_region:
+    pour_start_indexes = np.zeros((len(feature_matrices), 1))
+    pour_end_indexes = np.zeros((len(feature_matrices), 1))
+    for trial_index, feature_matrix in enumerate(feature_matrices):
+      pouring_inference = infer_pour_pose(feature_matrix)
+      pour_start_indexes[trial_index] = pouring_inference['start_time_index']
+      pour_end_indexes[trial_index] = pouring_inference['end_time_index']
+  
+  # Plot shading if desired.
+  if plot_std_shading:
+    if label in example_types_to_offset:
+      spout_heights_cm += 2
+    x = np.linspace(start=0, stop=spout_heights_cm.shape[1], num=spout_heights_cm.shape[1])
+    mean = np.mean(spout_heights_cm, axis=0)
+    std = np.std(spout_heights_cm, axis=0)
+    ax.fill_between(x, mean-std, mean+std, alpha=0.4,
+                    label=('%s: 1 StdDev' % label) if label is not None else '1 StdDev')
+    ax.legend()
+  
+  # Plot all traces if desired.
+  if plot_all_trials:
+    for trial_index in range(len(feature_matrices)):
+      ax.plot(spout_heights_cm[trial_index, :], linewidth=1)
+    
+  # Plot the mean if desired.
+  if plot_mean:
+    ax.plot(np.mean(spout_heights_cm, axis=0),
+            color='k' if plot_all_trials else None, linewidth=3,
+            label=('%s: Mean' % label) if label is not None else 'Mean')
+    ax.legend()
+    
+  # Shade the pouring regions if desired.
+  if shade_pouring_region:
+    for trial_index in range(len(feature_matrices)):
+      ax.axvspan(pour_start_indexes[trial_index], pour_end_indexes[trial_index], alpha=0.5, color='gray')
+  
+  # Plot the glass height.
+  ax.axhline(y=0, color='k', linestyle='--')
+  
+  # Plot formatting.
+  ylim = ax.get_ylim()
+  ax.set_ylim([min(-5, min(ylim)), max(ylim)])
+  ax.set_xlabel('Time Index')
+  ax.set_ylabel('Spout Height Above Glass [cm]')
+  ax.grid(True, color='lightgray')
+  plt.title('Spout height relative to glass%s' % (': %s' % subtitle) if subtitle is not None else '')
   
   # Show the plot.
   plt.draw()

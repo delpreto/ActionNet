@@ -13,7 +13,7 @@ from helpers import *
 # Configuration.
 ##################################################################
 
-# Specify the subject to process and the directory with HDF5 files.
+# Specify the directory with HDF5 files.
 data_dir = 'C:/Users/jdelp/Desktop/ActionSense/results/learning_trajectories'
 
 # Specify the output feature matrices to evaluate.

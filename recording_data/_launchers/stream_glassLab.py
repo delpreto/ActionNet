@@ -56,7 +56,7 @@ if __name__ == '__main__':
                       print_message=True, userAction=True, filepath=log_history_filepath, **kwargs)
   
   # TODO: Define the streamers to use.
-  #   Configure settings for each class in sensor_streamer_specs.
+  #   Then configure settings for each class in sensor_streamer_specs below.
   sensor_streamers_enabled = dict([
     # Use one of the following to control the experiment (enter notes, quit, etc)
     ('ExperimentControlStreamer', True),  # A GUI to label activities/calibrations and enter notes
@@ -65,23 +65,25 @@ if __name__ == '__main__':
     ('MyoStreamer',        True),  # One or more Myo EMG/IMU armbands
     ('TouchStreamer',      False),  # Custom tactile sensors streaming via an Arduino
     ('XsensStreamer',      False),  # The Xsens body tracking system (includes the Manus finger-tracking gloves if connected to Xsens)
-    ('EyeStreamer',        True),  # The Pupil Labs eye-tracking headset
+    ('EyeStreamer',        False),  # The Pupil Labs eye-tracking headset
     ('ScaleStreamer',      False),  # The Dymo M25 digital postal scale
     ('MoticonStreamer',    False),  # Moticon insole pressure sensors
     ('MicrophoneStreamer', False),  # One or more microphones
     ('CameraStreamer',     True),  # One or more cameras
-    ('SerialStreamer',     True),  # One or more serial streams
+    ('SerialStreamer',     False),  # One or more serial streams
     ('ResistanceStreamer', False),  # One or more resistance readings
     ('DummyStreamer',      False),  # Dummy data (no hardware required)
   ])
   sensor_streamer_specs = [
     # Allow the experimenter to label data and enter notes.
     {'class': 'ExperimentControlStreamer',
-     'activities': [ # TODO: Enter your activities that you want to label
-       'Heat',
+     'activities': [ # TODO: Enter activities that you want to label during the experiment
+       'Heat glass',
+       'Rotate glass',
+       'Shape glass',
        'Kiln',
        'Soak',
-       'Burn cream',
+       'Apply burn cream',
      ],
      'print_debug': print_debug, 'print_status': print_status
      },
@@ -90,6 +92,7 @@ if __name__ == '__main__':
      'print_debug': print_debug, 'print_status': print_status
      },
     # Stream from the Myo device including EMG, IMU, and gestures.
+    # TODO specify the number of Myos that are connected via Myo Connect
     {'class': 'MyoStreamer',
      'num_myos': 1,
      'print_debug': print_debug, 'print_status': print_status
@@ -121,9 +124,11 @@ if __name__ == '__main__':
      'print_debug': print_debug, 'print_status': print_status
      },
     # Stream from one or more cameras.
+    # TODO specify the device ID of the camera to stream.
+    #  A built-in laptop camera is 0, and a USB camera is 1 (or higher if multiple cameras are connected).
     {'class': 'CameraStreamer',
      'cameras_to_stream': { # map camera names (usable as device names in the HDF5 file) to capture device indexes
-       'external_camera': 1,
+       'laptop_camera': 0,
      },
      'print_debug': print_debug, 'print_status': print_status
      },
@@ -160,7 +165,11 @@ if __name__ == '__main__':
                            and sensor_streamers_enabled[spec['class']]]
   
   # TODO: Configure where and how to save sensor data.
-  #       Adjust enable_data_logging, log_tag, and log_dir_root as desired.
+  #       Adjust "enable_data_logging", "log_dir_root", "log_tag" as desired.
+  #       log_dir_root is the folder to save data.
+  #         A subfolder will be created in here each time the program is run.
+  #       log_tag is an identifier for the upcoming series of runs.
+  #         The subfolders will have this tag in the name, preceded by the current date/time.
   enable_data_logging = True # If False, no data will be logged and the below directory settings will be ignored
   if enable_data_logging:
     script_dir = os.path.dirname(os.path.realpath(__file__))
@@ -181,8 +190,8 @@ if __name__ == '__main__':
       'stream_hdf5' : True,
       'stream_video': True,
       'stream_audio': True,
-      'stream_period_s': 300,
-      'clear_logged_data_from_memory': True, # ignored if dumping is also enabled
+      'stream_period_s': 300, # Will dump data from memory to files with this period
+      'clear_logged_data_from_memory': True, # ignored if dumping is also enabled below
       # Choose whether to write all data at the end.
       'dump_csv'  : False,
       'dump_hdf5' : False,
@@ -202,26 +211,31 @@ if __name__ == '__main__':
     datalogging_options = None
   
   # TODO: Configure visualization.
-  composite_frame_size = (1200, 1800) # height, width # (1800, 3000)
-  composite_col_width = int(composite_frame_size[1]/2)
-  composite_row_height = int(composite_frame_size[0]/2)
+  #   This composite video will be shown during the experiment and also saved as a video file.
+  #   There is a post-processing script to generate these videos at a higher frame rate if desired (or adjust the layout, streams, formats, etc).
+  #
+  composite_frame_size = (1200, 1800) # height, width # TODO adjust so the video looks reasonable on your screen
+  composite_col_width = int(composite_frame_size[1]/2) # the column size of the grid of plots; the divisor should match the number of columns you specify below
+  composite_row_height = int(composite_frame_size[0]/2) # the row size of the grid of plots; the divisor should match the number of rows you specify below
   visualization_options = {
     'visualize_streaming_data'       : True,
     'visualize_all_data_when_stopped': False,
     'wait_while_visualization_windows_open': False,
-    'update_period_s': 0.25,
-    # 'classes_to_visualize': ['TouchStreamer']
+    'update_period_s': 0.25, # defines the frame rate of the video (if too fast, it won't keep up in real time)
     'use_composite_video': True,
     'composite_video_filepath': os.path.join(log_dir, 'composite_visualization') if log_dir is not None else None,
+    # Specify what streams to show and how to lay them out in a grid.
     'composite_video_layout':
       [
-        [ # row 0
-          {'device_name':'external_camera', 'stream_name':'frame', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
-          {'device_name':'eye-tracking-video-worldGaze', 'stream_name':'frame', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
-        ],
-        [ # row 1
+        [ # row 0; each entry is a column in the first row
+          {'device_name':'myo-left', 'stream_name':'emg', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':   composite_row_height},
           {'device_name':'myo-right', 'stream_name':'emg', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':   composite_row_height},
-          {'device_name':'all-serial-sensors', 'stream_name':'serial_data', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
+          # {'device_name':'eye-tracking-video-worldGaze', 'stream_name':'frame', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
+        ],
+        [ # row 1; each entry is a column in the second row
+          {'device_name':'laptop_camera', 'stream_name':'frame', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
+          {'device_name':'dummy', 'stream_name':'nothing', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
+          # {'device_name':'all-serial-sensors', 'stream_name':'serial_data', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
         ],
       ],
   }
@@ -268,9 +282,9 @@ if __name__ == '__main__':
   average_duration_s = 15
   prev_num_notes = 0
   control_streamer = sensor_manager.get_streamers(class_name='ExperimentControlStreamer')[0]
-  serial_streamer = sensor_manager.get_streamers(class_name='SerialStreamer')[0]
+  # serial_streamer = sensor_manager.get_streamers(class_name='SerialStreamer')[0]
   def print_data():
-    global average_duration_s, prev_num_notes, control_streamer, serial_streamer
+    global average_duration_s, prev_num_notes, control_streamer#, serial_streamer
     notes = control_streamer.get_data('experiment-notes', 'notes')
     if notes is None:
       prev_num_notes = 0
@@ -279,18 +293,19 @@ if __name__ == '__main__':
     if num_notes > prev_num_notes:
       note = notes['data'][-1]
       note_t = notes['time_s'][-1]
-      serial_data = serial_streamer.get_data(device_name='all-sensors', stream_name='serial_data',
-                                             starting_time_s=note_t-average_duration_s)
-      # serial_t = np.squeeze(np.array(serial_data['time_s']))
-      serial_data = np.squeeze(np.array(serial_data['data']))
-      print(serial_data.shape)
-      # indexes = np.where(serial_t >= note_t - average_duration_s)[0]
-      # serial_data_averaged = np.mean(serial_data[indexes, :], dim=0)
-      serial_data_averaged = np.mean(serial_data, axis=0)
-      serial_data_averaged_std = np.std(serial_data, axis=0)
-      serial_data_averaged_str = str(list(serial_data_averaged)).replace(', ', '\t').replace('[','').replace(']','')
-      serial_data_averaged_std_str = str(list(serial_data_averaged_std)).replace(', ', '\t').replace('[','').replace(']','')
-      _log_status('\t%f\t%s\t%s\t%s' % (note_t, note, serial_data_averaged_str, serial_data_averaged_std_str))
+      # serial_data = serial_streamer.get_data(device_name='all-sensors', stream_name='serial_data',
+      #                                        starting_time_s=note_t-average_duration_s)
+      # # serial_t = np.squeeze(np.array(serial_data['time_s']))
+      # serial_data = np.squeeze(np.array(serial_data['data']))
+      # print(serial_data.shape)
+      # # indexes = np.where(serial_t >= note_t - average_duration_s)[0]
+      # # serial_data_averaged = np.mean(serial_data[indexes, :], dim=0)
+      # serial_data_averaged = np.mean(serial_data, axis=0)
+      # serial_data_averaged_std = np.std(serial_data, axis=0)
+      # serial_data_averaged_str = str(list(serial_data_averaged)).replace(', ', '\t').replace('[','').replace(']','')
+      # serial_data_averaged_std_str = str(list(serial_data_averaged_std)).replace(', ', '\t').replace('[','').replace(']','')
+      # _log_status('\t%f\t%s\t%s\t%s' % (note_t, note, serial_data_averaged_str, serial_data_averaged_std_str))
+      _log_status('\t%f\t%s' % (note_t, note,))
     prev_num_notes = num_notes
   
   # Define a callback that checks whether the user has entered a quit keyword.

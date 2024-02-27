@@ -79,15 +79,25 @@ class LinePlotVisualizer(Visualizer):
       if self._hidden:
         matplotlib.use("Agg")
       matplotlib.style.use('fast') # doesn't seem to impact speed much for tested plots
+      
+    if not use_matplotlib:
+      self._axis_tick_font = QtGui.QFont('arial', pointSize=10)
+      self._axis_label_style = {'font-size': '12pt'}
+      self._legendLabelStyle = {'color': '#000', 'size': '13pt', 'bold': False, 'italic': False}
 
   # Initialize a visualization that plots data as line graph(s).
   def init(self, device_name, stream_name, stream_info):
     if self._print_debug: print('LinePlotVisualizer initializing for %s %s' % (device_name, stream_name))
 
     # Process default plotting options.
+    print('self._visualizer_options', self._visualizer_options)
     self._visualizer_options.setdefault('single_graph', True)
     self._visualizer_options.setdefault('downsample_factor', 1)
     self._visualizer_options.setdefault('plot_duration_s', 30)
+    self._visualizer_options.setdefault('y_lim', None) # 2-element list or None
+    self._visualizer_options.setdefault('x_label', 'Time [s]')
+    self._visualizer_options.setdefault('y_label', None)
+    self._visualizer_options.setdefault('show_legend', 'auto')
     # Get the plotting options.
     single_graph = self._visualizer_options['single_graph']
     plot_duration_s = self._visualizer_options['plot_duration_s']
@@ -100,6 +110,9 @@ class LinePlotVisualizer(Visualizer):
       # Take a guess at a reasonable sampling rate.
       plot_length = int(plot_duration_s*50) + 1
     plot_length_downsampled = int((plot_length-1)/downsample_factor)+1
+    show_legend = self._visualizer_options['show_legend']
+    if show_legend == 'auto':
+      show_legend = np.prod(sample_size) > 1
     if use_matplotlib:
       figure_size = (5.5, 3.5)
     else:
@@ -205,7 +218,13 @@ class LinePlotVisualizer(Visualizer):
         for column in range(num_columns):
           self._plots[row].append(self._layout.addPlot(row=row, col=column))
           if single_graph:
-            self._plots[row][-1].addLegend(offset=(0, 0))
+            if show_legend:
+              legendBox = self._layout.addViewBox(row=row, col=column+1)
+              legendBox.setMaximumWidth(175)
+              legend = self._plots[row][-1].addLegend(offset=(0, 0), colCount=1)
+              legend.setBrush('w')
+              legend.setParentItem(legendBox)
+              legend.anchor((0,0), (0,0))
       self._plots = np.array(self._plots)
       if self._hidden and not self._is_sub_layout:
         self._layout.hide()
@@ -261,7 +280,8 @@ class LinePlotVisualizer(Visualizer):
           plt.sca(axs[row][column])
           plt.grid(True, color='lightgray')
           if single_graph:
-            axs[row][column].legend(line_titles)
+            if show_legend:
+              axs[row][column].legend(line_titles)
           else:
             plt.title(titles_byAxs[row][column])
           if row == (num_rows-1):
@@ -286,27 +306,39 @@ class LinePlotVisualizer(Visualizer):
       # Save state for future updates.
       self._fig_bg = fig_bg
     else:
-      axis_tick_font = QtGui.QFont('arial', pointSize=10)
       for row in range(num_rows):
         for column in range(num_columns):
           for axis_side in ['left', 'bottom', 'top']:
             plot = self._plots[row][column].getAxis(axis_side)
             plot.setPen('k')
             plot.setGrid(grid=True)
-            plot.setTickFont(axis_tick_font)
+            plot.setTickFont(self._axis_tick_font)
+          if row < (num_rows-1):
+            self._plots[row][column].getAxis('bottom').setTickFont(QtGui.QFont('arial', pointSize=1))
+          self._plots[row][column].showGrid(x=True, y=True, alpha=None)
+          if row > 0:
+            self._plots[row][column].setXLink(self._plots[0][column])
+          self._plots[row][column].getAxis('left').setWidth(75) # TODO make this dynamic? Note can get width with .width(), but would need to know magnitude of data to plot (for size of tick labels)
+          if self._visualizer_options['x_label'] is not None and row == (num_rows-1):
+            self._plots[row][column].getAxis('bottom').setLabel(self._visualizer_options['x_label'], **self._axis_label_style)
+          if self._visualizer_options['y_label'] is not None and column == 0:
+            self._plots[row][column].getAxis('left').setLabel(self._visualizer_options['y_label'], **self._axis_label_style)
           self._plots[row][column].showGrid(x=True, y=True, alpha=0.8)
-          if row == 0:
-            self._plots[row][column].setTitle('%s: %s' % (device_name, stream_name),  size='10pt')
-          if row == (num_rows-1):
-            labelStyle = {'color': '#000', 'font-size': '10pt'}
-            # self._plots[row][column].setLabel('bottom', 'Time [s]', **labelStyle)
-          else:
-            self._plots[row][column].hideAxis('bottom')
-          self._layout.setWindowTitle('%s: %s' % (device_name, stream_name))
+          if self._plots[row][column].legend is not None:
+            for item in self._plots[row][column].legend.items:
+              for single_item in item:
+                if isinstance(single_item, pyqtgraph.graphicsItems.LabelItem.LabelItem):
+                  single_item.setText(single_item.text, **self._legendLabelStyle)
+                # if isinstance(single_item, pyqtgraph.graphicsItems.LegendItem.ItemSample):
+                #   single_item.setStyle()
+                #   assert(False)
+          # if row < (num_rows-1):
+          #   self._plots[row][column].hideAxis('bottom')
+      self._plots[0][int(num_columns/2)].setTitle('%s: %s' % (device_name, stream_name))
       # Update the plot window
       if not self._hidden:
         QtCore.QCoreApplication.processEvents()
-
+      
     # Save state for future updates.
     self._plot_length = plot_length
     self._plot_length_downsampled = plot_length_downsampled
@@ -384,12 +416,16 @@ class LinePlotVisualizer(Visualizer):
             # Rescale the axes.
             ax.relim()
             ax.autoscale_view(scalex=True, scaley=True)
+            if self._visualizer_options['y_lim'] is not None:
+              ax.set_ylim(self._visualizer_options['y_lim'])
             # Re-render the artist.
             if self._use_blitting:
               ax.draw_artist(h_line)
           else:
             h_line = self._h_lines[row][column][line_index]
             h_line.setData(time_s_downsampled, data_forLine_downsampled)
+            if self._visualizer_options['y_lim'] is not None:
+              self._plots[row][column].setYRange(*self._visualizer_options['y_lim']) #, padding=0)
     # Update the figure to see the changes.
     if use_matplotlib:
       if self._use_blitting:

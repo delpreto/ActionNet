@@ -78,8 +78,8 @@ if __name__ == '__main__':
     #  what sensors are available and their COM ports.
     {'class': 'TouchStreamer',
      'com_ports': {
-       'tactile-glove-left' : 'COM3', # None
-       'tactile-glove-right': 'COM6', # None
+       'tactile-glove-left' : 'COM14', # None
+       # 'tactile-glove-right': 'COM6', # None
      },
      'print_debug': print_debug, 'print_status': print_status
      },
@@ -188,7 +188,7 @@ if __name__ == '__main__':
     'wait_while_visualization_windows_open': False,
     'update_period_s': 0.25,
     # 'classes_to_visualize': ['TouchStreamer']
-    'use_composite_video': True,
+    'use_composite_video': False,
     'composite_video_layout':
       [
         [ # row  0

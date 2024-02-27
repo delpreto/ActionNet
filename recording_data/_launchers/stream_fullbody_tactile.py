@@ -90,7 +90,7 @@ if __name__ == '__main__':
       'fpga_addresses': { # a dictionary mapping sensor names to (ip_address, port)
         'body-sensor':  ('0.0.0.0', 10000),
       },
-      'is_shear_sensor': True,
+      'is_shear_sensor': False,
       'calibration_duration_s': 10,
       'downsampling_factor': 20,
       'tactile_sample_size': (32,32), # (height, width)

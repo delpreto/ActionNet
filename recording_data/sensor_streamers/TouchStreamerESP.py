@@ -38,6 +38,54 @@ from collections import OrderedDict
 import traceback
 
 
+# Define functions for data transformations to visually represent the sensor.
+_sensor_tactile_submatrix_slice = np.s_[24:32, 6:30] # starts are inclusive, ends are exclusive
+_sensor_shear_submatrix_slice = np.s_[12:16, 3:15] # starts are inclusive, ends are exclusive
+x = 0
+n = np.nan
+_sensor_shear_layout = np.array([
+  [x, n, n, n, 1, n, 1, n, 1, n, 1, n, 1, n, 1, n, 1, n, n, x, x, x, x,],
+  [1, n, 1, n, 1, n, 1, n, 1, n, 1, n, n, n, n, n, n, n, n, n, n, x, x,],
+  [1, n, 1, n, 1, n, 1, n, 1, n, n, n, 1, n, 1, n, 1, n, 1, 1, 1, n, x,],
+  [1, n, 1, n, 1, n, 1, n, 1, n, 1, n, n, n, n, n, n, n, 1, 1, 1, n, n,],
+  [1, n, 1, n, n, n, n, n, n, n, 1, n, 1, n, 1, n, 1, n, n, n, n, n, n,],
+  [x, n, n, n, n, n, n, n, n, n, n, n, 1, n, n, n, n, n, 1, 1, 1, n, n,],
+  [x, x, x, x, x, x, x, x, x, x, x, n, n, n, 1, n, 1, n, 1, 1, 1, n, x,],
+  [x, x, x, x, x, x, x, x, x, x, x, x, x, x, n, n, n, n, n, n, n, x, x,],
+])
+_sensor_tactile_layout = []
+for shear_layout_row_index in range(_sensor_shear_layout.shape[0]):
+  shear_row_data = _sensor_shear_layout[shear_layout_row_index, :]
+  tactile_row_data = np.squeeze(np.array([shear_row_data, shear_row_data]).T.reshape((1,-1)))
+  _sensor_tactile_layout.append(tactile_row_data)
+  _sensor_tactile_layout.append(tactile_row_data)
+_sensor_tactile_layout = np.array(_sensor_tactile_layout)
+
+def _data_matrix_to_sensor_layout(data_matrix, layout):
+  data_layout = np.nan*np.ones(shape=layout.shape)
+  data_column_index = 0
+  for layout_column_index in range(layout.shape[1]):
+    layout_column = layout[:, layout_column_index]
+    column_sensor_indexes = np.where(layout_column == 1)[0]
+    column_nan_indexes = np.where(np.isnan(layout_column))[0]
+    column_zero_indexes = np.where(layout_column == 0)[0]
+    data_layout[column_nan_indexes, layout_column_index] = np.nan
+    data_layout[column_zero_indexes, layout_column_index] = np.nan
+    if column_sensor_indexes.size > 0:
+      data_layout[column_sensor_indexes, layout_column_index] = data_matrix[:, data_column_index]
+      data_column_index += 1
+  return data_layout
+def _shear_matrix_to_sensor_layout(shear_matrix):
+  if _sensor_shear_layout is not None:
+    return _data_matrix_to_sensor_layout(shear_matrix[_sensor_shear_submatrix_slice], _sensor_shear_layout)
+  else:
+    return shear_matrix
+def _tactile_matrix_to_sensor_layout(tactile_matrix):
+  if _sensor_tactile_layout is not None:
+    return _data_matrix_to_sensor_layout(tactile_matrix[_sensor_tactile_submatrix_slice], _sensor_tactile_layout)
+  else:
+    return tactile_matrix
+  
 ################################################
 ################################################
 # A class to interface with the tactile sensors via the Arduino board.
@@ -45,13 +93,15 @@ import traceback
 # See the corresponding Arduino code in TouchStreamer_arduino/TouchStreamer_arduino.ino
 ################################################
 ################################################
-class TouchShearStreamerESP(TouchStreamer):
+class TouchStreamerESP(TouchStreamer):
   
   ########################
   ###### INITIALIZE ######
   ########################
   
   def __init__(self, streams_info=None,
+               is_shear_sensor=False,
+               calibration_duration_s=None,
                log_player_options=None, visualization_options=None,
                com_ports=None,
                print_status=True, print_debug=False, log_history_filepath=None):
@@ -62,7 +112,8 @@ class TouchShearStreamerESP(TouchStreamer):
                             print_status=print_status, print_debug=print_debug,
                             log_history_filepath=log_history_filepath)
     
-    self._log_source_tag = 'shear'
+    self._log_source_tag = 'touch'
+    self._is_shear_sensor = is_shear_sensor
     
     # Configurations that should match settings in Arduino code.
     self._sensor_waits_for_request = True # Should match setting in Arduino code
@@ -80,8 +131,9 @@ class TouchShearStreamerESP(TouchStreamer):
     
     # Shear-specific configuration.
     self._tiled_sample_size = tuple([x // 2 for x in self._sensor_sample_size]) # (height, width)
+    
     # State for subtracting an average of initial readings.
-    self._calibration_duration_s = None # None to not calibrate
+    self._calibration_duration_s = calibration_duration_s # None to not calibrate
     self._calibration_startTime_s = None
     self._calibration_matrices = []
     self._calibration_matrix = np.zeros(shape=self._sensor_sample_size)
@@ -90,44 +142,55 @@ class TouchShearStreamerESP(TouchStreamer):
   
   def _connect(self, timeout_s=10):
     if TouchStreamer._connect(self, timeout_s=timeout_s):
-      # Add shear-specific streams.
       for sensor_name in self._sensor_names_active:
-        self.add_stream(device_name=sensor_name,
-                        stream_name='tactile_data_calibrated',
-                        data_type='float32',
-                        sample_size=self._sensor_sample_size,
-                        sampling_rate_hz=None,
-                        extra_data_info={},
-                        data_notes=OrderedDict([
-                          ('Description', 'ADC readings from the matrix of tactile sensors '
-                                          'on the glove.  Higher readings indicate '
-                                          'higher pressures.  See the calibration periods '
-                                          'for more information about conversions.'),
-                        ]))
-        self.add_stream(device_name=sensor_name,
-                        stream_name='tactile_tiled',
-                        data_type='float32',
-                        sample_size=self._tiled_sample_size,
-                        sampling_rate_hz=None,
-                        extra_data_info={},
-                        data_notes=OrderedDict([
-                          ('Description', 'ADC readings from the matrix of tactile sensors, '
-                                          'grouped by the readings under each physical tile.'),
-                        ]))
-        self.add_stream(device_name=sensor_name,
-                        stream_name='force_vector',
-                        data_type='float32',
-                        sample_size=(2, *self._tiled_sample_size), # magnitude and angle
-                        sampling_rate_hz=None,
-                        extra_data_info={},
-                        data_notes=OrderedDict([
-                          ('Description', 'An estimate of the magnitude and angle of the force '
-                                          'vector under each physical tile of the sensor.'),
-                          ('Matrix ordering', 'Force magnitude is the first matrix dimension '
-                                              '(e.g. data[frame_index][0][:,:]) and the angle '
-                                              'is the second dimension.'),
-                          ('Units_for_angles', 'Radians'),
-                        ]))
+        if self._calibration_duration_s is not None:
+          self.add_stream(device_name=sensor_name,
+                          stream_name='tactile_data_calibrated',
+                          data_type='float32',
+                          sample_size=self._sensor_sample_size,
+                          sampling_rate_hz=None,
+                          extra_data_info={},
+                          data_notes=OrderedDict([
+                            ('Description', 'ADC readings from the matrix of tactile sensors '
+                                            'on the glove.  Higher readings indicate '
+                                            'higher pressures.  See the calibration periods '
+                                            'for more information about conversions.'),
+                          ]))
+        if self._is_shear_sensor:
+          self.add_stream(device_name=sensor_name,
+                          stream_name='tactile_tiled',
+                          data_type='float32',
+                          sample_size=self._tiled_sample_size,
+                          sampling_rate_hz=None,
+                          extra_data_info={},
+                          data_notes=OrderedDict([
+                            ('Description', 'ADC readings from the matrix of tactile sensors, '
+                                            'grouped by the readings under each physical tile.'),
+                          ]))
+          self.add_stream(device_name=sensor_name,
+                          stream_name='force_vector',
+                          data_type='float32',
+                          sample_size=(2, *self._tiled_sample_size), # magnitude and angle
+                          sampling_rate_hz=None,
+                          extra_data_info={},
+                          data_notes=OrderedDict([
+                            ('Description', 'An estimate of the magnitude and angle of the force '
+                                            'vector under each physical tile of the sensor.'),
+                            ('Matrix ordering', 'Force magnitude is the first matrix dimension '
+                                                '(e.g. data[frame_index][0][:,:]) and the angle '
+                                                'is the second dimension.'),
+                            ('Units_for_angles', 'Radians'),
+                          ]))
+          self.add_stream(device_name=sensor_name,
+                          stream_name='force_magnitude',
+                          data_type='float32',
+                          sample_size=self._tiled_sample_size, # magnitude and angle
+                          sampling_rate_hz=None,
+                          extra_data_info={},
+                          data_notes=OrderedDict([
+                            ('Description', 'An estimate of the magnitude of the force '
+                                            'vector under each physical tile of the sensor.'),
+                          ]))
       return True
     else:
       return False
@@ -136,9 +199,8 @@ class TouchShearStreamerESP(TouchStreamer):
   ###### INTERFACE WITH THE SENSOR ######
   #######################################
   
-  # Compute shear-specific quantities from a tactile data matrix.
-  def _compute_shear(self, time_s, data_matrix):
-    # Compute shear-specific quantities.
+  # Compute calibration and shear-specific quantities from a tactile data matrix.
+  def _process_data_matrix(self, time_s, data_matrix):
     if time_s is not None:
       # Subtract an average of initial readings as a rough calibration.
       if not self._calibration_completed:
@@ -153,18 +215,23 @@ class TouchShearStreamerESP(TouchStreamer):
           self._calibration_completed = True
       data_matrix_calibrated = data_matrix - self._calibration_matrix # will do nothing if the matrix hasn't been computed or if calibration is disabled
       
-      # Compute the total force in each shear square.
-      toConvolve_tiled_magnitude = np.array([[1,1],[1,1]])
-      data_matrix_tiled_magnitude = convolve2d_strided(data_matrix_calibrated, toConvolve_tiled_magnitude, stride=2)
-    
-      # Compute the force angle in each shear square.
-      toConvolve_tiled_x = np.array([[-1,1],[-1,1]])
-      toConvolve_tiled_y = np.array([[1,1],[-1,-1]])
-      data_matrix_tiled_x = convolve2d_strided(data_matrix_calibrated, toConvolve_tiled_x, stride=2)
-      data_matrix_tiled_y = convolve2d_strided(data_matrix_calibrated, toConvolve_tiled_y, stride=2)
-      data_matrix_tiled_shearAngle_rad = np.arctan2(data_matrix_tiled_y, data_matrix_tiled_x)
-      data_matrix_tiled_shearMagnitude = np.linalg.norm(np.stack([data_matrix_tiled_y, data_matrix_tiled_x], axis=0), axis=0)
-    
+      if self._is_shear_sensor:
+        # Compute the total force in each shear square.
+        toConvolve_tiled_magnitude = np.array([[1,1],[1,1]])
+        data_matrix_tiled_magnitude = convolve2d_strided(data_matrix_calibrated, toConvolve_tiled_magnitude, stride=2)
+      
+        # Compute the force angle in each shear square.
+        toConvolve_tiled_x = np.array([[-1,1],[-1,1]])
+        toConvolve_tiled_y = np.array([[1,1],[-1,-1]])
+        data_matrix_tiled_x = convolve2d_strided(data_matrix_calibrated, toConvolve_tiled_x, stride=2)
+        data_matrix_tiled_y = convolve2d_strided(data_matrix_calibrated, toConvolve_tiled_y, stride=2)
+        data_matrix_tiled_shearAngle_rad = np.arctan2(data_matrix_tiled_y, data_matrix_tiled_x)
+        data_matrix_tiled_shearMagnitude = np.linalg.norm(np.stack([data_matrix_tiled_y, data_matrix_tiled_x], axis=0), axis=0)
+      else:
+        data_matrix_tiled_magnitude = None
+        data_matrix_tiled_shearAngle_rad = None
+        data_matrix_tiled_shearMagnitude = None
+        
       # Return the data!
       return (time_s, data_matrix, data_matrix_calibrated, data_matrix_tiled_magnitude,
               data_matrix_tiled_shearAngle_rad, data_matrix_tiled_shearMagnitude)
@@ -210,6 +277,13 @@ class TouchShearStreamerESP(TouchStreamer):
                                                       'magnitude_normalization_buffer_duration_s': 30,
                                                       'magnitude_normalization_update_period_s': 10,
                                                     })
+        elif stream_name == 'force_magnitude':
+          processed_options[device_name].setdefault(stream_name,
+                                                    {
+                                                      'class': HeatmapVisualizer,
+                                                      'colorbar_levels': 'auto', # a 2-element list, 'auto', or omitted
+                                                      'data_transform_fn': _shear_matrix_to_sensor_layout,
+                                                    })
         else:
           processed_options[device_name].setdefault(stream_name, {'class':None})
     
@@ -247,18 +321,21 @@ class TouchShearStreamerESP(TouchStreamer):
             = self._read_sensor(sensor_name, suppress_printing=(count < 10))
           (time_s, data_matrix, data_matrix_calibrated, data_matrix_tiled_magnitude,
            data_matrix_tiled_shearAngle_rad, data_matrix_tiled_shearMagnitude) \
-            = self._compute_shear(time_s, data_matrix)
+            = self._process_data_matrix(time_s, data_matrix)
           if time_s is not None and data_matrix is not None:
             self.append_data(sensor_name, 'tactile_data', time_s, data_matrix)
-            self.append_data(sensor_name, 'tactile_data_calibrated', time_s, data_matrix_calibrated)
-            self.append_data(sensor_name, 'tactile_tiled', time_s, data_matrix_tiled_magnitude)
-            self.append_data(sensor_name, 'force_vector', time_s,
-                             np.stack((data_matrix_tiled_shearMagnitude,
-                                       data_matrix_tiled_shearAngle_rad),
-                                      axis=0))
+            if self._calibration_duration_s is not None:
+              self.append_data(sensor_name, 'tactile_data_calibrated', time_s, data_matrix_calibrated)
+            if self._is_shear_sensor:
+              self.append_data(sensor_name, 'tactile_tiled', time_s, data_matrix_tiled_magnitude)
+              self.append_data(sensor_name, 'force_vector', time_s,
+                               np.stack((data_matrix_tiled_shearMagnitude,
+                                         data_matrix_tiled_shearAngle_rad),
+                                        axis=0))
+              self.append_data(sensor_name, 'force_magnitude', time_s, data_matrix_tiled_shearMagnitude)
           count = count + 1
         except:
-          self._log_error('*** Could not read from shear sensor %s - waiting a bit then retrying:\n%s\n' % (sensor_name, traceback.format_exc()))
+          self._log_error('*** Could not read from ESP touch sensor %s - waiting a bit then retrying:\n%s\n' % (sensor_name, traceback.format_exc()))
           time.sleep(5)
     
       for sensor_name in self._sensor_names_active:
@@ -266,7 +343,7 @@ class TouchShearStreamerESP(TouchStreamer):
     except KeyboardInterrupt: # The program was likely terminated
       pass
     except:
-      self._log_error('\n\n***ERROR RUNNING TouchShearStreamerESP for sensor %s:\n%s\n' % (sensor_name, traceback.format_exc()))
+      self._log_error('\n\n***ERROR RUNNING TouchStreamerESP for sensor %s:\n%s\n' % (sensor_name, traceback.format_exc()))
     finally:
       pass
   
@@ -279,8 +356,8 @@ if __name__ == '__main__':
   duration_s = 7200
   
   # Connect to the device(s).
-  touch_streamer = TouchShearStreamerESP(com_ports={
-    'shear-test' : 'COM14',
+  touch_streamer = TouchStreamerESP(com_ports={
+    'touch-esp-test' : 'COM14',
   }, print_status=True, print_debug=False)
   touch_streamer.connect()
   

@@ -116,7 +116,7 @@ if __name__ == '__main__':
       tactile_force_vector = []
       for frame_index in range(time_s.size):
         data_matrix = np.squeeze(tactile_readings[frame_index,:,:])
-        # The below code is copied from TouchShearStreamer.
+        # The below code is copied from TouchStreamerFPGA.
         # Compute the total force in each shear square.
         toConvolve_tiled_magnitude = np.array([[1,1],[1,1]])
         data_matrix_tiled_magnitude = convolve2d_strided(data_matrix, toConvolve_tiled_magnitude, stride=2)
@@ -143,7 +143,7 @@ if __name__ == '__main__':
       
       # Add metadata.
       metadata = {}
-      metadata[SensorStreamer.metadata_class_name_key] = 'TouchShearStreamer'
+      metadata[SensorStreamer.metadata_class_name_key] = 'TouchStreamerFPGA'
       metadata = convert_dict_values_to_str(metadata)
       shear_group.attrs.update(metadata)
       
@@ -175,10 +175,11 @@ if __name__ == '__main__':
 
     sensor_streamer_specs = [
       # Stream from one or more tactile shear sensors.
-      {'class': 'TouchShearStreamer',
+      {'class': 'TouchStreamerFPGA',
        'sensor_names': [
          'shear-sensor'
        ],
+       'is_shear_sensor': True,
        'downsampling_factor': 1,
        'print_debug': print_debug, 'print_status': print_status
        },

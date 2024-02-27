@@ -89,7 +89,7 @@ def _tactile_matrix_to_sensor_layout(tactile_matrix):
 # A class to interface with the tactile shear sensors via the FPGA board.
 ################################################
 ################################################
-class TouchShearStreamerFPGA(SensorStreamer):
+class TouchStreamerFPGA(SensorStreamer):
   
   ########################
   ###### INITIALIZE ######
@@ -100,6 +100,8 @@ class TouchShearStreamerFPGA(SensorStreamer):
                fpga_addresses=None, # a dictionary mapping sensor names to (ip_address, port)
                downsampling_factor=1,
                tactile_sample_size=(32,32), # (height, width)
+               is_shear_sensor=False,
+               calibration_duration_s=None,
                sensor_waits_for_request=False, # Should match setting in Xilinx code
                sensor_sends_debug_values=False, # Should match setting in Xilinx code
                print_status=True, print_debug=False, log_history_filepath=None):
@@ -109,7 +111,7 @@ class TouchShearStreamerFPGA(SensorStreamer):
                             print_status=print_status, print_debug=print_debug,
                             log_history_filepath=log_history_filepath)
     
-    self._log_source_tag = 'shear'
+    self._log_source_tag = 'touch'
     
     # Define the connected sensors.
     if fpga_addresses is None:
@@ -120,7 +122,8 @@ class TouchShearStreamerFPGA(SensorStreamer):
       self._fpga_addresses = fpga_addresses
       self._sensor_names = list(self._fpga_addresses.keys())
       self._sensor_sockets = OrderedDict([(sensor_name, None) for sensor_name in self._sensor_names])
-      
+    self._is_shear_sensor = is_shear_sensor
+    
     # Configurations that should match settings in Xilinx code.
     self._sensor_waits_for_request = sensor_waits_for_request # Should match setting in Xilinx code
     self._sensor_sends_debug_values = sensor_sends_debug_values # Should match setting in Xilinx code
@@ -142,7 +145,7 @@ class TouchShearStreamerFPGA(SensorStreamer):
     self._matrix_indexes = {}
     self._run_threads = {}
     # State for subtracting an average of initial readings.
-    self._calibration_duration_s = None # None to not calibrate
+    self._calibration_duration_s = calibration_duration_s # None to not calibrate
     self._calibration_startTime_s = None
     self._calibration_matrices = []
     self._calibration_matrix = np.zeros(shape=self._tactile_sample_size)
@@ -167,61 +170,63 @@ class TouchShearStreamerFPGA(SensorStreamer):
                           ('Description', 'ADC readings from the matrix of tactile sensors.'),
                           ('Range', '[0, 65536]'),
                         ]))
-        self.add_stream(device_name=sensor_name,
-                        stream_name='tactile_data_calibrated',
-                        data_type='float32',
-                        sample_size=self._tactile_sample_size,
-                        sampling_rate_hz=None,
-                        extra_data_info={},
-                        data_notes=OrderedDict([
-                          ('Description', 'ADC readings from the matrix of tactile sensors.'),
-                          ('Range', '[0, 65536]'),
-                        ]))
-        self.add_stream(device_name=sensor_name,
-                        stream_name='tactile_tiled',
-                        data_type='float32',
-                        sample_size=self._tiled_sample_size,
-                        sampling_rate_hz=None,
-                        extra_data_info={},
-                        data_notes=OrderedDict([
-                          ('Description', 'ADC readings from the matrix of tactile sensors, '
-                                          'grouped by the readings under each physical tile.'),
-                        ]))
-        self.add_stream(device_name=sensor_name,
-                        stream_name='force_vector',
-                        data_type='float32',
-                        sample_size=(2, *self._tiled_sample_size), # magnitude and angle
-                        sampling_rate_hz=None,
-                        extra_data_info={},
-                        data_notes=OrderedDict([
-                          ('Description', 'An estimate of the magnitude and angle of the force '
-                                          'vector under each physical tile of the sensor.'),
-                          ('Matrix ordering', 'Force magnitude is the first matrix dimension '
-                                              '(e.g. data[frame_index][0][:,:]) and the angle '
-                                              'is the second dimension.'),
-                          ('Units_for_angles', 'Radians'),
-                        ]))
-        self.add_stream(device_name=sensor_name,
-                        stream_name='force_magnitude',
-                        data_type='float32',
-                        sample_size=self._tiled_sample_size, # magnitude and angle
-                        sampling_rate_hz=None,
-                        extra_data_info={},
-                        data_notes=OrderedDict([
-                          ('Description', 'An estimate of the magnitude of the force '
-                                          'vector under each physical tile of the sensor.'),
-                        ]))
+        if self._calibration_duration_s is not None:
+          self.add_stream(device_name=sensor_name,
+                          stream_name='tactile_data_calibrated',
+                          data_type='float32',
+                          sample_size=self._tactile_sample_size,
+                          sampling_rate_hz=None,
+                          extra_data_info={},
+                          data_notes=OrderedDict([
+                            ('Description', 'ADC readings from the matrix of tactile sensors.'),
+                            ('Range', '[0, 65536]'),
+                          ]))
+        if self._is_shear_sensor:
+          self.add_stream(device_name=sensor_name,
+                          stream_name='tactile_tiled',
+                          data_type='float32',
+                          sample_size=self._tiled_sample_size,
+                          sampling_rate_hz=None,
+                          extra_data_info={},
+                          data_notes=OrderedDict([
+                            ('Description', 'ADC readings from the matrix of tactile sensors, '
+                                            'grouped by the readings under each physical tile.'),
+                          ]))
+          self.add_stream(device_name=sensor_name,
+                          stream_name='force_vector',
+                          data_type='float32',
+                          sample_size=(2, *self._tiled_sample_size), # magnitude and angle
+                          sampling_rate_hz=None,
+                          extra_data_info={},
+                          data_notes=OrderedDict([
+                            ('Description', 'An estimate of the magnitude and angle of the force '
+                                            'vector under each physical tile of the sensor.'),
+                            ('Matrix ordering', 'Force magnitude is the first matrix dimension '
+                                                '(e.g. data[frame_index][0][:,:]) and the angle '
+                                                'is the second dimension.'),
+                            ('Units_for_angles', 'Radians'),
+                          ]))
+          self.add_stream(device_name=sensor_name,
+                          stream_name='force_magnitude',
+                          data_type='float32',
+                          sample_size=self._tiled_sample_size, # magnitude and angle
+                          sampling_rate_hz=None,
+                          extra_data_info={},
+                          data_notes=OrderedDict([
+                            ('Description', 'An estimate of the magnitude of the force '
+                                            'vector under each physical tile of the sensor.'),
+                          ]))
         sensor_names_connected.append(sensor_name)
         # Initialize the counter that will store the last received matrix index.
         self._matrix_indexes[sensor_name] = None
       except:
         self._sensor_sockets[sensor_name] = None
-    self._log_status('Found the following shear sensors connected: %s' % sensor_names_connected)
+    self._log_status('Found the following FPGA touch sensors connected: %s' % sensor_names_connected)
     
     # Wait for the sensors to become active.
     self._sensor_names_active = []
     for sensor_name in sensor_names_connected:
-      self._log_status('Waiting for the shear sensor %s to start streaming data' % sensor_name)
+      self._log_status('Waiting for the FPGA touch sensor %s to start streaming data' % sensor_name)
       wait_start_time_s = time.time()
       while time.time() - wait_start_time_s < 10:
         (time_s, data_matrix, _, _, _, _) = self._read_sensor(sensor_name, suppress_printing=False)
@@ -229,7 +234,7 @@ class TouchShearStreamerFPGA(SensorStreamer):
           self._sensor_names_active.append(sensor_name)
           break
         time.sleep(0.05)
-    self._log_status('Found the following shear sensors active: %s' % self._sensor_names_active)
+    self._log_status('Found the following FPGA touch sensors active: %s' % self._sensor_names_active)
     
     # Return success if all desired sensors were found to be active.
     if len(self._sensor_names_active) == len([sensor_name for (sensor_name, socket) in self._sensor_sockets.items() if socket is not None]):
@@ -261,7 +266,7 @@ class TouchShearStreamerFPGA(SensorStreamer):
     # Validate the length of the data.
     if len(data) != self._data_length_expected:
       if not suppress_printing:
-        self._log_warn('WARNING: Shear sensor [%s] sent %d values instead of %d values. Ignoring the data.' % (sensor_name, len(data), self._data_length_expected))
+        self._log_warn('WARNING: FPGA touch sensor [%s] sent %d values instead of %d values. Ignoring the data.' % (sensor_name, len(data), self._data_length_expected))
       return (None, None, None, None, None, None)
     # Parse the data.
     data_header = data[0:self._sensor_header_length]
@@ -286,19 +291,24 @@ class TouchShearStreamerFPGA(SensorStreamer):
         self._calibration_matrix = np.median(np.array(self._calibration_matrices), axis=0)
         self._calibration_completed = True
     data_matrix_calibrated = data_matrix - self._calibration_matrix # will do nothing if the matrix hasn't been computed or if calibration is disabled
-
-    # Compute the total force in each shear square.
-    toConvolve_tiled_magnitude = np.array([[1,1],[1,1]])
-    data_matrix_tiled_magnitude = convolve2d_strided(data_matrix_calibrated, toConvolve_tiled_magnitude, stride=2)
     
-    # Compute the force angle in each shear square.
-    toConvolve_tiled_x = np.array([[-1,1],[-1,1]])
-    toConvolve_tiled_y = np.array([[1,1],[-1,-1]])
-    data_matrix_tiled_x = convolve2d_strided(data_matrix_calibrated, toConvolve_tiled_x, stride=2)
-    data_matrix_tiled_y = convolve2d_strided(data_matrix_calibrated, toConvolve_tiled_y, stride=2)
-    data_matrix_tiled_shearAngle_rad = np.arctan2(data_matrix_tiled_y, data_matrix_tiled_x)
-    data_matrix_tiled_shearMagnitude = np.linalg.norm(np.stack([data_matrix_tiled_y, data_matrix_tiled_x], axis=0), axis=0)
-    
+    if self._is_shear_sensor:
+      # Compute the total force in each shear square.
+      toConvolve_tiled_magnitude = np.array([[1,1],[1,1]])
+      data_matrix_tiled_magnitude = convolve2d_strided(data_matrix_calibrated, toConvolve_tiled_magnitude, stride=2)
+      
+      # Compute the force angle in each shear square.
+      toConvolve_tiled_x = np.array([[-1,1],[-1,1]])
+      toConvolve_tiled_y = np.array([[1,1],[-1,-1]])
+      data_matrix_tiled_x = convolve2d_strided(data_matrix_calibrated, toConvolve_tiled_x, stride=2)
+      data_matrix_tiled_y = convolve2d_strided(data_matrix_calibrated, toConvolve_tiled_y, stride=2)
+      data_matrix_tiled_shearAngle_rad = np.arctan2(data_matrix_tiled_y, data_matrix_tiled_x)
+      data_matrix_tiled_shearMagnitude = np.linalg.norm(np.stack([data_matrix_tiled_y, data_matrix_tiled_x], axis=0), axis=0)
+    else:
+      data_matrix_tiled_magnitude = None
+      data_matrix_tiled_shearAngle_rad = None
+      data_matrix_tiled_shearMagnitude = None
+      
     # Return the data!
     return (time_s, data_matrix, data_matrix_calibrated, data_matrix_tiled_magnitude,
             data_matrix_tiled_shearAngle_rad, data_matrix_tiled_shearMagnitude)
@@ -306,7 +316,7 @@ class TouchShearStreamerFPGA(SensorStreamer):
   # Read from the sensor using the request paradigm,
   #  in which this program explicitly requests every sample.
   def _read_sensor_requestParadigm(self, sensor_name, suppress_printing=False):
-    raise AssertionError('Request paradigm is not implemented for FPGA-based shear sensors')
+    raise AssertionError('Request paradigm is not implemented for FPGA-based touch sensors')
   
   
   ###########################
@@ -401,16 +411,18 @@ class TouchShearStreamerFPGA(SensorStreamer):
             if self._downsampling_counters[sensor_name] == self._downsampling_factor:
               self._downsampling_counters[sensor_name] = 0
               self.append_data(sensor_name, 'tactile_data', time_s, data_matrix)
-              self.append_data(sensor_name, 'tactile_data_calibrated', time_s, data_matrix_calibrated)
-              self.append_data(sensor_name, 'tactile_tiled', time_s, data_matrix_tiled_magnitude)
-              self.append_data(sensor_name, 'force_vector', time_s,
-                               np.stack((data_matrix_tiled_shearMagnitude,
-                                         data_matrix_tiled_shearAngle_rad),
-                                        axis=0))
-              self.append_data(sensor_name, 'force_magnitude', time_s, data_matrix_tiled_shearMagnitude)
+              if self._calibration_duration_s is not None:
+                self.append_data(sensor_name, 'tactile_data_calibrated', time_s, data_matrix_calibrated)
+              if self._is_shear_sensor:
+                self.append_data(sensor_name, 'tactile_tiled', time_s, data_matrix_tiled_magnitude)
+                self.append_data(sensor_name, 'force_vector', time_s,
+                                 np.stack((data_matrix_tiled_shearMagnitude,
+                                           data_matrix_tiled_shearAngle_rad),
+                                          axis=0))
+                self.append_data(sensor_name, 'force_magnitude', time_s, data_matrix_tiled_shearMagnitude)
           count = count + 1
         except:
-          self._log_error('*** Could not read from shear sensor %s - waiting a bit then retrying:\n%s\n' % (sensor_name, traceback.format_exc()))
+          self._log_error('*** Could not read from FPGA touch sensor %s - waiting a bit then retrying:\n%s\n' % (sensor_name, traceback.format_exc()))
           time.sleep(5)
       
       for sensor_name in self._sensor_names_active:
@@ -418,7 +430,7 @@ class TouchShearStreamerFPGA(SensorStreamer):
     except KeyboardInterrupt: # The program was likely terminated
       pass
     except:
-      self._log_error('\n\n***ERROR RUNNING TouchShearStreamerFPGA for sensor %s:\n%s\n' % (sensor_name, traceback.format_exc()))
+      self._log_error('\n\n***ERROR RUNNING TouchStreamerFPGA for sensor %s:\n%s\n' % (sensor_name, traceback.format_exc()))
     finally:
       pass
   
@@ -437,7 +449,7 @@ class TouchShearStreamerFPGA(SensorStreamer):
   
   # Clean up and quit
   def quit(self):
-    self._log_debug('TouchShearStreamerFPGA quitting')
+    self._log_debug('TouchStreamerFPGA quitting')
     SensorStreamer.quit(self)
 
 
@@ -449,32 +461,32 @@ if __name__ == '__main__':
   duration_s = 7200
   
   # Connect to the device(s).
-  touchShear_streamer = TouchShearStreamerFPGA(fpga_addresses={'shear-sensor': ('0.0.0.0', 10000)}, # a dictionary mapping sensor names to (ip_address, port)
-                                               downsampling_factor=10,
-                                               tactile_sample_size=(32,32), # (height, width)
-                                               sensor_waits_for_request=False, # Should match setting in Xilinx code
-                                               sensor_sends_debug_values=False, # Should match setting in Xilinx code
-                                               print_status=True, print_debug=False)
-  touchShear_streamer.connect()
+  touchFPGA_streamer = TouchStreamerFPGA(fpga_addresses={'fpga-touch-sensor': ('0.0.0.0', 10000)},  # a dictionary mapping sensor names to (ip_address, port)
+                                         downsampling_factor=10,
+                                         tactile_sample_size=(32,32),  # (height, width)
+                                         sensor_waits_for_request=False,  # Should match setting in Xilinx code
+                                         sensor_sends_debug_values=False,  # Should match setting in Xilinx code
+                                         print_status=True, print_debug=False)
+  touchFPGA_streamer.connect()
   
   # Run for the specified duration and periodically print the sample rate.
   print('\nRunning for %gs!' % duration_s)
-  touchShear_streamer.run()
+  touchFPGA_streamer.run()
   start_time_s = time.time()
   try:
     while time.time() - start_time_s < duration_s:
       time.sleep(2)
       fps_msg = ' Duration: %6.2fs' % (time.time() - start_time_s)
-      for device_name in touchShear_streamer.get_device_names():
-        stream_name = touchShear_streamer.get_stream_names(device_name=device_name)[0]
-        num_timesteps = touchShear_streamer.get_num_timesteps(device_name, stream_name)
+      for device_name in touchFPGA_streamer.get_device_names():
+        stream_name = touchFPGA_streamer.get_stream_names(device_name=device_name)[0]
+        num_timesteps = touchFPGA_streamer.get_num_timesteps(device_name, stream_name)
         fps_msg += ' | %s: %4d Timesteps (Fs = %6.2f Hz)' % \
                    (device_name, num_timesteps, ((num_timesteps)/(time.time() - start_time_s)))
       print(fps_msg)
   except:
     print('ERROR')
     print(traceback.format_exc())
-  touchShear_streamer.stop()
+  touchFPGA_streamer.stop()
   print('\nDone!\n')
   
   

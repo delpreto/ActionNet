@@ -1,6 +1,6 @@
 ############
 #
-# Copyright (c) 2022 MIT CSAIL and Joseph DelPreto
+# Copyright (c) 2022-2024 MIT CSAIL and Joseph DelPreto
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -19,8 +19,8 @@
 # WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 # IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
-# See https://action-net.csail.mit.edu for more usage information.
-# Created 2021-2022 for the MIT ActionNet project by Joseph DelPreto [https://josephdelpreto.com].
+# See https://action-sense.csail.mit.edu for more usage information.
+# Created 2021-2024 for the MIT ActionNet project by Joseph DelPreto [https://josephdelpreto.com].
 #
 ############
 
@@ -65,7 +65,7 @@ if __name__ == '__main__':
     ('MyoStreamer',        False),  # One or more Myo EMG/IMU armbands
     ('TouchStreamer',      False),  # Custom tactile sensors streaming via an Arduino
     ('TouchStreamerESP',   False),  # Custom tactile sensors streaming via an Arduino
-    ('TouchStreamerFPGA',  True),  # Custom tactile sensors streaming via an Arduino
+    ('TouchStreamerFPGA',  True),  # Custom tactile sensors streaming via the FPGA
     ('XsensStreamer',      False),  # The Xsens body tracking system (includes the Manus finger-tracking gloves if connected to Xsens)
     ('EyeStreamer',        False),  # The Pupil Labs eye-tracking headset
     ('MoticonStreamer',    False),  # Moticon insole pressure sensors
@@ -88,11 +88,12 @@ if __name__ == '__main__':
     # Stream from one or more tactile shear sensors.
     {'class': 'TouchStreamerFPGA',
       'fpga_addresses': { # a dictionary mapping sensor names to (ip_address, port)
-        'shear-sensor-left':  ('0.0.0.0', 10000),
+        'body-sensor':  ('0.0.0.0', 10000),
       },
+      'is_shear_sensor': True,
+      'calibration_duration_s': 10,
       'downsampling_factor': 20,
       'tactile_sample_size': (32,32), # (height, width)
-      'is_shear_sensor': True,
       'print_debug': print_debug, 'print_status': print_status
      },
     # Stream from one or more tactile shear sensors.
@@ -110,21 +111,12 @@ if __name__ == '__main__':
     # Allow the experimenter to label data and enter notes.
     {'class': 'ExperimentControlStreamer',
      'activities': [ # TODO: Enter your activities that you want to label
-       'out of shoe',
-       'unworn',
-       'flat',
-       '45 toe-down',
-       '45 heel-down',
-       '45 outer-down',
-       '45 inner-down',
-       '30 toe-down',
-       '30 heel-down',
-       '30 outer-down',
-       '30 inner-down',
-       '15 toe-down',
-       '15 heel-down',
-       '15 outer-down',
-       '15 inner-down',
+       'rest',
+       'walk',
+       'run',
+       'jump',
+       'hit wall',
+       'drop ball',
      ],
      'print_debug': print_debug, 'print_status': print_status
      },
@@ -156,7 +148,7 @@ if __name__ == '__main__':
     # Stream from one or more cameras.
     {'class': 'CameraStreamer',
      'cameras_to_stream': { # map camera names (usable as device names in the HDF5 file) to capture device indexes
-       'video': 1,
+       'video': 0,
      },
      'print_debug': print_debug, 'print_status': print_status
      },

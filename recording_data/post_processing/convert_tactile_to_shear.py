@@ -27,7 +27,7 @@
 from sensor_streamer_handlers.SensorManager import SensorManager
 from sensor_streamer_handlers.DataVisualizer import DataVisualizer
 from sensor_streamers.SensorStreamer import SensorStreamer
-from sensor_streamers.TouchShearStreamerESP import TouchShearStreamerESP
+from sensor_streamers.TouchStreamerESP import TouchStreamerESP
 
 import h5py
 import numpy as np
@@ -79,7 +79,7 @@ if __name__ == '__main__':
     # Tiled data.
     tactile_tiled = []
     tactile_force_vector = []
-    touchShearStreamer = TouchShearStreamerESP(com_ports={'dummy' : 'COMXX'}, print_status=False, print_debug=False)
+    touchStreamer = TouchStreamerESP(com_ports={'dummy':'COMXX'}, is_shear_sensor=True, print_status=False, print_debug=False)
     for frame_index in range(time_s.size):
       if frame_index % round(time_s.size/10) == 0:
         print('  Converting frame %d/%d' % (frame_index+1, time_s.size))
@@ -87,7 +87,7 @@ if __name__ == '__main__':
       # Compute shear-specific quantities.
       (time_s, data_matrix, data_matrix_tiled_magnitude,
        data_matrix_tiled_shearAngle_rad, data_matrix_tiled_shearMagnitude) \
-        = touchShearStreamer._compute_shear(time_s, data_matrix)
+        = touchStreamer._compute_shear(time_s, data_matrix)
       # Add to the new arrays.
       tactile_tiled.append(data_matrix_tiled_magnitude)
       tactile_force_vector.append(np.stack((data_matrix_tiled_shearMagnitude,
@@ -104,7 +104,7 @@ if __name__ == '__main__':
     
     # Add metadata.
     metadata = {}
-    metadata[SensorStreamer.metadata_class_name_key] = 'TouchShearStreamerESP'
+    metadata[SensorStreamer.metadata_class_name_key] = 'TouchStreamerESP'
     metadata = convert_dict_values_to_str(metadata)
     shear_group.attrs.update(metadata)
     

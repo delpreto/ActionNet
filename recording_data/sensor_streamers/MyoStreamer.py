@@ -347,6 +347,7 @@ class MyoStreamer(myo.ApiDeviceListener, SensorStreamer):
     self._event_timestamp_offset_toAdd.setdefault(device_name, None)
     if self._event_timestamp_offset_toAdd[device_name] is None:
       self._event_timestamp_offset_toAdd[device_name] = time.time() - event_time_s
+      self._log_status('Will use the following timestamp offset for Myo device [%s]: %f' % (device_name, self._event_timestamp_offset_toAdd[device_name]))
     # Add the stored offset to the event timestamp.
     return event_time_s + self._event_timestamp_offset_toAdd[device_name]
   

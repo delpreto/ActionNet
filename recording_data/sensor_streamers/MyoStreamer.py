@@ -93,6 +93,10 @@ class MyoStreamer(myo.ApiDeviceListener, SensorStreamer):
     self._connectAndRunThread_running = False
     self._locks = OrderedDict()
     self._logging = False # will ignore Myo data callbacks if not logging yet
+    
+    # Store an offset that converts from Myo event timestamps to epoch timestamps.
+    # Will store an offset for each device in case they are unique.
+    self._event_timestamp_offset_toAdd = {}
 
   # Initiate connections to the Myos, and wait for the desired number of devices.
   # @return True or False based on whether the desired number
@@ -262,6 +266,10 @@ class MyoStreamer(myo.ApiDeviceListener, SensorStreamer):
     # Record that the Myo is connected.
     self.append_data(device_name, 'connected', time.time(), 1)
     
+    # Initialize an offset that converts from Myo event timestamps to epoch timestamps.
+    # Will reset this each time the device connects, in case the offset changes.
+    self._event_timestamp_offset_toAdd[device_name] = None
+    
     # Initialize streaming.
     self.vibrate(device_name=device_name, duration='medium')
     event.deviceProxy.stream_emg(True)
@@ -329,7 +337,19 @@ class MyoStreamer(myo.ApiDeviceListener, SensorStreamer):
       print('\n'*10)
       print('WARNING: MYO %s UNSYNCED' % (device_name))
       print('\n'*10)
-
+  
+  # Extract an epoch timestamp from a Myo event.
+  def _get_time_s_from_event(self, device_name, event):
+    # Get the timestamp associated with the event object.
+    event_time_s = event.timestamp/1000000.0
+    # If this is the first event being processed for this device,
+    #  record an offset that converts to standard timestamp format.
+    self._event_timestamp_offset_toAdd.setdefault(device_name, None)
+    if self._event_timestamp_offset_toAdd[device_name] is None:
+      self._event_timestamp_offset_toAdd[device_name] = time.time() - event_time_s
+    # Add the stored offset to the event timestamp.
+    return event_time_s + self._event_timestamp_offset_toAdd[device_name]
+  
   ################################
   ###### MYO STATUS/CONTROL ######
   ################################
@@ -407,7 +427,7 @@ class MyoStreamer(myo.ApiDeviceListener, SensorStreamer):
       return
     # Extract the data and add it to the log.
     device_name = self._get_event_device_name(event, check_existence=True)
-    time_s = event.timestamp/1000000.0
+    time_s = self._get_time_s_from_event(device_name, event)
     data = getattr(event, event_data_key)
     if time_s_original is not None:
       extra_data = OrderedDict([('time_s_original', time_s_original)])
@@ -449,7 +469,7 @@ class MyoStreamer(myo.ApiDeviceListener, SensorStreamer):
   def on_emg(self, event):
     device_name = self._get_event_device_name(event, check_existence=True)
     with self._locks[device_name]:
-      time_s = event.timestamp/1000000.0
+      time_s = self._get_time_s_from_event(device_name, event)
       emg_timestamps_s = self._data[device_name]['emg']['time_s']
       # Adjust the previous timestamp if it equals the new timestamp.
       if len(emg_timestamps_s) > 0 and emg_timestamps_s[-1] == time_s:

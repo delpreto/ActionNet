@@ -65,12 +65,12 @@ if __name__ == '__main__':
     ('MyoStreamer',        True),  # One or more Myo EMG/IMU armbands
     ('TouchStreamer',      False),  # Custom tactile sensors streaming via an Arduino
     ('XsensStreamer',      False),  # The Xsens body tracking system (includes the Manus finger-tracking gloves if connected to Xsens)
-    ('EyeStreamer',        True),  # The Pupil Labs eye-tracking headset
+    ('EyeStreamer',        False),  # The Pupil Labs eye-tracking headset
     ('ScaleStreamer',      False),  # The Dymo M25 digital postal scale
     ('MoticonStreamer',    False),  # Moticon insole pressure sensors
     ('MicrophoneStreamer', False),  # One or more microphones
     ('CameraStreamer',     True),  # One or more cameras
-    ('SerialStreamer',     True),  # One or more serial streams
+    ('SerialStreamer',     False),  # One or more serial streams
     ('ResistanceStreamer', False),  # One or more resistance readings
     ('DummyStreamer',      False),  # Dummy data (no hardware required)
   ])
@@ -91,7 +91,7 @@ if __name__ == '__main__':
      },
     # Stream from the Myo device including EMG, IMU, and gestures.
     {'class': 'MyoStreamer',
-     'num_myos': 1,
+     'num_myos': 2,
      'print_debug': print_debug, 'print_status': print_status
      },
     # Stream from the Xsens body tracking and Manus gloves.
@@ -123,7 +123,7 @@ if __name__ == '__main__':
     # Stream from one or more cameras.
     {'class': 'CameraStreamer',
      'cameras_to_stream': { # map camera names (usable as device names in the HDF5 file) to capture device indexes
-       'external_camera': 1,
+       'external_camera': 0,
      },
      'print_debug': print_debug, 'print_status': print_status
      },
@@ -202,9 +202,9 @@ if __name__ == '__main__':
     datalogging_options = None
   
   # TODO: Configure visualization.
-  composite_frame_size = (1200, 1800) # height, width # (1800, 3000)
-  composite_col_width = int(composite_frame_size[1]/2)
-  composite_row_height = int(composite_frame_size[0]/2)
+  composite_frame_size = (1800, 2700) # height, width # (1800, 3000)
+  composite_col_width = int(composite_frame_size[1]/3)
+  composite_row_height = int(composite_frame_size[0]/1)
   visualization_options = {
     'visualize_streaming_data'       : True,
     'visualize_all_data_when_stopped': False,
@@ -216,13 +216,14 @@ if __name__ == '__main__':
     'composite_video_layout':
       [
         [ # row 0
-          {'device_name':'external_camera', 'stream_name':'frame', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
-          {'device_name':'eye-tracking-video-worldGaze', 'stream_name':'frame', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
-        ],
-        [ # row 1
+          {'device_name':'myo-left', 'stream_name':'emg', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':   composite_row_height},
           {'device_name':'myo-right', 'stream_name':'emg', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':   composite_row_height},
-          {'device_name':'all-serial-sensors', 'stream_name':'serial_data', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
+          {'device_name':'external_camera', 'stream_name':'frame', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
         ],
+        # [ # row 1
+        #   # {'device_name':'eye-tracking-video-worldGaze', 'stream_name':'frame', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
+        #   # {'device_name':'all-serial-sensors', 'stream_name':'serial_data', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
+        # ],
       ],
   }
   
@@ -268,9 +269,9 @@ if __name__ == '__main__':
   average_duration_s = 15
   prev_num_notes = 0
   control_streamer = sensor_manager.get_streamers(class_name='ExperimentControlStreamer')[0]
-  serial_streamer = sensor_manager.get_streamers(class_name='SerialStreamer')[0]
+  # serial_streamer = sensor_manager.get_streamers(class_name='SerialStreamer')[0]
   def print_data():
-    global average_duration_s, prev_num_notes, control_streamer, serial_streamer
+    global average_duration_s, prev_num_notes, control_streamer
     notes = control_streamer.get_data('experiment-notes', 'notes')
     if notes is None:
       prev_num_notes = 0
@@ -279,18 +280,19 @@ if __name__ == '__main__':
     if num_notes > prev_num_notes:
       note = notes['data'][-1]
       note_t = notes['time_s'][-1]
-      serial_data = serial_streamer.get_data(device_name='all-sensors', stream_name='serial_data',
-                                             starting_time_s=note_t-average_duration_s)
+      # serial_data = serial_streamer.get_data(device_name='all-sensors', stream_name='serial_data',
+      #                                        starting_time_s=note_t-average_duration_s)
       # serial_t = np.squeeze(np.array(serial_data['time_s']))
-      serial_data = np.squeeze(np.array(serial_data['data']))
-      print(serial_data.shape)
-      # indexes = np.where(serial_t >= note_t - average_duration_s)[0]
-      # serial_data_averaged = np.mean(serial_data[indexes, :], dim=0)
-      serial_data_averaged = np.mean(serial_data, axis=0)
-      serial_data_averaged_std = np.std(serial_data, axis=0)
-      serial_data_averaged_str = str(list(serial_data_averaged)).replace(', ', '\t').replace('[','').replace(']','')
-      serial_data_averaged_std_str = str(list(serial_data_averaged_std)).replace(', ', '\t').replace('[','').replace(']','')
-      _log_status('\t%f\t%s\t%s\t%s' % (note_t, note, serial_data_averaged_str, serial_data_averaged_std_str))
+      # serial_data = np.squeeze(np.array(serial_data['data']))
+      # print(serial_data.shape)
+      # # indexes = np.where(serial_t >= note_t - average_duration_s)[0]
+      # # serial_data_averaged = np.mean(serial_data[indexes, :], dim=0)
+      # serial_data_averaged = np.mean(serial_data, axis=0)
+      # serial_data_averaged_std = np.std(serial_data, axis=0)
+      # serial_data_averaged_str = str(list(serial_data_averaged)).replace(', ', '\t').replace('[','').replace(']','')
+      # serial_data_averaged_std_str = str(list(serial_data_averaged_std)).replace(', ', '\t').replace('[','').replace(']','')
+      # _log_status('\t%f\t%s\t%s\t%s' % (note_t, note, serial_data_averaged_str, serial_data_averaged_std_str))
+      _log_status('\t%f\t%s' % (note_t, note))
     prev_num_notes = num_notes
   
   # Define a callback that checks whether the user has entered a quit keyword.

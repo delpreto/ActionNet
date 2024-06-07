@@ -18,7 +18,7 @@
 *.avi
 *.ppt
 *.pptx
-
+data/
 
 # Archived and notes
 ###################################

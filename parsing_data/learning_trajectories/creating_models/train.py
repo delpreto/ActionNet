@@ -15,6 +15,10 @@ from preprocess import prepare_torch_datasets, min_max_decode
 from utils import positional_encoding, \
     one_dim_positional_encoding
 
+import h5py
+import os
+output_data_dir = 'C:/Users/jdelp/Desktop/ActionSense/code/parsing_data/learning_trajectories/creating_models/'
+
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 torch.manual_seed(422)
@@ -82,7 +86,16 @@ def plot_trajectory(model: nn.Module, labels, features):
     # Convert to Numpy for plotting
     y_pred_np = y_pred.detach().cpu().numpy()
     y_np = labels.detach().cpu().numpy()
-    plot_points(features.cpu(), labels.cpu(), y_pred_np)
+    
+    # Save the output data as an HDF5 file.
+    if output_data_dir is not None:
+        fout = h5py.File(os.path.join(output_data_dir, 'model_output_data.hdf5'), 'w')
+        fout.create_dataset('feature_matrices', data=y_pred_np)
+        fout.close()
+        fout = h5py.File(os.path.join(output_data_dir, 'model_referenceObject_positions.hdf5'), 'w')
+        fout.create_dataset('position_m', data=features[:, 0:3])
+        fout.close()
+        plot_points(features.cpu(), labels.cpu(), y_pred_np)
 
 
 def train_step(batch: Tuple[torch.Tensor, torch.Tensor], model: nn.Module, optimizer: torch.optim.Optimizer, loss_fn,

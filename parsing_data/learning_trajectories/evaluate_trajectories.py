@@ -23,11 +23,13 @@ feature_matrices_filepaths = {
   'S00': os.path.join(data_dir, 'pouring_training_data_S00.hdf5'),
   'S10': os.path.join(data_dir, 'pouring_training_data_S10.hdf5'),
   'S11': os.path.join(data_dir, 'pouring_training_data_S11.hdf5'),
+  'model': os.path.join(data_dir, 'model_output_data.hdf5'),
 }
 referenceObjects_filepaths = {
   'S00': os.path.join(data_dir, 'pouring_training_referenceObject_positions_S00.hdf5'),
   'S10': os.path.join(data_dir, 'pouring_training_referenceObject_positions_S10.hdf5'),
   'S11': os.path.join(data_dir, 'pouring_training_referenceObject_positions_S11.hdf5'),
+  'model': os.path.join(data_dir, 'model_referenceObject_positions.hdf5'),
 }
 
 # Specify which outputs to process.
@@ -182,21 +184,21 @@ if save_trajectory_animations_compositeTypes or save_trajectory_animations_eachT
   for trial_index in range(max_num_trials):
     # Get the data for this trial for each type of example provided.
     feature_matrices_byType_forTrial = {}
-    times_s_byType_forTrial = {}
     durations_s_byType_forTrial = {}
     referenceObject_positions_m_byType_forTrial = {}
     have_trial_for_all_types = True
     for example_type in example_types:
       if trial_index >= len(feature_matrices_byType[example_type]):
         feature_matrices_byType_forTrial[example_type] = None
-        times_s_byType_forTrial[example_type] = None
         durations_s_byType_forTrial[example_type] = None
         referenceObject_positions_m_byType_forTrial[example_type] = None
         have_trial_for_all_types = False
       else:
         feature_matrices_byType_forTrial[example_type] = np.squeeze(feature_matrices_byType[example_type][trial_index])
-        times_s_byType_forTrial[example_type] = feature_matrices_byType_forTrial[example_type][:, -1]
-        durations_s_byType_forTrial[example_type] = times_s_byType_forTrial[example_type][-1]
+        if feature_matrices_byType_forTrial[example_type].shape[-1] == 31:
+          durations_s_byType_forTrial[example_type] = feature_matrices_byType_forTrial[example_type][-1, -1]
+        else:
+          durations_s_byType_forTrial[example_type] = 10
         referenceObject_positions_m_byType_forTrial[example_type] = np.squeeze(referenceObject_positions_m_byType[example_type][trial_index])
     
     # Animate the trajectory; press enter to advance to the next timestep.

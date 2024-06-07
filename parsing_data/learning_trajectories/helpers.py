@@ -42,7 +42,9 @@ hand_to_referenceObject_top_cm = referenceObject_height_cm - hand_to_referenceOb
 animation_view_angle_backLeft = (16, -28)
 animation_view_angle_backRight = (16, 44)
 animation_view_angle_forBaxter = (30, -179.9)
-animation_view_angle = animation_view_angle_backLeft
+# animation_view_angle = animation_view_angle_backLeft
+# animation_view_angle = animation_view_angle_backRight
+animation_view_angle = animation_view_angle_forBaxter
 
 # Used to artificially shift distributions for demonstration purposes.
 example_types_to_offset = []#['model']
@@ -72,24 +74,45 @@ if len(example_types_to_offset) > 0:
 #     wijk quaternion for hand > lower arm > upper arm
 #     xzy joint angle for wrist > elbow > shoulder
 def parse_feature_matrix(feature_matrix):
-  return {
-    'position_m' : {
-      'hand':     feature_matrix[:, 0:3], 
-      'elbow':    feature_matrix[:, 3:6],
-      'shoulder': feature_matrix[:, 6:9],
-    },
-    'quaternion_wijk': {
-      'hand':     feature_matrix[:, 9:13], 
-      'elbow':    feature_matrix[:, 13:17],
-      'shoulder': feature_matrix[:, 17:21],
-    },
-    'joint_angle_rad': {
-      'hand':     feature_matrix[:, 21:24], 
-      'elbow':    feature_matrix[:, 24:27],
-      'shoulder': feature_matrix[:, 27:30],
-    },
-    'time_s': feature_matrix[:, 30]
-  }
+  if feature_matrix.shape[-1] == 31: # human demonstrations
+    return {
+      'position_m' : {
+        'hand':     feature_matrix[:, 0:3],
+        'elbow':    feature_matrix[:, 3:6],
+        'shoulder': feature_matrix[:, 6:9],
+      },
+      'quaternion_wijk': {
+        'hand':     feature_matrix[:, 9:13],
+        'elbow':    feature_matrix[:, 13:17],
+        'shoulder': feature_matrix[:, 17:21],
+      },
+      'joint_angle_rad': {
+        'hand':     feature_matrix[:, 21:24],
+        'elbow':    feature_matrix[:, 24:27],
+        'shoulder': feature_matrix[:, 27:30],
+      },
+      'time_s': feature_matrix[:, 30]
+    }
+  elif feature_matrix.shape[-1] == 16: # model outputs
+    return {
+      'position_m' : {
+        'hand':     feature_matrix[:, 0:3],
+        # 'elbow':    None,
+        # 'shoulder': None,
+      },
+      'quaternion_wijk': {
+        'hand':     feature_matrix[:, 3:7],
+        # 'elbow':    None,
+        # 'shoulder': None,
+      },
+      'joint_angle_rad': {
+        'hand':     feature_matrix[:, 7:10],
+        'elbow':    feature_matrix[:, 10:13],
+        'shoulder': feature_matrix[:, 13:16],
+      },
+      'time_s': np.linspace(0, 10, feature_matrix.shape[0]),
+    }
+    
 
 # ================================================================
 # Get the 3D positions of body segments.
@@ -112,8 +135,10 @@ def get_body_speed_m_s(feature_matrix):
   positions_m = get_body_position_m(feature_matrix)
   times_s = feature_matrix[:,-1]
   dt = np.reshape(np.diff(times_s, axis=0), (-1, 1))
-  speeds_m_s = {}
+  speeds_m_s = dict.fromkeys(positions_m.keys())
   for (body_key, position_m) in positions_m.items():
+    if position_m is None:
+      continue
     # Infer the speed.
     dxdydz = np.diff(position_m, axis=0)
     speed_m_s = np.hstack([np.squeeze([0]), np.linalg.norm(dxdydz, axis=1)/np.squeeze(dt)])
@@ -124,11 +149,13 @@ def get_body_speed_m_s(feature_matrix):
 # Get the 3D accelerations of body segments.
 # Will return a dict with 'hand', 'elbow', and 'shoulder' each of which has an acceleration vector.
 def get_body_acceleration_m_s_s(feature_matrix):
-  speeds_m = get_body_speed_m_s(feature_matrix)
+  speeds_m_s = get_body_speed_m_s(feature_matrix)
   times_s = feature_matrix[:,-1]
   dt = np.reshape(np.diff(times_s, axis=0), (-1, 1))
-  accelerations_m_s_s = {}
-  for (body_key, speed_m_s) in speeds_m.items():
+  accelerations_m_s_s = dict.fromkeys(speeds_m_s.keys())
+  for (body_key, speed_m_s) in speeds_m_s.items():
+    if speed_m_s is None:
+      continue
     # Infer the acceleration.
     dv = np.diff(speed_m_s, axis=0)
     dt = np.reshape(np.diff(times_s, axis=0), (-1, 1))
@@ -143,8 +170,10 @@ def get_body_jerk_m_s_s_s(feature_matrix):
   accelerations_m_s_s = get_body_acceleration_m_s_s(feature_matrix)
   times_s = feature_matrix[:,-1]
   dt = np.reshape(np.diff(times_s, axis=0), (-1, 1))
-  jerks_m_s_s_s = {}
+  jerks_m_s_s_s = dict.fromkeys(accelerations_m_s_s.keys())
   for (body_key, acceleration_m_s_s) in accelerations_m_s_s.items():
+    if acceleration_m_s_s is None:
+      continue
     # Infer the jerk.
     da = np.diff(acceleration_m_s_s, axis=0)
     dt = np.reshape(np.diff(times_s, axis=0), (-1, 1))
@@ -259,6 +288,8 @@ def plot_timestep(feature_matrix, times_s, time_index,
                   pause_after_plotting=False, hide_figure_window=False):
   # Parse the feature matrix.
   parsed_data = parse_feature_matrix(feature_matrix)
+  if 'elbow' not in parsed_data['position_m']:
+    include_skeleton = False
   # Infer the pouring position.
   stationary_pose = infer_pour_pose(feature_matrix)
   
@@ -302,10 +333,10 @@ def plot_timestep(feature_matrix, times_s, time_index,
     
     # Plot trajectories of the right arm and pelvis.
     hand_position_cm = 100*parsed_data['position_m']['hand']
-    forearm_position_cm = 100*parsed_data['position_m']['elbow']
-    upperArm_position_cm = 100*parsed_data['position_m']['shoulder']
     h_hand_path = ax.plot3D(hand_position_cm[:, 0], hand_position_cm[:, 1], hand_position_cm[:, 2], alpha=1)
     if include_skeleton:
+      forearm_position_cm = 100*parsed_data['position_m']['elbow']
+      upperArm_position_cm = 100*parsed_data['position_m']['shoulder']
       ax.plot3D(forearm_position_cm[:, 0], forearm_position_cm[:, 1], forearm_position_cm[:, 2], alpha=0.3)
       ax.plot3D(upperArm_position_cm[:, 0], upperArm_position_cm[:, 1], upperArm_position_cm[:, 2], alpha=0.3)
     
@@ -336,23 +367,25 @@ def plot_timestep(feature_matrix, times_s, time_index,
                 [referenceObject_diameter_cm, referenceObject_diameter_cm, referenceObject_height_cm],
                 color_rgb, alpha=0.2)
   
+  # Clear plots from the previous timestep.
+  for i in range(len(h_chains)):
+    h_chains[i][0].remove()
+  for i in range(len(h_scatters)):
+    h_scatters[i].remove()
+  if h_hand is not None:
+    h_hand.remove()
+  if h_pitcher is not None:
+    h_pitcher.remove()
+  h_chains = []
+  h_scatters = []
+  h_hand = None
+  h_pitcher = None
+
   if include_skeleton:
     # Animate the whole skeleton.
     sampling_rate_hz = (times_s.shape[0] - 1) / (times_s[-1] - times_s[0])
     spf = spf or 1/sampling_rate_hz
     timestep_interval = max([1, int(sampling_rate_hz*spf)])
-    for i in range(len(h_chains)):
-      h_chains[i][0].remove()
-    for i in range(len(h_scatters)):
-      h_scatters[i].remove()
-    if h_hand is not None:
-      h_hand.remove()
-    if h_pitcher is not None:
-      h_pitcher.remove()
-    h_chains = []
-    h_scatters = []
-    h_hand = None
-    h_pitcher = None
     
     # Draw the skeleton chains
     x = []
@@ -366,60 +399,51 @@ def plot_timestep(feature_matrix, times_s, time_index,
     h_chains.append(ax.plot3D(x, y, z, color='k'))
     h_scatters.append(ax.scatter(x, y, z, s=25, color=[0.5, 0.5, 0.5]))
     
-    # Draw the pitcher tip projection onto the table.
-    position_cm = 100*infer_spout_position_m(feature_matrix, time_index)
-    h_scatters.append(ax.scatter(position_cm[0], position_cm[1],
-                                 table_z_cm,
-                                 s=30, color='m'))
-    # Draw an indicator of the spout direction on the table.
-    spout_yawvector = infer_spout_yawvector(feature_matrix, time_index)
-    spout_yawvector = spout_yawvector * referenceObject_diameter_cm/2
-    spout_yawsegment = np.array([[0,0,0], list(spout_yawvector)])
-    spout_yawsegment = spout_yawsegment + position_cm
-    h_chains.append(ax.plot3D(spout_yawsegment[:,0], spout_yawsegment[:,1],
-                              table_z_cm*np.array([1,1]),
-                              color='r', linewidth=2))
-    
-    x_lim = ax.get_xlim()
-    y_lim = ax.get_ylim()
-    z_lim = ax.get_zlim()
-    
-    # Visualize a box as the hand.
-    # hand_dimensions_cm = [1, 3, 5]
-    # hand_rotation_matrix = Rotation.from_quat(bodySegment_data['quaternion']['RightHand'])
-    # print(hand_rotation_matrix.apply(hand_dimensions_cm))
-    # hand_box_data = np.ones(hand_dimensions_cm, dtype=bool)
-    # hand_colors = np.empty(hand_dimensions_cm + [4], dtype=np.float32)
-    # hand_colors[:] = [1, 0, 0, 0.8]
-    # h_hand = ax.voxels(hand_box_data, facecolors=hand_colors)
-    h_hand = plot_hand_box(ax, hand_center_cm=100 * parsed_data['position_m']['hand'][time_index, :],
-                               hand_quaternion_localToGlobal_wijk=parsed_data['quaternion_wijk']['hand'][time_index, :])
-    h_pitcher = plot_pitcher_box(ax, hand_center_cm=100 * parsed_data['position_m']['hand'][time_index, :],
-                                     hand_quaternion_localToGlobal_wijk=parsed_data['quaternion_wijk']['hand'][time_index, :])
-    
-    # Set the aspect ratio
-    ax.set_xlim(x_lim)
-    ax.set_ylim(y_lim)
-    ax.set_zlim(z_lim)
-    ax.set_box_aspect([ub - lb for lb, ub in (x_lim, y_lim, z_lim)])
-    
-    # Set the title.
-    ax.set_title('%s Trial %02d\nt=%0.2fs' % (str(subject_id), trial_index, times_s[time_index] - times_s[0]))
-    
-    # Show the plot.
-    plt.draw()
-    
-    # Save the previous handles.
-    previous_handles = (fig, h_chains, h_scatters, h_hand, h_pitcher)
-  else:
-    # Set the aspect ratio
-    ax.set_box_aspect([ub - lb for lb, ub in (ax.get_xlim(), ax.get_ylim(), ax.get_zlim())])
-    # Set the title.
-    ax.set_title('%s' % (str(subject_id)))
-    # Show the plot.
-    plt.draw()
-    # Save the previous handles.
-    previous_handles = (fig, None, None, None)
+  # Draw the pitcher tip projection onto the table.
+  position_cm = 100*infer_spout_position_m(feature_matrix, time_index)
+  h_scatters.append(ax.scatter(position_cm[0], position_cm[1],
+                               table_z_cm,
+                               s=30, color='m'))
+  # Draw an indicator of the spout direction on the table.
+  spout_yawvector = infer_spout_yawvector(feature_matrix, time_index)
+  spout_yawvector = spout_yawvector * referenceObject_diameter_cm/2
+  spout_yawsegment = np.array([[0,0,0], list(spout_yawvector)])
+  spout_yawsegment = spout_yawsegment + position_cm
+  h_chains.append(ax.plot3D(spout_yawsegment[:,0], spout_yawsegment[:,1],
+                            table_z_cm*np.array([1,1]),
+                            color='r', linewidth=2))
+  
+  x_lim = ax.get_xlim()
+  y_lim = ax.get_ylim()
+  z_lim = ax.get_zlim()
+  
+  # Visualize a box as the hand.
+  # hand_dimensions_cm = [1, 3, 5]
+  # hand_rotation_matrix = Rotation.from_quat(bodySegment_data['quaternion']['RightHand'])
+  # print(hand_rotation_matrix.apply(hand_dimensions_cm))
+  # hand_box_data = np.ones(hand_dimensions_cm, dtype=bool)
+  # hand_colors = np.empty(hand_dimensions_cm + [4], dtype=np.float32)
+  # hand_colors[:] = [1, 0, 0, 0.8]
+  # h_hand = ax.voxels(hand_box_data, facecolors=hand_colors)
+  h_hand = plot_hand_box(ax, hand_center_cm=100 * parsed_data['position_m']['hand'][time_index, :],
+                             hand_quaternion_localToGlobal_wijk=parsed_data['quaternion_wijk']['hand'][time_index, :])
+  h_pitcher = plot_pitcher_box(ax, hand_center_cm=100 * parsed_data['position_m']['hand'][time_index, :],
+                                   hand_quaternion_localToGlobal_wijk=parsed_data['quaternion_wijk']['hand'][time_index, :])
+  
+  # Set the aspect ratio
+  ax.set_xlim(x_lim)
+  ax.set_ylim(y_lim)
+  ax.set_zlim(z_lim)
+  ax.set_box_aspect([ub - lb for lb, ub in (x_lim, y_lim, z_lim)])
+  
+  # Set the title.
+  ax.set_title('%s Trial %02d\nt=%0.2fs' % (str(subject_id), trial_index, times_s[time_index] - times_s[0]))
+  
+  # Show the plot.
+  plt.draw()
+  
+  # Save the previous handles.
+  previous_handles = (fig, h_chains, h_scatters, h_hand, h_pitcher)
   
   # plt_wait_for_keyboard_press()
   # print('view elev/azim:', ax.elev, ax.azim)

@@ -7,9 +7,10 @@ import os
 ################################################
 
 # Specify the files with trajectory feature matrices and reference object positions.
-data_dir = 'C:/Users/jdelp/Desktop/ActionSense/results/learning_trajectories'
-input_featureMatrices_filepath = os.path.join(data_dir, 'pouring_training_data_S00.hdf5')
-input_referenceObjects_filepath = os.path.join(data_dir, 'pouring_training_referenceObject_positions_S00.hdf5')
+# data_dir = 'C:/Users/jdelp/Desktop/ActionSense/results/learning_trajectories'
+data_dir = 'C:/Users/jdelp/Desktop/ActionSense/code/results/learning_trajectories'
+input_featureMatrices_filepath = os.path.join(data_dir, 'pouring_training_data_ted_S00.hdf5')
+input_referenceObjects_filepath = os.path.join(data_dir, 'pouring_training_referenceObject_positions_ted_S00.hdf5')
 output_featureMatrices_filepath = os.path.join(data_dir, '%s_forBaxter.npy' % os.path.splitext(input_featureMatrices_filepath)[0])
 output_referenceObjects_filepath = os.path.join(data_dir, '%s_forBaxter.npy' % os.path.splitext(input_referenceObjects_filepath)[0])
 

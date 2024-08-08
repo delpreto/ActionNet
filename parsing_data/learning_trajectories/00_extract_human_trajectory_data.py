@@ -42,13 +42,16 @@ from utils.numpy_scipy_utils import *
 from utils.print_utils import *
 
 # Specify the subjects to consider.
-subject_id_toProcess = 'S00' # S00, S10, S11
+subject_id_toProcess = 'ted_S00' # S00, S10, S11, ted_S00
 subject_ids_filter = None # None to consider all subjects
 
 # Specify the folder of experiments to parse.
 data_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'data'))
 if subject_id_toProcess == 'S00':
   experiments_dir = os.path.join(data_dir, 'experiments', '2023-09-10_experiment_%s' % subject_id_toProcess)
+elif subject_id_toProcess == 'ted_S00':
+  data_dir = os.path.realpath(os.path.join(script_dir, '..', '..', 'data'))
+  experiments_dir = os.path.join(data_dir, 'experiments', '2024-03-04_experiment_S00_selectedRun')
 elif subject_id_toProcess == 'S10':
   experiments_dir = os.path.join(data_dir, 'experiments', '2023-08-18_experiment_%s' % subject_id_toProcess)
 elif subject_id_toProcess == 'S11':
@@ -56,19 +59,23 @@ elif subject_id_toProcess == 'S11':
 # experiments_dir = os.path.join(data_dir, 'experiments', '2023-09-10_experiment_S00')
 # experiments_dir = os.path.join(data_dir, 'experiments', '2023-08-18_experiment_S10')
 # experiments_dir = os.path.join(data_dir, 'experiments', '2023-09-10_experiment_S11')
-output_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'results', 'learning_trajectories'))
-# output_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'results', 'learning_trajectories', 'S00'))
-# output_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'results', 'learning_trajectories', 'S10'))
-# output_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'results', 'learning_trajectories', 'S11'))
+
+if subject_id_toProcess == 'ted_S00':
+  output_dir = os.path.realpath(os.path.join(script_dir, '..', '..', 'results', 'learning_trajectories'))
+else:
+  output_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'results', 'learning_trajectories'))
+  # output_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'results', 'learning_trajectories', 'S00'))
+  # output_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'results', 'learning_trajectories', 'S10'))
+  # output_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'results', 'learning_trajectories', 'S11'))
 os.makedirs(output_dir, exist_ok=True)
 
-animate_trajectory_plots = False # show an animated plot of the skeleton for each trial
+animate_trajectory_plots = True # show an animated plot of the skeleton for each trial
 plot_all_trajectories = False # make a subplot for each subject, which shows all paths from that subject
 save_plot_all_trajectories = False # make a subplot for each subject, which shows all paths from that subject
 save_eye_videos = False # save the eye-tracking video for each trial
 save_animation_videos = False # save the animated plot for each trial
 save_composite_videos = False # save the eye-tracking video and animated plot for each trial
-save_results_data = True
+save_results_data = False
 
 resampled_fs_hz = 50
 
@@ -108,7 +115,8 @@ hand_to_pitcher_offset_cm = np.array([-3, -13, 0]) # used -15 for Baxter videos 
 
 animation_view_angle_backRight = (16, 44)
 animation_view_angle_forBaxter = (30, -179.9)
-animation_view_angle = animation_view_angle_backRight
+animation_view_angle = animation_view_angle_forBaxter
+# animation_view_angle = animation_view_angle_backRight
 
 use_manual_startEnd_times = False
 manual_pouring_start_times_s = [
@@ -1093,7 +1101,6 @@ for subdir, dirs, filenames in os.walk(experiments_dir):
   is_a_root_log_folder = len(hdf5_filepath) == 1 and len(eyeVideo_filepath) == 1 \
                          and len(log_filepath) == 1 and subject_id is not None
   if is_a_root_log_folder and (subject_ids_filter is None or subject_id in subject_ids_filter):
-    print(subdir, subject_id)
     hdf5_filepaths.setdefault(subject_id, [])
     eyeVideo_filepaths.setdefault(subject_id, [])
     hdf5_filepaths[subject_id].append(os.path.join(subdir, hdf5_filepath[0]))

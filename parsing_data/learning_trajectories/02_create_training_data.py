@@ -34,10 +34,11 @@ script_dir = os.path.dirname(os.path.realpath(__file__))
 
 # CHOOSE THE ACTIVITY AND SUBJECT TO PROCESS
 configure_for_pouring = True # otherwise will be scooping
-subject_id_toProcess = 'S00' # S00, S10, S11
+subject_id_toProcess = 'ted_S00' # S00, S10, S11
 
 # Specify the folder of experiments to parse.
-data_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'results', 'learning_trajectories'))
+data_dir = os.path.realpath(os.path.join(script_dir, '..', '..', 'results', 'learning_trajectories'))
+# data_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'results', 'learning_trajectories'))
 # data_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'results', 'learning_trajectories', 'S00'))
 # data_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'results', 'learning_trajectories', 'S11'))
 # Specify the input files of extracted trajectory data.

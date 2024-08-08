@@ -14,19 +14,23 @@ from helpers import *
 ##################################################################
 
 # Specify the directory with HDF5 files.
-data_dir = 'C:/Users/jdelp/Desktop/ActionSense/results/learning_trajectories'
+# data_dir = 'C:/Users/jdelp/Desktop/ActionSense/results/learning_trajectories'
+# data_dir = 'C:/Users/jdelp/Desktop/ActionSense/code/results/learning_trajectories'
+data_dir = 'C:/Users/jdelp/Desktop/ActionSense/code/parsing_data/learning_trajectories/from_zahra/'
 
 # Specify the output feature matrices to evaluate.
 # For example, may have entries for each subject
 #  and may have an entries for model outputs.
 feature_matrices_filepaths = {
   'S00': os.path.join(data_dir, 'pouring_training_data_S00.hdf5'),
+  # 'ted_S00': os.path.join(data_dir, 'pouring_training_data_ted_S00.hdf5'),
   'S10': os.path.join(data_dir, 'pouring_training_data_S10.hdf5'),
   'S11': os.path.join(data_dir, 'pouring_training_data_S11.hdf5'),
   'model': os.path.join(data_dir, 'model_output_data.hdf5'),
 }
 referenceObjects_filepaths = {
   'S00': os.path.join(data_dir, 'pouring_training_referenceObject_positions_S00.hdf5'),
+  # 'ted_S00': os.path.join(data_dir, 'pouring_training_referenceObject_positions_ted_S00.hdf5'),
   'S10': os.path.join(data_dir, 'pouring_training_referenceObject_positions_S10.hdf5'),
   'S11': os.path.join(data_dir, 'pouring_training_referenceObject_positions_S11.hdf5'),
   'model': os.path.join(data_dir, 'model_referenceObject_positions.hdf5'),
@@ -436,7 +440,7 @@ if plot_compare_distribution_spout_projection:
   print('Plotting and comparing distributions of spout pouring projections')
   plot_compare_distributions_spout_projections(
     feature_matrices_byType, referenceObject_positions_m_byType,
-    output_filepath=os.path.join(output_dir, 'joint_angles_distributions.jpg') if output_dir is not None else None,
+    output_filepath=os.path.join(output_dir, 'spout_projections_distributions.jpg') if output_dir is not None else None,
     print_comparison_results=True,
     plot_distributions=True,
     fig=None, hide_figure_window=not keep_plots_open)

@@ -7,6 +7,8 @@
 
 # Data and media
 ###################################
+*.hdf5
+*.npy
 *.csv
 *.json
 *.png
@@ -24,3 +26,4 @@ data/
 ###################################
 robot_control/archived*/
 robot_control/old_scripts/
+

@@ -26,7 +26,7 @@
 
 from learning_trajectories.helpers.configuration import *
 from learning_trajectories.helpers.transformation import *
-from learning_trajectories.helpers.parse_process_feature_matrices import *
+from learning_trajectories.helpers.parse_process_feature_data import *
 from learning_trajectories.helpers.numpy_scipy_utils import *
 from learning_trajectories.helpers.plot_animations import plt_wait_for_keyboard_press
 
@@ -45,14 +45,16 @@ from mpl_toolkits.mplot3d import art3d
 
 # ================================================================
 # Plot the pitcher tilt angle over time.
-def plot_pour_tilting(feature_matrices, shade_pouring_region=False,
+def plot_pour_tilting(feature_data_allTrials, shade_pouring_region=False,
                       plot_all_trials=True, plot_std_shading=False, plot_mean=False,
                       label=None, subtitle=None,
                       fig=None, hide_figure_window=False, output_filepath=None):
   if output_filepath is not None:
     os.makedirs(os.path.split(output_filepath)[0], exist_ok=True)
-  if not isinstance(feature_matrices, (list, tuple)) and not (isinstance(feature_matrices, np.ndarray) and feature_matrices.ndim == 3):
-    feature_matrices = [feature_matrices]
+  if not isinstance(feature_data_allTrials, dict):
+    raise AssertionError('feature_data_allTrials should map keys to matrices whose first dimension is the trial index')
+  if not (isinstance(feature_data_allTrials['time_s'], np.ndarray) and feature_data_allTrials['time_s'].ndim == 3):
+    raise AssertionError('feature_data_allTrials should map keys to matrices whose first dimension is the trial index')
   if fig is None:
     if hide_figure_window:
       try:
@@ -70,20 +72,25 @@ def plot_pour_tilting(feature_matrices, shade_pouring_region=False,
     fig.add_subplot(1, 1, 1)
   ax = fig.get_axes()[0]
   
+  num_trials = feature_data_allTrials['time_s'].shape[0]
+  num_timesteps = feature_data_allTrials['time_s'].shape[1]
+  
   # Get the tilt angle for each timestep of each example.
-  angles_toXY_rad = np.zeros((len(feature_matrices), feature_matrices[0].shape[0]))
-  for trial_index, feature_matrix in enumerate(feature_matrices):
-    angle_toXY_rad = np.zeros(shape=(feature_matrix.shape[0],))
-    for time_index in range(feature_matrix.shape[0]):
-      angle_toXY_rad[time_index] = infer_spout_tilting(feature_matrix, time_index)
+  angles_toXY_rad = np.zeros((num_trials, num_timesteps))
+  for trial_index in range(num_trials):
+    feature_data = get_feature_data_for_trial(feature_data_allTrials, trial_index)
+    angle_toXY_rad = np.zeros(shape=(num_timesteps,))
+    for time_index in range(num_timesteps):
+      angle_toXY_rad[time_index] = infer_spout_tilting(feature_data, time_index)
     angles_toXY_rad[trial_index, :] = angle_toXY_rad
   
   # Get the pouring times.
   if shade_pouring_region:
-    pour_start_indexes = np.zeros((len(feature_matrices), 1))
-    pour_end_indexes = np.zeros((len(feature_matrices), 1))
-    for trial_index, feature_matrix in enumerate(feature_matrices):
-      pouring_inference = infer_pour_pose(feature_matrix)
+    pour_start_indexes = np.zeros((num_trials, 1))
+    pour_end_indexes = np.zeros((num_trials, 1))
+    for trial_index in range(num_trials):
+      feature_data = get_feature_data_for_trial(feature_data_allTrials, trial_index)
+      pouring_inference = infer_pour_pose(feature_data)
       pour_start_indexes[trial_index] = pouring_inference['start_time_index']
       pour_end_indexes[trial_index] = pouring_inference['end_time_index']
   
@@ -100,7 +107,7 @@ def plot_pour_tilting(feature_matrices, shade_pouring_region=False,
   
   # Plot all traces if desired.
   if plot_all_trials:
-    for trial_index in range(len(feature_matrices)):
+    for trial_index in range(num_trials):
       ax.plot(np.degrees(angles_toXY_rad[trial_index, :]), linewidth=1)
     
   # Plot the mean if desired.
@@ -116,7 +123,7 @@ def plot_pour_tilting(feature_matrices, shade_pouring_region=False,
     
   # Shade the pouring regions if desired.
   if shade_pouring_region:
-    for trial_index in range(len(feature_matrices)):
+    for trial_index in range(num_trials):
       ax.axvspan(pour_start_indexes[trial_index], pour_end_indexes[trial_index], alpha=0.5, color='gray')
   
   # Plot formatting.
@@ -137,7 +144,7 @@ def plot_pour_tilting(feature_matrices, shade_pouring_region=False,
 
 # ================================================================
 # Plot the height of the spout relative to the top of the glass over time.
-def plot_pour_relativeHeight(feature_matrices, referenceObject_positions_m,
+def plot_pour_relativeHeight(feature_data_allTrials,
                              shade_pouring_region=False,
                              plot_all_trials=True, plot_std_shading=False, plot_mean=False,
                              subtitle=None, label=None,
@@ -146,10 +153,10 @@ def plot_pour_relativeHeight(feature_matrices, referenceObject_positions_m,
                              output_filepath=None):
   if output_filepath is not None:
     os.makedirs(os.path.split(output_filepath)[0], exist_ok=True)
-  if not isinstance(feature_matrices, (list, tuple)) and not (isinstance(feature_matrices, np.ndarray) and feature_matrices.ndim == 3):
-    feature_matrices = [feature_matrices]
-  if not isinstance(referenceObject_positions_m, (list, tuple)) and not (isinstance(referenceObject_positions_m, np.ndarray) and referenceObject_positions_m.ndim == 2 and referenceObject_positions_m.shape[0] == len(feature_matrices)):
-    referenceObject_positions_m = [referenceObject_positions_m]
+  if not isinstance(feature_data_allTrials, dict):
+    raise AssertionError('feature_data_allTrials should map keys to matrices whose first dimension is the trial index')
+  if not (isinstance(feature_data_allTrials['time_s'], np.ndarray) and feature_data_allTrials['time_s'].ndim == 3):
+    raise AssertionError('feature_data_allTrials should map keys to matrices whose first dimension is the trial index')
   if fig is None:
     if hide_figure_window:
       try:
@@ -169,24 +176,28 @@ def plot_pour_relativeHeight(feature_matrices, referenceObject_positions_m,
   else:
     ax = fig.get_axes()[0]
   
+  num_trials = feature_data_allTrials['time_s'].shape[0]
+  num_timesteps = feature_data_allTrials['time_s'].shape[1]
+  
   # Get the spout heights for each trial.
-  spout_heights_cm = np.zeros((len(feature_matrices), feature_matrices[0].shape[0]))
-  for trial_index in range(len(feature_matrices)):
-    feature_matrix = feature_matrices[trial_index]
-    referenceObject_position_m = referenceObject_positions_m[trial_index]
+  spout_heights_cm = np.zeros((num_trials, num_timesteps))
+  for trial_index in range(num_trials):
+    feature_data = get_feature_data_for_trial(feature_data_allTrials, trial_index)
+    referenceObject_position_m = np.squeeze(feature_data['referenceObject_position_m'])
     # Get the spout height at each timestep.
-    spout_relativeHeight_cm = np.zeros(shape=(feature_matrix.shape[0],))
-    for time_index in range(feature_matrix.shape[0]):
-      spout_position_cm = 100*infer_spout_position_m(feature_matrix, time_index)
+    spout_relativeHeight_cm = np.zeros(shape=(num_timesteps,))
+    for time_index in range(num_timesteps):
+      spout_position_cm = 100*infer_spout_position_m(feature_data, time_index)
       spout_relativeHeight_cm[time_index] = spout_position_cm[2] - 100*referenceObject_position_m[2]
     spout_heights_cm[trial_index, :] = spout_relativeHeight_cm
   
   # Get the pouring times.
   if shade_pouring_region:
-    pour_start_indexes = np.zeros((len(feature_matrices), 1))
-    pour_end_indexes = np.zeros((len(feature_matrices), 1))
-    for trial_index, feature_matrix in enumerate(feature_matrices):
-      pouring_inference = infer_pour_pose(feature_matrix)
+    pour_start_indexes = np.zeros((num_trials, 1))
+    pour_end_indexes = np.zeros((num_trials, 1))
+    for trial_index in range(num_trials):
+      feature_data = get_feature_data_for_trial(feature_data_allTrials, trial_index)
+      pouring_inference = infer_pour_pose(feature_data)
       pour_start_indexes[trial_index] = pouring_inference['start_time_index']
       pour_end_indexes[trial_index] = pouring_inference['end_time_index']
   
@@ -203,7 +214,7 @@ def plot_pour_relativeHeight(feature_matrices, referenceObject_positions_m,
   
   # Plot all traces if desired.
   if plot_all_trials:
-    for trial_index in range(len(feature_matrices)):
+    for trial_index in range(num_trials):
       ax.plot(spout_heights_cm[trial_index, :], linewidth=1)
     
   # Plot the mean if desired.
@@ -219,7 +230,7 @@ def plot_pour_relativeHeight(feature_matrices, referenceObject_positions_m,
     
   # Shade the pouring regions if desired.
   if shade_pouring_region:
-    for trial_index in range(len(feature_matrices)):
+    for trial_index in range(num_trials):
       ax.axvspan(pour_start_indexes[trial_index], pour_end_indexes[trial_index], alpha=0.5, color='gray')
   
   # Plot the glass height.
@@ -244,7 +255,7 @@ def plot_pour_relativeHeight(feature_matrices, referenceObject_positions_m,
 
 # ================================================================
 # Plot the speed and jerk of the spout over time.
-def plot_spout_dynamics(feature_matrices,
+def plot_spout_dynamics(feature_data_allTrials,
                         plot_all_trials=True, plot_mean=False, plot_std_shading=False,
                         subtitle=None, label=None,
                         output_filepath=None,
@@ -253,8 +264,10 @@ def plot_spout_dynamics(feature_matrices,
     
   if output_filepath is not None:
     os.makedirs(os.path.split(output_filepath)[0], exist_ok=True)
-  if not isinstance(feature_matrices, (list, tuple)) and not (isinstance(feature_matrices, np.ndarray) and feature_matrices.ndim == 3):
-    feature_matrices = [feature_matrices]
+  if not isinstance(feature_data_allTrials, dict):
+    raise AssertionError('feature_data_allTrials should map keys to matrices whose first dimension is the trial index')
+  if not (isinstance(feature_data_allTrials['time_s'], np.ndarray) and feature_data_allTrials['time_s'].ndim == 3):
+    raise AssertionError('feature_data_allTrials should map keys to matrices whose first dimension is the trial index')
   if fig is None:
     if hide_figure_window:
       try:
@@ -276,19 +289,24 @@ def plot_spout_dynamics(feature_matrices,
   else:
     (fig, axs) = fig
   
+  num_trials = feature_data_allTrials['time_s'].shape[0]
+  num_timesteps = feature_data_allTrials['time_s'].shape[1]
+  
   # Get the spout dynamics for each timestep.
-  speeds_m_s = [None]*len(feature_matrices)
-  jerks_m_s_s_s = [None]*len(feature_matrices)
-  for trial_index, feature_matrix in enumerate(feature_matrices):
-    speeds_m_s[trial_index] = infer_spout_speed_m_s(feature_matrix)
-    jerks_m_s_s_s[trial_index] = infer_spout_jerk_m_s_s_s(feature_matrix)
+  speeds_m_s = [None]*num_trials
+  jerks_m_s_s_s = [None]*num_trials
+  for trial_index in range(num_trials):
+    feature_data = get_feature_data_for_trial(feature_data_allTrials, trial_index)
+    speeds_m_s[trial_index] = infer_spout_speed_m_s(feature_data)
+    jerks_m_s_s_s[trial_index] = infer_spout_jerk_m_s_s_s(feature_data)
   
   # Get the pouring times.
   if shade_pouring_region:
-    pour_start_indexes = np.zeros((len(feature_matrices), 1))
-    pour_end_indexes = np.zeros((len(feature_matrices), 1))
-    for trial_index, feature_matrix in enumerate(feature_matrices):
-      pouring_inference = infer_pour_pose(feature_matrix)
+    pour_start_indexes = np.zeros((num_trials, 1))
+    pour_end_indexes = np.zeros((num_trials, 1))
+    for trial_index in range(num_trials):
+      feature_data = get_feature_data_for_trial(feature_data_allTrials, trial_index)
+      pouring_inference = infer_pour_pose(feature_data)
       pour_start_indexes[trial_index] = pouring_inference['start_time_index']
       pour_end_indexes[trial_index] = pouring_inference['end_time_index']
   
@@ -314,7 +332,7 @@ def plot_spout_dynamics(feature_matrices,
     ax_jerk.legend()
   # Plot all traces if desired.
   if plot_all_trials:
-    for trial_index in range(len(feature_matrices)):
+    for trial_index in range(num_trials):
       ax_speed.plot(speeds_m_s_toPlot[trial_index, :], linewidth=1)
       ax_jerk.plot(jerks_m_s_s_s_toPlot[trial_index, :], linewidth=1)
   # Plot the mean if desired.
@@ -337,7 +355,7 @@ def plot_spout_dynamics(feature_matrices,
       ax_jerk.legend()
   # Shade the pouring regions if desired.
   if shade_pouring_region:
-    for trial_index in range(len(feature_matrices)):
+    for trial_index in range(num_trials):
       ax_speed.axvspan(pour_start_indexes[trial_index], pour_end_indexes[trial_index], alpha=0.5, color='gray')
       ax_jerk.axvspan(pour_start_indexes[trial_index], pour_end_indexes[trial_index], alpha=0.5, color='gray')
   
@@ -361,17 +379,19 @@ def plot_spout_dynamics(feature_matrices,
 
 # ================================================================
 # Plot the speed and jerk of the hand, elbow, and shoulder over time.
-def plot_body_dynamics(feature_matrices,
-                        plot_all_trials=True, plot_mean=False, plot_std_shading=False,
-                        subtitle=None, label=None,
-                        output_filepath=None,
-                        shade_pouring_region=False,
-                        fig=None, hide_figure_window=False):
+def plot_body_dynamics(feature_data_allTrials,
+                       plot_all_trials=True, plot_mean=False, plot_std_shading=False,
+                       subtitle=None, label=None,
+                       output_filepath=None,
+                       shade_pouring_region=False,
+                       fig=None, hide_figure_window=False):
     
   if output_filepath is not None:
     os.makedirs(os.path.split(output_filepath)[0], exist_ok=True)
-  if not isinstance(feature_matrices, (list, tuple)) and not (isinstance(feature_matrices, np.ndarray) and feature_matrices.ndim == 3):
-    feature_matrices = [feature_matrices]
+  if not isinstance(feature_data_allTrials, dict):
+    raise AssertionError('feature_data_allTrials should map keys to matrices whose first dimension is the trial index')
+  if not (isinstance(feature_data_allTrials['time_s'], np.ndarray) and feature_data_allTrials['time_s'].ndim == 3):
+    raise AssertionError('feature_data_allTrials should map keys to matrices whose first dimension is the trial index')
   if fig is None:
     if hide_figure_window:
       try:
@@ -393,19 +413,24 @@ def plot_body_dynamics(feature_matrices,
   else:
     (fig, axs) = fig
   
+  num_trials = feature_data_allTrials['time_s'].shape[0]
+  num_timesteps = feature_data_allTrials['time_s'].shape[1]
+  
   # Get the body dynamics for each timestep.
-  speeds_m_s = [None]*len(feature_matrices)
-  jerks_m_s_s_s = [None]*len(feature_matrices)
-  for trial_index, feature_matrix in enumerate(feature_matrices):
-    speeds_m_s[trial_index] = get_body_speed_m_s(feature_matrix)
-    jerks_m_s_s_s[trial_index] = get_body_jerk_m_s_s_s(feature_matrix)
+  speeds_m_s = [None]*num_trials
+  jerks_m_s_s_s = [None]*num_trials
+  for trial_index in range(num_trials):
+    feature_data = get_feature_data_for_trial(feature_data_allTrials, trial_index)
+    speeds_m_s[trial_index] = get_body_speed_m_s(feature_data)
+    jerks_m_s_s_s[trial_index] = get_body_jerk_m_s_s_s(feature_data)
   
   # Get the pouring times.
   if shade_pouring_region:
-    pour_start_indexes = np.zeros((len(feature_matrices), 1))
-    pour_end_indexes = np.zeros((len(feature_matrices), 1))
-    for trial_index, feature_matrix in enumerate(feature_matrices):
-      pouring_inference = infer_pour_pose(feature_matrix)
+    pour_start_indexes = np.zeros((num_trials, 1))
+    pour_end_indexes = np.zeros((num_trials, 1))
+    for trial_index in range(num_trials):
+      feature_data = get_feature_data_for_trial(feature_data_allTrials, trial_index)
+      pouring_inference = infer_pour_pose(feature_data)
       pour_start_indexes[trial_index] = pouring_inference['start_time_index']
       pour_end_indexes[trial_index] = pouring_inference['end_time_index']
   
@@ -435,7 +460,7 @@ def plot_body_dynamics(feature_matrices,
     
     # Plot all traces if desired.
     if plot_all_trials:
-      for trial_index in range(len(feature_matrices)):
+      for trial_index in range(num_trials):
         ax_speed.plot(speeds_m_s_toPlot[trial_index, :], linewidth=1)
         ax_jerk.plot(jerks_m_s_s_s_toPlot[trial_index, :], linewidth=1)
     
@@ -462,7 +487,7 @@ def plot_body_dynamics(feature_matrices,
     
     # Shade the pouring regions if desired.
     if shade_pouring_region:
-      for trial_index in range(len(feature_matrices)):
+      for trial_index in range(num_trials):
         ax_speed.axvspan(pour_start_indexes[trial_index], pour_end_indexes[trial_index], alpha=0.5, color='gray')
         ax_jerk.axvspan(pour_start_indexes[trial_index], pour_end_indexes[trial_index], alpha=0.5, color='gray')
     
@@ -487,17 +512,19 @@ def plot_body_dynamics(feature_matrices,
 
 # ================================================================
 # Plot the joint angles of the hand, elbow, and shoulder over time.
-def plot_body_joint_angles(feature_matrices,
-                            plot_all_trials=True, plot_mean=False, plot_std_shading=False,
-                            subtitle=None, label=None,
-                            output_filepath=None,
-                            shade_pouring_region=False,
-                            fig=None, hide_figure_window=False):
+def plot_body_joint_angles(feature_data_allTrials,
+                           plot_all_trials=True, plot_mean=False, plot_std_shading=False,
+                           subtitle=None, label=None,
+                           output_filepath=None,
+                           shade_pouring_region=False,
+                           fig=None, hide_figure_window=False):
     
   if output_filepath is not None:
     os.makedirs(os.path.split(output_filepath)[0], exist_ok=True)
-  if not isinstance(feature_matrices, (list, tuple)) and not (isinstance(feature_matrices, np.ndarray) and feature_matrices.ndim == 3):
-    feature_matrices = [feature_matrices]
+  if not isinstance(feature_data_allTrials, dict):
+    raise AssertionError('feature_data_allTrials should map keys to matrices whose first dimension is the trial index')
+  if not (isinstance(feature_data_allTrials['time_s'], np.ndarray) and feature_data_allTrials['time_s'].ndim == 3):
+    raise AssertionError('feature_data_allTrials should map keys to matrices whose first dimension is the trial index')
   if fig is None:
     if hide_figure_window:
       try:
@@ -519,17 +546,22 @@ def plot_body_joint_angles(feature_matrices,
   else:
     (fig, axs) = fig
   
+  num_trials = feature_data_allTrials['time_s'].shape[0]
+  num_timesteps = feature_data_allTrials['time_s'].shape[1]
+  
   # Get the body dynamics for each timestep.
-  joint_angles_rad = [None]*len(feature_matrices)
-  for trial_index, feature_matrix in enumerate(feature_matrices):
-    joint_angles_rad[trial_index] = get_body_joint_angles_rad(feature_matrix)
+  joint_angles_rad = [None]*num_trials
+  for trial_index in range(num_trials):
+    feature_data = get_feature_data_for_trial(feature_data_allTrials, trial_index)
+    joint_angles_rad[trial_index] = get_body_joint_angles_rad(feature_data)
   
   # Get the pouring times.
   if shade_pouring_region:
-    pour_start_indexes = np.zeros((len(feature_matrices), 1))
-    pour_end_indexes = np.zeros((len(feature_matrices), 1))
-    for trial_index, feature_matrix in enumerate(feature_matrices):
-      pouring_inference = infer_pour_pose(feature_matrix)
+    pour_start_indexes = np.zeros((num_trials, 1))
+    pour_end_indexes = np.zeros((num_trials, 1))
+    for trial_index in range(num_trials):
+      feature_data = get_feature_data_for_trial(feature_data_allTrials, trial_index)
+      pouring_inference = infer_pour_pose(feature_data)
       pour_start_indexes[trial_index] = pouring_inference['start_time_index']
       pour_end_indexes[trial_index] = pouring_inference['end_time_index']
   
@@ -553,7 +585,7 @@ def plot_body_joint_angles(feature_matrices,
       
       # Plot all traces if desired.
       if plot_all_trials:
-        for trial_index in range(len(feature_matrices)):
+        for trial_index in range(num_trials):
           ax_joint_angles.plot(joint_angles_deg_toPlot[trial_index, :], linewidth=1)
       
       # Plot the mean if desired.
@@ -569,7 +601,7 @@ def plot_body_joint_angles(feature_matrices,
       
       # Shade the pouring regions if desired.
       if shade_pouring_region:
-        for trial_index in range(len(feature_matrices)):
+        for trial_index in range(num_trials):
           ax_joint_angles.axvspan(pour_start_indexes[trial_index], pour_end_indexes[trial_index], alpha=0.5, color='gray')
       
       # Plot formatting.

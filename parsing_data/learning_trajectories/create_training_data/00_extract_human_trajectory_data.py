@@ -51,27 +51,6 @@ from learning_trajectories.helpers.printing import *
 # Configuration
 ###################################################################
 
-# Specify the subjects to consider.
-subject_id_toProcess = 'S00' # S00, S10, S11, ted_S00
-subject_ids_filter = None # None to consider all subjects
-
-data_dir = os.path.realpath(os.path.join(actionsense_root_dir, 'data'))
-results_dir = os.path.realpath(os.path.join(actionsense_root_dir, 'results'))
-
-# Specify the folder of experiments to parse.
-if subject_id_toProcess == 'S00':
-  experiments_dir = os.path.join(data_dir, 'experiments', '2023-09-10_experiment_%s' % subject_id_toProcess)
-elif subject_id_toProcess == 'S10':
-  experiments_dir = os.path.join(data_dir, 'experiments', '2023-08-18_experiment_%s' % subject_id_toProcess)
-elif subject_id_toProcess == 'S11':
-  experiments_dir = os.path.join(data_dir, 'experiments', '2023-09-10_experiment_%s' % subject_id_toProcess)
-elif subject_id_toProcess == 'ted_S00':
-  experiments_dir = os.path.join(data_dir, 'experiments', '2024-03-04_experiment_S00_selectedRun')
-
-# Specify the output folder.
-output_dir = os.path.realpath(os.path.join(results_dir, 'learning_trajectories'))
-os.makedirs(output_dir, exist_ok=True)
-
 # Specify outputs.
 animate_trajectory_plots = False # show an animated plot of the skeleton for each trial
 plot_all_trajectories = False # make a subplot for each subject, which shows all paths from that subject
@@ -80,6 +59,29 @@ save_eye_videos = True # save the eye-tracking video for each trial
 save_animation_videos = True
 save_composite_videos = True # save the eye-tracking video and animated plot for each trial
 save_results_data = True
+
+# Specify the subjects to consider.
+subject_ids_toProcess = ['S00', 'S10', 'S11'] # S00, S10, S11, ted_S00
+subject_ids_filter = None # None to consider all subjects
+
+data_dir = os.path.realpath(os.path.join(actionsense_root_dir, 'data'))
+results_dir = os.path.realpath(os.path.join(actionsense_root_dir, 'results'))
+
+experiments_dirs = []
+for subject_id_toProcess in subject_ids_toProcess:
+  # Specify the folder of experiments to parse.
+  if subject_id_toProcess == 'S00':
+    experiments_dirs.append(os.path.join(data_dir, 'experiments', '2023-09-10_experiment_%s' % subject_id_toProcess))
+  elif subject_id_toProcess == 'S10':
+    experiments_dirs.append(os.path.join(data_dir, 'experiments', '2023-08-18_experiment_%s' % subject_id_toProcess))
+  elif subject_id_toProcess == 'S11':
+    experiments_dirs.append(os.path.join(data_dir, 'experiments', '2023-09-10_experiment_%s' % subject_id_toProcess))
+  elif subject_id_toProcess == 'ted_S00':
+    experiments_dirs.append(os.path.join(data_dir, 'experiments', '2024-03-04_experiment_S00_selectedRun'))
+
+# Specify the output folder.
+output_dir = os.path.realpath(os.path.join(results_dir, 'learning_trajectories'))
+os.makedirs(output_dir, exist_ok=True)
 
 # Choose the activity to process.
 activity_mode = 'pouring' # 'pouring', 'scooping'
@@ -100,7 +102,7 @@ else:
 # Main processing
 ###################################################################
 
-def main_processing():
+def main_processing(subject_id_toProcess, experiments_dir):
   # Find folders of log data, and record filepaths for the HDF5s and first-person videos.
   hdf5_filepaths = OrderedDict() # map subject IDs to list of filepaths
   eyeVideo_filepaths = OrderedDict() # map subject IDs to list of filepaths
@@ -260,7 +262,8 @@ def main_processing():
   # Export the results if desired
   if save_results_data:
     print('    Exporting data to HDF5 file')
-    export_path_data(time_s_byTrial_bySubject, bodyPath_data_byTrial_bySubject,
+    export_path_data(subject_id_toProcess,
+                     time_s_byTrial_bySubject, bodyPath_data_byTrial_bySubject,
                      stationary_time_s_byTrial_bySubject, stationary_pose_byTrial_bySubject,
                      referenceObject_position_m_byTrial_bySubject)
     
@@ -341,8 +344,8 @@ def save_activity_composite_videos(h5_file, eyeVideo_filepath,
       plot_time_index = time_s.searchsorted(target_time_s)[0]
       previous_handles = plot_timestep(
                           time_s, plot_time_index,
-                          referenceObject_position_m_byTrial[trial_index],
                           bodyPath_data=bodyPath_data_byTrial[trial_index],
+                          referenceObject_position_m=referenceObject_position_m_byTrial[trial_index],
                           subject_id=subject_id,
                           trial_index=trial_index, trial_start_index_offset_forTitle=trial_start_index_offset,
                           previous_handles=previous_handles, include_skeleton=True,
@@ -392,8 +395,8 @@ def save_activity_animation_videos(time_s_byTrial, bodyPath_data_byTrial,
       # Plot the scene
       previous_handles = plot_timestep(
                           time_s, frame_index,
-                          referenceObject_position_m_byTrial[trial_index],
                           bodyPath_data=bodyPath_data_byTrial[trial_index],
+                          referenceObject_position_m=referenceObject_position_m_byTrial[trial_index],
                           subject_id=subject_id,
                           trial_index=trial_index, trial_start_index_offset_forTitle=trial_start_index_offset,
                           previous_handles=previous_handles, include_skeleton=True,
@@ -420,11 +423,11 @@ def save_activity_animation_videos(time_s_byTrial, bodyPath_data_byTrial,
 # Helpers to save processed data
 ###################################################################
 
-def export_path_data(time_s_byTrial_bySubject, bodyPath_data_byTrial_bySubject,
+def export_path_data(subject_id_for_filename, time_s_byTrial_bySubject, bodyPath_data_byTrial_bySubject,
                      stationary_time_s_byTrial_bySubject, stationary_pose_byTrial_bySubject,
                      referenceObject_position_m_byTrial_bySubject):
   # Open the output HDF5 file
-  hdf5_output_filepath = os.path.join(output_dir, '%s_paths_humans_%s.hdf5' % (target_activity_keyword, subject_id_toProcess))
+  hdf5_output_filepath = os.path.join(output_dir, '%s_paths_humans_%s.hdf5' % (target_activity_keyword, subject_id_for_filename))
   if os.path.exists(hdf5_output_filepath):
     print()
     print('Output file exists at [%s]' % hdf5_output_filepath)
@@ -548,4 +551,28 @@ def resize_image(img, target_width=None, target_height=None):
 ###################################################################
 
 if __name__ == '__main__':
-  main_processing()
+  for subject_index in range(len(subject_ids_toProcess)):
+    main_processing(subject_ids_toProcess[subject_index], experiments_dirs[subject_index])
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

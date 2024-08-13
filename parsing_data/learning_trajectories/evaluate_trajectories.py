@@ -2,13 +2,17 @@
 import h5py
 import numpy as np
 import os
+script_dir = os.path.dirname(os.path.realpath(__file__))
+actionsense_root_dir = script_dir
+while os.path.split(actionsense_root_dir)[-1] != 'ActionSense':
+  actionsense_root_dir = os.path.realpath(os.path.join(actionsense_root_dir, '..'))
 
 import matplotlib
 default_matplotlib_backend = matplotlib.rcParams['backend']
 matplotlib.rcParams['figure.max_open_warning'] = 35 # default 20
 import matplotlib.pyplot as plt
 
-from helpers.parse_process_feature_matrices import *
+from helpers.parse_process_feature_data import *
 from helpers.plot_animations import *
 from helpers.plot_metrics_timeseries import *
 from helpers.plot_metrics_distributions import *
@@ -18,31 +22,20 @@ from helpers.plot_metrics_distributions import *
 ##################################################################
 
 # Specify the directory with HDF5 files.
-# data_dir = 'C:/Users/jdelp/Desktop/ActionSense/results/learning_trajectories'
-# data_dir = 'C:/Users/jdelp/Desktop/ActionSense/code/results/learning_trajectories'
-data_dir = 'C:/Users/jdelp/Desktop/ActionSense/code/parsing_data/learning_trajectories/from_zahra/'
+data_dir = os.path.realpath(os.path.join(actionsense_root_dir, 'results', 'learning_trajectories'))
 
-# Specify the output feature matrices to evaluate.
+# Specify the feature data to evaluate.
 # For example, may have entries for each subject
 #  and may have an entries for model outputs.
-feature_matrices_filepaths = {
-  'S00': os.path.join(data_dir, 'pouring_training_data_S00.hdf5'),
-  # 'ted_S00': os.path.join(data_dir, 'pouring_training_data_ted_S00.hdf5'),
-  'S10': os.path.join(data_dir, 'pouring_training_data_S10.hdf5'),
-  'S11': os.path.join(data_dir, 'pouring_training_data_S11.hdf5'),
-  'model': os.path.join(data_dir, 'model_output_data.hdf5'),
-}
-referenceObjects_filepaths = {
-  'S00': os.path.join(data_dir, 'pouring_training_referenceObject_positions_S00.hdf5'),
-  # 'ted_S00': os.path.join(data_dir, 'pouring_training_referenceObject_positions_ted_S00.hdf5'),
-  'S10': os.path.join(data_dir, 'pouring_training_referenceObject_positions_S10.hdf5'),
-  'S11': os.path.join(data_dir, 'pouring_training_referenceObject_positions_S11.hdf5'),
-  'model': os.path.join(data_dir, 'model_referenceObject_positions.hdf5'),
+feature_data_filepaths_byType = {
+  'S00': os.path.join(data_dir, 'pouring_trainingData_S00.hdf5'),
+  'S10': os.path.join(data_dir, 'pouring_trainingData_S10.hdf5'),
+  'S11': os.path.join(data_dir, 'pouring_trainingData_S11.hdf5'),
 }
 
 # Specify which outputs to process.
 # Animations.
-interactively_animate_trajectories_exampleType = None # interactive - can move around scene and press enter to step through time # None to not animate
+interactively_animate_trajectories_exampleType = None # 'S00' # interactive - can move around scene and press enter to step through time # None to not animate
 save_trajectory_animations_eachType = False
 save_trajectory_animations_compositeTypes = False
 # Plots (mostly time series).
@@ -66,7 +59,7 @@ keep_plots_open = True
 
 # Specify where outputs should be saved.
 # Can be None to not save any outputs.
-output_dir = os.path.join(data_dir, 'output_plots')
+output_dir = os.path.join(data_dir, 'evaluation_outputs')
 
 print()
 
@@ -75,33 +68,27 @@ print()
 ##################################################################
 
 # Determine the types of examples provided, and the ones used for comparisons to the primary.
-example_types = list(feature_matrices_filepaths.keys())
+example_types = list(feature_data_filepaths_byType.keys())
 
-# Load the feature matrices and reference object positions.
-feature_matrices_byType = {}
-referenceObject_positions_m_byType = {}
-for (example_type, feature_matrices_filepath) in feature_matrices_filepaths.items():
-  if feature_matrices_filepath is not None:
-    # Load the feature matrices.
-    feature_matrices_file = h5py.File(feature_matrices_filepath, 'r')
-    feature_matrices_byType[example_type] = np.array(feature_matrices_file['feature_matrices'])
-    # If labels are provided, only use the human examples.
-    if 'labels' in feature_matrices_file:
-      labels = [x.decode('utf-8') for x in np.array(feature_matrices_file['labels'])]
-    else:
-      labels = None
-    feature_matrices_file.close()
-    
-    # Load the reference object data.
-    referenceObjects_file = h5py.File(referenceObjects_filepaths[example_type], 'r')
-    referenceObject_positions_m_byType[example_type] = np.array(referenceObjects_file['position_m'])
-    referenceObjects_file.close()
+# Load the feature datas.
+feature_data_byType = {}
+for (example_type, feature_data_filepath) in feature_data_filepaths_byType.items():
+  if feature_data_filepath is not None:
+    feature_data_byType[example_type] = {}
+    labels = None
+    # Load the feature data.
+    feature_data_file = h5py.File(feature_data_filepath, 'r')
+    for key in feature_data_file:
+      if key == 'labels':
+        labels = [x.decode('utf-8') for x in np.array(feature_data_file[key])]
+      feature_data_byType[example_type][key] = np.array(feature_data_file[key])
+    feature_data_file.close()
     
     # If labels are provided, only use the human examples.
     if labels is not None:
       example_indices_toUse = [i for (i, label) in enumerate(labels) if label == 'human']
-      feature_matrices_byType[example_type] = feature_matrices_byType[example_type][example_indices_toUse,:,:]
-      referenceObject_positions_m_byType[example_type] = referenceObject_positions_m_byType[example_type][example_indices_toUse,:]
+      for key in feature_data_byType[example_type]:
+        feature_data_byType[example_type][key] = feature_data_byType[example_type][key][example_indices_toUse]
 
 
 ##################################################################
@@ -121,52 +108,48 @@ print('='*70)
 # Will create a subplot for each example type in the dictionaries provided.
 if save_trajectory_animations_compositeTypes or save_trajectory_animations_eachType or (interactively_animate_trajectories_exampleType is not None):
   # Loop through each trial.
-  max_num_trials = max([len(x) for x in feature_matrices_byType.values()])
+  max_num_trials = max([len(x['time_s']) for x in feature_data_byType.values()])
   for trial_index in range(max_num_trials):
     # Get the data for this trial for each type of example provided.
-    feature_matrices_byType_forTrial = {}
+    feature_data_byType_forTrial = {}
     durations_s_byType_forTrial = {}
-    referenceObject_positions_m_byType_forTrial = {}
     have_trial_for_all_types = True
     for example_type in example_types:
-      if trial_index >= len(feature_matrices_byType[example_type]):
-        feature_matrices_byType_forTrial[example_type] = None
+      if trial_index >= len(feature_data_byType[example_type]['time_s']):
+        feature_data_byType_forTrial[example_type] = None
         durations_s_byType_forTrial[example_type] = None
-        referenceObject_positions_m_byType_forTrial[example_type] = None
         have_trial_for_all_types = False
       else:
-        feature_matrices_byType_forTrial[example_type] = np.squeeze(feature_matrices_byType[example_type][trial_index])
-        if feature_matrices_byType_forTrial[example_type].shape[-1] == 31:
-          durations_s_byType_forTrial[example_type] = feature_matrices_byType_forTrial[example_type][-1, -1]
-        else:
-          durations_s_byType_forTrial[example_type] = 10
-        referenceObject_positions_m_byType_forTrial[example_type] = np.squeeze(referenceObject_positions_m_byType[example_type][trial_index])
-    
+        feature_data_byType_forTrial[example_type] = {}
+        for key in feature_data_byType[example_type]:
+          feature_data_byType_forTrial[example_type][key] = np.squeeze(feature_data_byType[example_type][key][trial_index])
+        feature_data_byType_forTrial[example_type] = parse_feature_data(feature_data_byType_forTrial[example_type])
+        
     # Animate the trajectory; press enter to advance to the next timestep.
     if interactively_animate_trajectories_exampleType is not None:
-      if feature_matrices_byType_forTrial[interactively_animate_trajectories_exampleType] is not None:
+      if feature_data_byType_forTrial[interactively_animate_trajectories_exampleType] is not None:
         print('Animating the trajectory; press enter on the figure window to advance time')
         animate_trajectory(
-          feature_matrices_byType_forTrial[interactively_animate_trajectories_exampleType], durations_s_byType_forTrial[interactively_animate_trajectories_exampleType],
-          referenceObject_positions_m_byType_forTrial[interactively_animate_trajectories_exampleType],
-          pause_after_timesteps=True)
+          feature_data=feature_data_byType_forTrial[interactively_animate_trajectories_exampleType],
+          subject_id=interactively_animate_trajectories_exampleType, trial_index=trial_index,
+          wait_for_user_after_timesteps=True)
     
     # Save the animation as a video, with a subplot for each example type.
     if save_trajectory_animations_compositeTypes:
       if have_trial_for_all_types:
         print('Saving trajectory animations as a video for trial index %02d all types' % trial_index)
         save_trajectory_animation(
-          feature_matrices_byType_forTrial, durations_s_byType_forTrial, referenceObject_positions_m_byType_forTrial,
+          feature_data_byType_forTrial,
           subject_id='', trial_index=trial_index,
           output_filepath=os.path.join(output_dir, 'trajectory_animations', 'trajectory_animation_allTypes_trial%02d.mp4' % (trial_index)) if output_dir is not None else None
       )
     if save_trajectory_animations_eachType:
       for example_type in example_types:
-        if feature_matrices_byType_forTrial[example_type] is not None:
+        if feature_data_byType_forTrial[example_type] is not None:
           print('Saving trajectory animations as a video for trial index %02d type %s' % (trial_index, example_type))
           save_trajectory_animation(
-            feature_matrices_byType_forTrial[example_type], durations_s_byType_forTrial[example_type], referenceObject_positions_m_byType_forTrial[example_type],
-            subject_id=example_type, trial_index=trial_index,
+            {example_type: feature_data_byType_forTrial[example_type]},
+            subject_id='', trial_index=trial_index,
             output_filepath=os.path.join(output_dir, 'trajectory_animations', 'trajectory_animation_%s_trial%02d.mp4' % (example_type, trial_index)) if output_dir is not None else None
           )
   
@@ -180,7 +163,7 @@ if plot_spout_tilt:
   # Plot each trial as a trace on the plot, with a separate plot for each example type.
   for example_type in example_types:
     plot_pour_tilting(
-      feature_matrices_byType[example_type],
+      feature_data_byType[example_type],
       plot_mean=True, plot_std_shading=False, plot_all_trials=True,
       subtitle=example_type.title(), label=None,
       output_filepath=os.path.join(output_dir, 'spout_tilt_angle_%s.jpg' % (example_type)) if output_dir is not None else None,
@@ -191,7 +174,7 @@ if plot_spout_tilt:
   for example_type in example_types:
     is_last_type = example_type == example_types[-1]
     previous_plot_handles = plot_pour_tilting(
-      feature_matrices_byType[example_type],
+      feature_data_byType[example_type],
       plot_mean=True, plot_std_shading=True, plot_all_trials=False,
       subtitle=None, label=example_type.title(),
       output_filepath=(os.path.join(output_dir, 'spout_tilt_angle_allTypes.jpg') if is_last_type else None) if output_dir is not None else None,
@@ -208,7 +191,7 @@ if plot_spout_pouring_projection:
   # Plot each trial as a separate point, with a separate plot for each example type.
   for example_type in example_types:
     plot_pour_relativePosition(
-      feature_matrices_byType[example_type], referenceObject_positions_m_byType[example_type],
+      feature_data_byType[example_type],
       plot_mean=False, plot_std_shading=False, plot_all_trials=True,
       subtitle=example_type.title(), label=None,
       output_filepath=os.path.join(output_dir, 'spout_projection_relativeToGlass_%s.jpg' % (example_type)) if output_dir is not None else None,
@@ -218,7 +201,7 @@ if plot_spout_pouring_projection:
   for (example_index, example_type) in enumerate(example_types):
     is_last_type = example_type == example_types[-1]
     previous_plot_handles = plot_pour_relativePosition(
-      feature_matrices_byType[example_type], referenceObject_positions_m_byType[example_type],
+      feature_data_byType[example_type],
       plot_mean=True, plot_std_shading=True, plot_all_trials=False,
       subtitle=None, label=example_type.title(),
       color=plt.rcParams['axes.prop_cycle'].by_key()['color'][example_index],
@@ -231,7 +214,7 @@ if plot_spout_height:
   # Plot each trial as a trace on the plot, with a separate plot for each example type.
   for example_type in example_types:
     plot_pour_relativeHeight(
-      feature_matrices_byType[example_type], referenceObject_positions_m_byType[example_type],
+      feature_data_byType[example_type],
       plot_mean=True, plot_std_shading=False, plot_all_trials=True,
       subtitle=example_type.title(), label=None,
       output_filepath=os.path.join(output_dir, 'spout_height_%s.jpg' % (example_type)) if output_dir is not None else None,
@@ -242,7 +225,7 @@ if plot_spout_height:
   for example_type in example_types:
     is_last_type = example_type == example_types[-1]
     previous_plot_handles = plot_pour_relativeHeight(
-      feature_matrices_byType[example_type], referenceObject_positions_m_byType[example_type],
+      feature_data_byType[example_type],
       plot_mean=True, plot_std_shading=True, plot_all_trials=False,
       subtitle=None, label=example_type.title(),
       output_filepath=(os.path.join(output_dir, 'spout_height_allTypes.jpg') if is_last_type else None) if output_dir is not None else None,
@@ -255,7 +238,7 @@ if plot_body_speedJerk:
   # Plot each trial as a trace on the plot, with a separate plot for each example type.
   for example_type in example_types:
     plot_body_dynamics(
-      feature_matrices_byType[example_type],
+      feature_data_byType[example_type],
       plot_mean=True, plot_std_shading=False, plot_all_trials=True,
       subtitle=example_type.title(), label=None,
       output_filepath=os.path.join(output_dir, 'body_dynamics_%s.jpg' % (example_type)) if output_dir is not None else None,
@@ -266,7 +249,7 @@ if plot_body_speedJerk:
   for example_type in example_types:
     is_last_type = example_type == example_types[-1]
     previous_plot_handles =  plot_body_dynamics(
-      feature_matrices_byType[example_type],
+      feature_data_byType[example_type],
       plot_mean=True, plot_std_shading=True, plot_all_trials=False,
       subtitle=None, label=example_type.title(),
       output_filepath=(os.path.join(output_dir, 'body_dynamics_allTypes.jpg') if is_last_type else None) if output_dir is not None else None,
@@ -279,7 +262,7 @@ if plot_spout_speedJerk:
   # Plot each trial as a trace on the plot, with a separate plot for each example type.
   for example_type in example_types:
     plot_spout_dynamics(
-      feature_matrices_byType[example_type],
+      feature_data_byType[example_type],
       plot_mean=True, plot_std_shading=False, plot_all_trials=True,
       subtitle=example_type.title(), label=None,
       output_filepath=os.path.join(output_dir, 'spout_dynamics_%s.jpg' % (example_type)) if output_dir is not None else None,
@@ -290,7 +273,7 @@ if plot_spout_speedJerk:
   for example_type in example_types:
     is_last_type = example_type == example_types[-1]
     previous_plot_handles =  plot_spout_dynamics(
-      feature_matrices_byType[example_type],
+      feature_data_byType[example_type],
       plot_mean=True, plot_std_shading=True, plot_all_trials=False,
       subtitle=None, label=example_type.title(),
       output_filepath=(os.path.join(output_dir, 'spout_dynamics_allTypes.jpg') if is_last_type else None) if output_dir is not None else None,
@@ -303,7 +286,7 @@ if plot_joint_angles:
   # Plot each trial as a trace on the plot, with a separate plot for each example type.
   for example_type in example_types:
     plot_body_joint_angles(
-      feature_matrices_byType[example_type],
+      feature_data_byType[example_type],
       plot_mean=True, plot_std_shading=False, plot_all_trials=True,
       subtitle=example_type.title(), label=None,
       output_filepath=os.path.join(output_dir, 'joint_angles_%s.jpg' % (example_type)) if output_dir is not None else None,
@@ -313,9 +296,8 @@ if plot_joint_angles:
   previous_plot_handles = None
   for example_type in example_types:
     is_last_type = example_type == example_types[-1]
-    print('example_type.title()', example_type.title())
     previous_plot_handles = plot_body_joint_angles(
-      feature_matrices_byType[example_type],
+      feature_data_byType[example_type],
       plot_mean=True, plot_std_shading=True, plot_all_trials=False,
       subtitle=None, label=example_type.title(),
       output_filepath=(os.path.join(output_dir, 'joint_angles_allTypes.jpg') if is_last_type else None) if output_dir is not None else None,
@@ -334,7 +316,7 @@ if plot_compare_distribution_body_speedJerk:
   print('='*70)
   print('Plotting and comparing distributions of body dynamics')
   plot_compare_distributions_body_dynamics(
-    feature_matrices_byType,
+    feature_data_byType,
     output_filepath=os.path.join(output_dir, 'body_dynamics_distributions.jpg') if output_dir is not None else None,
     region=None, # 'pre_pouring', 'pouring', 'post_pouring', None for all
     print_comparison_results=True,
@@ -348,7 +330,7 @@ if plot_compare_distribution_spout_speedJerk:
   print('='*70)
   print('Plotting and comparing distributions of spout dynamics')
   plot_compare_distributions_spout_dynamics(
-    feature_matrices_byType,
+    feature_data_byType,
     output_filepath=os.path.join(output_dir, 'spout_dynamics_distributions.jpg') if output_dir is not None else None,
     region=None, # 'pre_pouring', 'pouring', 'post_pouring', None for all
     print_comparison_results=True,
@@ -362,7 +344,7 @@ if plot_compare_distribution_joint_angles:
   print('='*70)
   print('Plotting and comparing distributions of joint angles')
   plot_compare_distributions_joint_angles(
-    feature_matrices_byType,
+    feature_data_byType,
     output_filepath=os.path.join(output_dir, 'joint_angles_distributions.jpg') if output_dir is not None else None,
     region=None, # 'pre_pouring', 'pouring', 'post_pouring', None for all
     print_comparison_results=True,
@@ -376,7 +358,7 @@ if plot_compare_distribution_spout_projection:
   print('='*70)
   print('Plotting and comparing distributions of spout pouring projections')
   plot_compare_distributions_spout_projections(
-    feature_matrices_byType, referenceObject_positions_m_byType,
+    feature_data_byType,
     output_filepath=os.path.join(output_dir, 'spout_projections_distributions.jpg') if output_dir is not None else None,
     print_comparison_results=True,
     plot_distributions=True,
@@ -388,7 +370,7 @@ if plot_compare_distribution_spout_height:
   print('='*70)
   print('Plotting and comparing distributions of spout heights during pouring')
   plot_compare_distributions_spout_relativeHeights(
-    feature_matrices_byType, referenceObject_positions_m_byType,
+    feature_data_byType,
     output_filepath=os.path.join(output_dir, 'spout_height_distributions.jpg') if output_dir is not None else None,
     region='pouring', # 'pre_pouring', 'pouring', 'post_pouring', None for all
     print_comparison_results=True,
@@ -402,7 +384,7 @@ if plot_compare_distribution_spout_tilt:
   print('='*70)
   print('Plotting and comparing distributions of spout tilts during pouring')
   plot_compare_distributions_spout_tilts(
-    feature_matrices_byType,
+    feature_data_byType,
     output_filepath=os.path.join(output_dir, 'spout_tilt_distributions.jpg') if output_dir is not None else None,
     region='pouring', # 'pre_pouring', 'pouring', 'post_pouring', None for all
     print_comparison_results=True,

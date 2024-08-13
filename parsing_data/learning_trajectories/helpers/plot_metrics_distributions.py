@@ -26,7 +26,7 @@
 
 from learning_trajectories.helpers.configuration import *
 from learning_trajectories.helpers.transformation import *
-from learning_trajectories.helpers.parse_process_feature_matrices import *
+from learning_trajectories.helpers.parse_process_feature_data import *
 from learning_trajectories.helpers.numpy_scipy_utils import *
 from learning_trajectories.helpers.plot_animations import plt_wait_for_keyboard_press
 
@@ -49,7 +49,7 @@ from mpl_toolkits.mplot3d import art3d
 #   The y-axis is the pouring direction, as inferred from the yaw of the pitcher in each trial.
 #   A point will be plotted at the spout's projection onto the table, relative to the glass.
 #   So the water would pour upward on the plot from the plotted spout position.
-def plot_pour_relativePosition(feature_matrices, referenceObject_positions_m,
+def plot_pour_relativePosition(feature_data_allTrials,
                                plot_all_trials=True, plot_std_shading=False, plot_mean=False,
                                subtitle=None, label=None,
                                fig=None, hide_figure_window=False,
@@ -57,8 +57,10 @@ def plot_pour_relativePosition(feature_matrices, referenceObject_positions_m,
                                output_filepath=None):
   if output_filepath is not None:
     os.makedirs(os.path.split(output_filepath)[0], exist_ok=True)
-  if not isinstance(feature_matrices, (list, tuple)) and not (isinstance(feature_matrices, np.ndarray) and feature_matrices.ndim == 3):
-    feature_matrices = [feature_matrices]
+  if not isinstance(feature_data_allTrials, dict):
+    raise AssertionError('feature_data_allTrials should map keys to matrices whose first dimension is the trial index')
+  if not (isinstance(feature_data_allTrials['time_s'], np.ndarray) and feature_data_allTrials['time_s'].ndim == 3):
+    raise AssertionError('feature_data_allTrials should map keys to matrices whose first dimension is the trial index')
   if isinstance(fig, (list, tuple)):
     fig = fig[0]
   if fig is None:
@@ -80,16 +82,19 @@ def plot_pour_relativePosition(feature_matrices, referenceObject_positions_m,
   else:
     ax = fig.get_axes()[0]
   
-  spout_relativeOffsets_cm = np.zeros((len(feature_matrices), 2))
-  for trial_index in range(len(feature_matrices)):
-    feature_matrix = feature_matrices[trial_index]
-    referenceObject_position_m = referenceObject_positions_m[trial_index]
+  num_trials = feature_data_allTrials['time_s'].shape[0]
+  num_timesteps = feature_data_allTrials['time_s'].shape[1]
+  
+  spout_relativeOffsets_cm = np.zeros((num_trials, 2))
+  for trial_index in range(num_trials):
+    feature_data = get_feature_data_for_trial(feature_data_allTrials, trial_index)
+    referenceObject_position_m = np.squeeze(feature_data['referenceObject_position_m'])
     # Get the pouring time.
-    pouring_inference = infer_pour_pose(feature_matrix)
+    pouring_inference = infer_pour_pose(feature_data)
     pour_index = pouring_inference['time_index']
     # Get the spout projection and yaw.
-    spout_position_cm = 100*infer_spout_position_m(feature_matrix, pour_index)
-    spout_yawvector = infer_spout_yawvector(feature_matrix, pour_index)
+    spout_position_cm = 100*infer_spout_position_m(feature_data, pour_index)
+    spout_yawvector = infer_spout_yawvector(feature_data, time_index=pour_index)
     # Project everything to the XY plane.
     spout_position_cm = spout_position_cm[0:2]
     spout_yawvector = spout_yawvector[0:2]
@@ -125,7 +130,7 @@ def plot_pour_relativePosition(feature_matrices, referenceObject_positions_m,
     
   # Plot all trial results if desired.
   if plot_all_trials:
-    for trial_index in range(len(feature_matrices)):
+    for trial_index in range(num_trials):
       ax.scatter(*spout_relativeOffsets_cm[trial_index,:], c=color, s=25)
   
   # Plot the mean if desired.
@@ -171,26 +176,26 @@ def plot_pour_relativePosition(feature_matrices, referenceObject_positions_m,
 #   So the water would pour upward on the plot from the plotted spout position.
 # feature_matrices_byType and referenceObject_positions_m_byType are
 #   dictionaries mapping distribution category to matrices for each trial.
-def plot_compare_distributions_spout_projections(feature_matrices_byType, referenceObject_positions_m_byType,
-                                                  output_filepath=None,
-                                                  print_comparison_results=True,
-                                                  plot_distributions=True,
-                                                  fig=None, hide_figure_window=False):
+def plot_compare_distributions_spout_projections(feature_data_byType,
+                                                 output_filepath=None,
+                                                 print_comparison_results=True,
+                                                 plot_distributions=True,
+                                                 fig=None, hide_figure_window=False):
   
   # Plot mean and standard deviation shading for each example type, on the same plot.
   spout_relativeOffsets_cm_byType = {}
-  example_types = list(feature_matrices_byType.keys())
-  previous_plot_handles = (fig, None)
+  example_types = list(feature_data_byType.keys())
+  previous_results = (fig, None)
   for (example_index, example_type) in enumerate(example_types):
     is_last_type = example_type == example_types[-1]
-    previous_plot_handles = plot_pour_relativePosition(
-      feature_matrices_byType[example_type], referenceObject_positions_m_byType[example_type],
+    previous_results = plot_pour_relativePosition(
+      feature_data_byType[example_type],
       plot_mean=True, plot_std_shading=True, plot_all_trials=False,
       subtitle=None, label=example_type.title(),
       color=plt.rcParams['axes.prop_cycle'].by_key()['color'][example_index],
       output_filepath=output_filepath,
-      fig=previous_plot_handles, hide_figure_window=hide_figure_window or (not plot_distributions))
-    spout_relativeOffsets_cm_byType[example_type] = previous_plot_handles[1]
+      fig=previous_results, hide_figure_window=hide_figure_window or (not plot_distributions))
+    spout_relativeOffsets_cm_byType[example_type] = previous_results[1]
   
   # Statistical tests.
   results_relativeOffsets = dict([(example_type, dict([(key, {}) for key in example_types])) for example_type in example_types])
@@ -218,21 +223,21 @@ def plot_compare_distributions_spout_projections(feature_matrices_byType, refere
           p = results.pvalue
           print('Different? %s (p = %0.4f)' % ('yes' if p < 0.05 else 'no', p))
   
-  return previous_plot_handles
+  return previous_results
 
 # ================================================================
 # Plot and compare distributions of the spout speed and jerk.
 # feature_matrices_allTypes is a dictionary mapping distribution category to matrices for each trial.
 # If region is provided, will only consider timesteps during that region for each trial.
 #   Can be 'pre_pouring', 'pouring', 'post_pouring', or None for all.
-def plot_compare_distributions_spout_dynamics(feature_matrices_allTypes,
-                        subtitle=None,
-                        output_filepath=None,
-                        region=None, # 'pre_pouring', 'pouring', 'post_pouring', None for all
-                        print_comparison_results=True,
-                        plot_distributions=True,
-                        num_histogram_bins=100, histogram_range_quantiles=(0,1),
-                        fig=None, hide_figure_window=False):
+def plot_compare_distributions_spout_dynamics(feature_data_byType,
+                                              subtitle=None,
+                                              output_filepath=None,
+                                              region=None,  # 'pre_pouring', 'pouring', 'post_pouring', None for all
+                                              print_comparison_results=True,
+                                              plot_distributions=True,
+                                              num_histogram_bins=100, histogram_range_quantiles=(0,1),
+                                              fig=None, hide_figure_window=False):
     
   if output_filepath is not None:
     os.makedirs(os.path.split(output_filepath)[0], exist_ok=True)
@@ -259,24 +264,28 @@ def plot_compare_distributions_spout_dynamics(feature_matrices_allTypes,
       (fig, axs) = fig
   
   # Initialize results/outputs.
-  example_types = list(feature_matrices_allTypes.keys())
+  example_types = list(feature_data_byType.keys())
   distributions_speed_m_s = dict.fromkeys(example_types, None)
   distributions_jerk_m_s_s_s = dict.fromkeys(example_types, None)
   results_speed_m_s = dict([(example_type, dict.fromkeys(example_types, None)) for example_type in example_types])
   results_jerk_m_s_s_s = dict([(example_type, dict.fromkeys(example_types, None)) for example_type in example_types])
   
   # Process each example type (each distribution category).
-  for (example_type, feature_matrices) in feature_matrices_allTypes.items():
+  for (example_type, feature_data_allTrials) in feature_data_byType.items():
+    num_trials = feature_data_allTrials['time_s'].shape[0]
+    num_timesteps = feature_data_allTrials['time_s'].shape[1]
     # Get the spout dynamics for each timestep.
-    speeds_m_s = [None]*len(feature_matrices)
-    jerks_m_s_s_s = [None]*len(feature_matrices)
-    for trial_index, feature_matrix in enumerate(feature_matrices):
-      speeds_m_s[trial_index] = infer_spout_speed_m_s(feature_matrix)
-      jerks_m_s_s_s[trial_index] = infer_spout_jerk_m_s_s_s(feature_matrix)
+    speeds_m_s = [None]*num_trials
+    jerks_m_s_s_s = [None]*num_trials
+    for trial_index in range(num_trials):
+      feature_data = get_feature_data_for_trial(feature_data_allTrials, trial_index)
+      speeds_m_s[trial_index] = infer_spout_speed_m_s(feature_data)
+      jerks_m_s_s_s[trial_index] = infer_spout_jerk_m_s_s_s(feature_data)
   
     # If desired, only extract a certain window of time relative to the inferred pouring time.
-    for trial_index, feature_matrix in enumerate(feature_matrices):
-      pouring_inference = infer_pour_pose(feature_matrix)
+    for trial_index in range(num_trials):
+      feature_data = get_feature_data_for_trial(feature_data_allTrials, trial_index)
+      pouring_inference = infer_pour_pose(feature_data)
       pour_start_index = pouring_inference['start_time_index']
       pour_end_index = pouring_inference['end_time_index']
       if region == 'pouring':
@@ -383,14 +392,14 @@ def plot_compare_distributions_spout_dynamics(feature_matrices_allTypes,
 # feature_matrices_allTypes is a dictionary mapping distribution category to matrices for each trial.
 # If region is provided, will only consider timesteps during that region for each trial.
 #   Can be 'pre_pouring', 'pouring', 'post_pouring', or None for all.
-def plot_compare_distributions_body_dynamics(feature_matrices_allTypes,
-                        subtitle=None,
-                        output_filepath=None,
-                        region=None, # 'pre_pouring', 'pouring', 'post_pouring', None for all
-                        print_comparison_results=True,
-                        plot_distributions=True,
-                        num_histogram_bins=100, histogram_range_quantiles=(0,1),
-                        fig=None, hide_figure_window=False):
+def plot_compare_distributions_body_dynamics(feature_data_byType,
+                                             subtitle=None,
+                                             output_filepath=None,
+                                             region=None,  # 'pre_pouring', 'pouring', 'post_pouring', None for all
+                                             print_comparison_results=True,
+                                             plot_distributions=True,
+                                             num_histogram_bins=100, histogram_range_quantiles=(0,1),
+                                             fig=None, hide_figure_window=False):
     
   if output_filepath is not None:
     os.makedirs(os.path.split(output_filepath)[0], exist_ok=True)
@@ -417,25 +426,29 @@ def plot_compare_distributions_body_dynamics(feature_matrices_allTypes,
       (fig, axs) = fig
   
   # Initialize results/outputs.
-  example_types = list(feature_matrices_allTypes.keys())
+  example_types = list(feature_data_byType.keys())
   distributions_speed_m_s = dict([(key, {}) for key in example_types])
   distributions_jerk_m_s_s_s = dict([(key, {}) for key in example_types])
   results_speed_m_s = dict([(example_type, dict([(key, {}) for key in example_types])) for example_type in example_types])
   results_jerk_m_s_s_s = dict([(example_type, dict([(key, {}) for key in example_types])) for example_type in example_types])
   
   # Process each example type (each distribution category).
-  for (example_type, feature_matrices) in feature_matrices_allTypes.items():
+  for (example_type, feature_data_allTrials) in feature_data_byType.items():
+    num_trials = feature_data_allTrials['time_s'].shape[0]
+    num_timesteps = feature_data_allTrials['time_s'].shape[1]
     # Get the body dynamics for each timestep.
-    speeds_m_s = [None]*len(feature_matrices)
-    jerks_m_s_s_s = [None]*len(feature_matrices)
-    for trial_index, feature_matrix in enumerate(feature_matrices):
-      speeds_m_s[trial_index] = get_body_speed_m_s(feature_matrix)
-      jerks_m_s_s_s[trial_index] = get_body_jerk_m_s_s_s(feature_matrix)
+    speeds_m_s = [None]*num_trials
+    jerks_m_s_s_s = [None]*num_trials
+    for trial_index in range(num_trials):
+      feature_data = get_feature_data_for_trial(feature_data_allTrials, trial_index)
+      speeds_m_s[trial_index] = get_body_speed_m_s(feature_data)
+      jerks_m_s_s_s[trial_index] = get_body_jerk_m_s_s_s(feature_data)
       body_keys = list(speeds_m_s[trial_index].keys())
   
     # If desired, only extract a certain window of time relative to the inferred pouring time.
-    for trial_index, feature_matrix in enumerate(feature_matrices):
-      pouring_inference = infer_pour_pose(feature_matrix)
+    for trial_index in range(num_trials):
+      feature_data = get_feature_data_for_trial(feature_data_allTrials, trial_index)
+      pouring_inference = infer_pour_pose(feature_data)
       pour_start_index = pouring_inference['start_time_index']
       pour_end_index = pouring_inference['end_time_index']
       if region == 'pouring':
@@ -549,14 +562,14 @@ def plot_compare_distributions_body_dynamics(feature_matrices_allTypes,
 # feature_matrices_allTypes is a dictionary mapping distribution category to matrices for each trial.
 # If region is provided, will only consider timesteps during that region for each trial.
 #   Can be 'pre_pouring', 'pouring', 'post_pouring', or None for all.
-def plot_compare_distributions_joint_angles(feature_matrices_allTypes,
-                        subtitle=None,
-                        output_filepath=None,
-                        region=None, # 'pre_pouring', 'pouring', 'post_pouring', None for all
-                        print_comparison_results=True,
-                        plot_distributions=True,
-                        num_histogram_bins=100, histogram_range_quantiles=(0,1),
-                        fig=None, hide_figure_window=False):
+def plot_compare_distributions_joint_angles(feature_data_byType,
+                                            subtitle=None,
+                                            output_filepath=None,
+                                            region=None,  # 'pre_pouring', 'pouring', 'post_pouring', None for all
+                                            print_comparison_results=True,
+                                            plot_distributions=True,
+                                            num_histogram_bins=100, histogram_range_quantiles=(0,1),
+                                            fig=None, hide_figure_window=False):
     
   if output_filepath is not None:
     os.makedirs(os.path.split(output_filepath)[0], exist_ok=True)
@@ -583,22 +596,26 @@ def plot_compare_distributions_joint_angles(feature_matrices_allTypes,
       (fig, axs) = fig
   
   # Initialize results/outputs.
-  example_types = list(feature_matrices_allTypes.keys())
+  example_types = list(feature_data_byType.keys())
   distributions_joint_angles_rad = dict([(key, {}) for key in example_types])
   results_joint_angles_rad = dict([(example_type, dict([(key, {}) for key in example_types])) for example_type in example_types])
   joint_axes = ['x', 'y', 'z']
   
   # Process each example type (each distribution category).
-  for (example_type, feature_matrices) in feature_matrices_allTypes.items():
+  for (example_type, feature_data_allTrials) in feature_data_byType.items():
+    num_trials = feature_data_allTrials['time_s'].shape[0]
+    num_timesteps = feature_data_allTrials['time_s'].shape[1]
     # Get the body joint angles for each timestep.
-    joint_angles_rad = [None]*len(feature_matrices)
-    for trial_index, feature_matrix in enumerate(feature_matrices):
-      joint_angles_rad[trial_index] = get_body_joint_angles_rad(feature_matrix)
+    joint_angles_rad = [None]*num_trials
+    for trial_index in range(num_trials):
+      feature_data = get_feature_data_for_trial(feature_data_allTrials, trial_index)
+      joint_angles_rad[trial_index] = get_body_joint_angles_rad(feature_data)
       body_keys = list(joint_angles_rad[trial_index].keys())
   
     # If desired, only extract a certain window of time relative to the inferred pouring time.
-    for trial_index, feature_matrix in enumerate(feature_matrices):
-      pouring_inference = infer_pour_pose(feature_matrix)
+    for trial_index in range(num_trials):
+      feature_data = get_feature_data_for_trial(feature_data_allTrials, trial_index)
+      pouring_inference = infer_pour_pose(feature_data)
       pour_start_index = pouring_inference['start_time_index']
       pour_end_index = pouring_inference['end_time_index']
       if region == 'pouring':
@@ -681,7 +698,7 @@ def plot_compare_distributions_joint_angles(feature_matrices_allTypes,
 # feature_matrices_allTypes is a dictionary mapping distribution category to matrices for each trial.
 # If region is provided, will only consider timesteps during that region for each trial.
 #   Can be 'pre_pouring', 'pouring', 'post_pouring', or None for all.
-def plot_compare_distributions_spout_relativeHeights(feature_matrices_allTypes, referenceObject_positions_m_allTypes,
+def plot_compare_distributions_spout_relativeHeights(feature_data_byType,
                                                      subtitle=None,
                                                      output_filepath=None,
                                                      region=None,  # 'pre_pouring', 'pouring', 'post_pouring', None for all
@@ -715,28 +732,30 @@ def plot_compare_distributions_spout_relativeHeights(feature_matrices_allTypes, 
       (fig, axs) = fig
   
   # Initialize results/outputs.
-  example_types = list(feature_matrices_allTypes.keys())
+  example_types = list(feature_data_byType.keys())
   distributions_relativeHeights_cm = dict.fromkeys(example_types, None)
   results_relativeHeights_cm = dict([(example_type, dict.fromkeys(example_types, None)) for example_type in example_types])
   
   # Process each example type (each distribution category).
-  for (example_type, feature_matrices) in feature_matrices_allTypes.items():
-    referenceObject_positions_m = referenceObject_positions_m_allTypes[example_type]
+  for (example_type, feature_data_allTrials) in feature_data_byType.items():
+    num_trials = feature_data_allTrials['time_s'].shape[0]
+    num_timesteps = feature_data_allTrials['time_s'].shape[1]
     # Get the spout heights for each timestep of each trial.
     spout_relativeHeights_cm = []
-    for trial_index in range(len(feature_matrices)):
-      feature_matrix = feature_matrices[trial_index]
-      referenceObject_position_m = referenceObject_positions_m[trial_index]
+    for trial_index in range(num_trials):
+      feature_data = get_feature_data_for_trial(feature_data_allTrials, trial_index)
+      referenceObject_position_m = np.squeeze(feature_data['referenceObject_position_m'])
       # Get the spout height at each timestep.
-      spout_relativeHeight_cm = np.zeros(shape=(feature_matrix.shape[0],))
-      for time_index in range(feature_matrix.shape[0]):
-        spout_position_cm = 100*infer_spout_position_m(feature_matrix, time_index)
+      spout_relativeHeight_cm = np.zeros(shape=(num_timesteps,))
+      for time_index in range(num_timesteps):
+        spout_position_cm = 100*infer_spout_position_m(feature_data, time_index)
         spout_relativeHeight_cm[time_index] = spout_position_cm[2] - 100*referenceObject_position_m[2]
       spout_relativeHeights_cm.append(spout_relativeHeight_cm)
       
     # If desired, only extract a certain window of time relative to the inferred pouring time.
-    for trial_index, feature_matrix in enumerate(feature_matrices):
-      pouring_inference = infer_pour_pose(feature_matrix)
+    for trial_index in range(num_trials):
+      feature_data = get_feature_data_for_trial(feature_data_allTrials, trial_index)
+      pouring_inference = infer_pour_pose(feature_data)
       pour_start_index = pouring_inference['start_time_index']
       pour_end_index = pouring_inference['end_time_index']
       if region == 'pouring':
@@ -809,7 +828,7 @@ def plot_compare_distributions_spout_relativeHeights(feature_matrices_allTypes, 
 # feature_matrices_allTypes is a dictionary mapping distribution category to matrices for each trial.
 # If region is provided, will only consider timesteps during that region for each trial.
 #   Can be 'pre_pouring', 'pouring', 'post_pouring', or None for all.
-def plot_compare_distributions_spout_tilts(feature_matrices_allTypes,
+def plot_compare_distributions_spout_tilts(feature_data_byType,
                                            subtitle=None,
                                            output_filepath=None,
                                            region=None,  # 'pre_pouring', 'pouring', 'post_pouring', None for all
@@ -843,24 +862,27 @@ def plot_compare_distributions_spout_tilts(feature_matrices_allTypes,
       (fig, axs) = fig
   
   # Initialize results/outputs.
-  example_types = list(feature_matrices_allTypes.keys())
+  example_types = list(feature_data_byType.keys())
   distributions_tilts_rad = dict.fromkeys(example_types, None)
   results_tilts_rad = dict([(example_type, dict.fromkeys(example_types, None)) for example_type in example_types])
   
   # Process each example type (each distribution category).
-  for (example_type, feature_matrices) in feature_matrices_allTypes.items():
+  for (example_type, feature_data_allTrials) in feature_data_byType.items():
+    num_trials = feature_data_allTrials['time_s'].shape[0]
+    num_timesteps = feature_data_allTrials['time_s'].shape[1]
     # Get the spout tilt for each timestep of each trial.
     spout_tilts_deg = []
-    for trial_index in range(len(feature_matrices)):
-      feature_matrix = feature_matrices[trial_index]
-      spout_tilt_rad = np.zeros(shape=(feature_matrix.shape[0],))
-      for time_index in range(feature_matrix.shape[0]):
-        spout_tilt_rad[time_index] = infer_spout_tilting(feature_matrix, time_index)
+    for trial_index in range(num_trials):
+      feature_data = get_feature_data_for_trial(feature_data_allTrials, trial_index)
+      spout_tilt_rad = np.zeros(shape=(num_timesteps,))
+      for time_index in range(num_timesteps):
+        spout_tilt_rad[time_index] = infer_spout_tilting(feature_data, time_index)
       spout_tilts_deg.append(spout_tilt_rad)
       
     # If desired, only extract a certain window of time relative to the inferred pouring time.
-    for trial_index, feature_matrix in enumerate(feature_matrices):
-      pouring_inference = infer_pour_pose(feature_matrix)
+    for trial_index in range(num_trials):
+      feature_data = get_feature_data_for_trial(feature_data_allTrials, trial_index)
+      pouring_inference = infer_pour_pose(feature_data)
       pour_start_index = pouring_inference['start_time_index']
       pour_end_index = pouring_inference['end_time_index']
       if region == 'pouring':

@@ -17,7 +17,7 @@ from utils import positional_encoding, \
 
 import h5py
 import os
-output_data_dir = 'C:/Users/jdelp/Desktop/ActionSense/code/parsing_data/learning_trajectories/creating_models/'
+output_data_dir = '/learning_trajectories/create_models/'
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 

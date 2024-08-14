@@ -118,7 +118,7 @@ for subject_index in range(len(subject_ids_toProcess)):
   # Helper to create a feature matrix from the processed trajectory data.
   def add_training_segment(time_s, body_segment_position_m, body_segment_quaternion_wijk,
                            joint_angle_eulerZXY_xyz_rad, joint_angle_eulerXZY_xyz_rad,
-                           referenceObject_position_m, is_human,
+                           referenceObject_position_m, hand_to_pitcher_angles_rad, is_human,
                            subject_id=-1, trial_id=-1):
     
     # Collect position and orientation features.
@@ -164,6 +164,9 @@ for subject_index in range(len(subject_ids_toProcess)):
     
     # Add the reference object position.
     features['referenceObject_position_m'] = np.atleast_2d(referenceObject_position_m)
+    
+    # Add the pitcher holding angle.
+    features['hand_to_pitcher_angles_rad'] = np.atleast_2d(hand_to_pitcher_angles_rad)
     
     # Add to the main lists.
     for key in features:
@@ -235,19 +238,21 @@ for subject_index in range(len(subject_ids_toProcess)):
       stationary_time_s = np.squeeze(np.array(trial_group_human['stationary']['time_s']))
       stationary_index = np.where(abs(stationary_time_s - time_s) == np.min(abs(stationary_time_s - time_s)))[0][-1]
       # Get the reference object position.
-      referenceObject_position_m = np.array(trial_group_human['reference_object']['position_m'])
+      referenceObject_position_m = np.array(trial_group_human['reference_object_position_m'])
+      # Get the pitcher holding angle.
+      hand_to_pitcher_angles_rad = np.array(trial_group_human['hand_to_pitcher_angles_rad'])
       
       # Add a labeled feature matrix for this trial.
       add_training_segment(time_s, body_segment_position_m, body_segment_quaternion_wijk,
                            body_joint_angle_eulerZXY_xyz_rad, body_joint_angle_eulerXZY_xyz_rad,
-                           referenceObject_position_m,
+                           referenceObject_position_m, hand_to_pitcher_angles_rad,
                            is_human=True, subject_id=subject_id, trial_id=trial_name)
       
       # Do the same for the robot path based on this trial.
       if include_robot_examples:
         body_segment_position_m = np.squeeze(np.array(trial_group_robot['body_segment_position_m']))
         body_segment_quaternion_wijk = np.squeeze(np.array(trial_group_robot['body_segment_quaternion_wijk']))
-        add_training_segment(time_s, body_segment_position_m, body_segment_quaternion_wijk, None, None, is_human=False)
+        add_training_segment(time_s, body_segment_position_m, body_segment_quaternion_wijk, None, None, None, is_human=False)
   
   print()
   

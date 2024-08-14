@@ -35,8 +35,11 @@ import sys
 import cv2
 
 from learning_trajectories.helpers.configuration import *
+from learning_trajectories.helpers.parse_process_feature_data import *
 from learning_trajectories.helpers.numpy_scipy_utils import *
 from learning_trajectories.helpers.printing import *
+
+import matplotlib.pyplot as plt
 
 #===========================================================
 # Extract hand path data from an HDF5 file.
@@ -216,6 +219,116 @@ def infer_referenceObject_position_m_byTrial(bodyPath_data_byTrial, time_s_byTri
   return referenceObject_position_m_byTrial
 
 
+#===========================================================
+# Infer the pitcher angle in the hand, based on distance to pouring success.
+def infer_pitcher_holding_angle_rad_byTrial(bodyPath_data_byTrial,
+                                            stationary_pose_byTrial,
+                                            referenceObject_position_m_byTrial,
+                                            plot_distance_metrics_eachTrial=False,
+                                            subject_id=None):
+  # Specify holding angles to test.
+  hand_to_pitcher_angles_rad_toTest = []
+  hand_to_pitcher_rotations_toTest = []
+  
+  # tilt left/right (positive/negative)
+  x_degs = np.arange(60, 130+0.1, 2)
+  # x_degs = np.arange(90, 90+0.1, 4)
+  
+  # tilt down/up (positive/negative)
+  y_degs = np.arange(-20, 20+0.1, 5)
+  # y_degs = np.arange(0, 0+0.1, 1)
+  
+  # tilt inward/outward (positive/negative)
+  z_degs = np.arange(-20, 20+0.1, 5)
+  # z_degs = np.arange(-5, -5+0.1, 1)
+  
+  for x_deg in x_degs:
+    for y_deg in y_degs:
+      for z_deg in z_degs:
+        hand_to_pitcher_angles_rad_toTest.append(np.radians(np.array([x_deg, y_deg, z_deg])))
+        hand_to_pitcher_rotations_toTest.append(
+          Rotation.from_rotvec(hand_to_pitcher_angles_rad_toTest[-1])
+        )
+  hand_to_pitcher_angles_rad_toTest = np.array(hand_to_pitcher_angles_rad_toTest)
+  best_hand_to_pitcher_angles_rad_byTrial = []
+  if plot_distance_metrics_eachTrial:
+    fig = plt.figure()
+  else:
+    fig = None
+  # Test all angles for each trial.
+  num_trials = len(bodyPath_data_byTrial)
+  for trial_index in range(num_trials):
+    stationary_pose = stationary_pose_byTrial[trial_index]
+    stationary_time_index = stationary_pose['time_index']
+    referenceObject_position_m = referenceObject_position_m_byTrial[trial_index]
+    bodyPath_data = bodyPath_data_byTrial[trial_index]
+    parsed_feature_data = bodyPath_data_to_parsed_feature_data(bodyPath_data, time_s=None,
+                                                               referenceObject_position_m=referenceObject_position_m,
+                                                               hand_to_pitcher_angles_rad=None)
+    distances_to_success = []
+    distances_to_center = []
+    is_successful = []
+    for (test_index, hand_to_pitcher_rotation_toTest) in enumerate(hand_to_pitcher_rotations_toTest):
+      # Infer the spout pouring relative offset.
+      spout_relativeOffset_cm = infer_spout_relativeOffset_cm(
+        parsed_feature_data, referenceObject_position_m, time_index=stationary_time_index,
+        hand_to_pitcher_rotation_toUse=hand_to_pitcher_rotation_toTest)
+      # Compute a metric about pouring success.
+      glass_rim_buffer_cm = 0.5
+      behind_glass_threshold_cm = 1.5
+      distance_to_glass_center_threshold_cm = (referenceObject_diameter_cm/2 - glass_rim_buffer_cm)
+      
+      # horizontal_success = abs(spout_relativeOffset_cm[0]) < distance_to_glass_center_threshold_cm
+      # vertical_success = False
+      # if spout_relativeOffset_cm[1] > 0 and spout_relativeOffset_cm[1] < distance_to_glass_center_threshold_cm:
+      #   vertical_success = True
+      # if spout_relativeOffset_cm[1] < 0 and abs(spout_relativeOffset_cm[1]) < behind_glass_threshold_cm:
+      #   vertical_success = True
+      # pouring_success = horizontal_success and vertical_success
+      
+      horizontal_distance_to_success = abs(spout_relativeOffset_cm[0]) - distance_to_glass_center_threshold_cm
+      if spout_relativeOffset_cm[1] > 0:
+        if horizontal_distance_to_success <= 0:
+          threshold_y_cm = np.sqrt(distance_to_glass_center_threshold_cm**2 - spout_relativeOffset_cm[0]**2)
+          vertical_distance_to_success = spout_relativeOffset_cm[1] - threshold_y_cm
+        else:
+          vertical_distance_to_success = spout_relativeOffset_cm[1] - distance_to_glass_center_threshold_cm
+      else:
+        if horizontal_distance_to_success <= 0:
+          threshold_y_cm = -(np.sqrt((referenceObject_diameter_cm/2)**2 - spout_relativeOffset_cm[0]**2))
+          threshold_y_cm -= behind_glass_threshold_cm
+          vertical_distance_to_success = abs(spout_relativeOffset_cm[1]) - abs(threshold_y_cm)
+        else:
+          vertical_distance_to_success = abs(spout_relativeOffset_cm[1]) - (referenceObject_diameter_cm/2+behind_glass_threshold_cm)
+      pouring_success = (horizontal_distance_to_success < 0) and (vertical_distance_to_success < 0)
+      is_successful.append(pouring_success)
+      distances_to_success.append(np.linalg.norm([max(0, horizontal_distance_to_success),
+                                                  max(0, vertical_distance_to_success)]))
+      distances_to_center.append(np.linalg.norm(spout_relativeOffset_cm))
+    
+    distances_to_success = np.array(distances_to_success)
+    distances_to_center = np.array(distances_to_center)
+    is_successful = np.array(is_successful)
+    # If at least one was successful, find the one closest to the center.
+    # Otherwise, find the one closest to any successful point.
+    if np.any(is_successful):
+      best_index = np.argmin(distances_to_center)
+    else:
+      best_index = np.argmin(distances_to_success)
+    best_hand_to_pitcher_angles_rad_byTrial.append(hand_to_pitcher_angles_rad_toTest[best_index, :])
+  
+    # Plot if desired.
+    if plot_distance_metrics_eachTrial:
+      figManager = plt.get_current_fig_manager()
+      figManager.window.showMaximized()
+      x_degs = np.degrees(hand_to_pitcher_angles_rad_toTest[:, 0])
+      plt.plot(x_degs[successful_indexes], distances_to_success[successful_indexes], 'k*')
+      plt.plot(x_degs, distances_to_success, '.-')
+      plt.grid(True, color='lightgray')
+      plt.title('Subject %s: Pouring Distance Metric by Pitcher Holding Angle' % subject_id)
+      plt.xlabel('X Holding Angle [deg]')
+      plt.ylabel('Pouring Distance Metric')
+  return (best_hand_to_pitcher_angles_rad_byTrial, fig)
 
 
 

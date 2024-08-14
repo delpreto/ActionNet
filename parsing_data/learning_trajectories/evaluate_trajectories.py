@@ -52,6 +52,7 @@ plot_compare_distribution_joint_angles = True
 plot_compare_distribution_spout_projection = True
 plot_compare_distribution_spout_height = True
 plot_compare_distribution_spout_tilt = True
+plot_distributions_hand_to_pitcher_angles = True
 
 # Specify whether to show figure windows or process them in the background.
 # Either way, plots will be saved as images if output_dir is specified below.
@@ -363,6 +364,16 @@ if plot_compare_distribution_spout_projection:
     print_comparison_results=True,
     plot_distributions=True,
     fig=None, hide_figure_window=not keep_plots_open)
+
+if plot_distributions_hand_to_pitcher_angles:
+  # Plot the estimated hand-to-pitcher holding angles.
+  print()
+  print('='*70)
+  print('Plotting distributions of pitcher holding angles')
+  plot_distribution_hand_to_pitcher_angles(
+    feature_data_byType,
+    output_filepath=os.path.join(output_dir, 'hand_to_pitcher_angles_distributions.jpg') if output_dir is not None else None,
+    hide_figure_window=not keep_plots_open)
   
 if plot_compare_distribution_spout_height:
   # Plot and compare the spout heights.

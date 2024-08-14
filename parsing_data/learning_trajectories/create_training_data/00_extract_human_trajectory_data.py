@@ -54,11 +54,14 @@ from learning_trajectories.helpers.printing import *
 # Specify outputs.
 animate_trajectory_plots = False # show an animated plot of the skeleton for each trial
 plot_all_trajectories = False # make a subplot for each subject, which shows all paths from that subject
-save_plot_all_trajectories = True # make a subplot for each subject, which shows all paths from that subject
-save_eye_videos = True # save the eye-tracking video for each trial
-save_animation_videos = True
-save_composite_videos = True # save the eye-tracking video and animated plot for each trial
+save_plot_all_trajectories = False # make a subplot for each subject, which shows all paths from that subject
+save_eye_videos = False # save the eye-tracking video for each trial
+save_animation_videos = False
+save_composite_videos = False # save the eye-tracking video and animated plot for each trial
 save_results_data = True
+plot_pitcher_angle_distance_metrics = False
+save_plot_pitcher_angle_distance_metrics = False
+infer_pitcher_holding_angle = True
 
 # Specify the subjects to consider.
 subject_ids_toProcess = ['S00', 'S10', 'S11'] # S00, S10, S11, ted_S00
@@ -132,6 +135,7 @@ def main_processing(subject_id_toProcess, experiments_dir):
   stationary_time_s_byTrial_bySubject = OrderedDict()
   stationary_pose_byTrial_bySubject = OrderedDict()
   referenceObject_position_m_byTrial_bySubject = OrderedDict()
+  hand_to_pitcher_angles_rad_byTrial_bySubject = OrderedDict()
   for subject_id, subject_hdf5_filepaths in hdf5_filepaths.items():
     print('Processing subject %02d' % subject_id)
     time_s_byTrial_bySubject.setdefault(subject_id, [])
@@ -139,6 +143,7 @@ def main_processing(subject_id_toProcess, experiments_dir):
     stationary_time_s_byTrial_bySubject.setdefault(subject_id, [])
     stationary_pose_byTrial_bySubject.setdefault(subject_id, [])
     referenceObject_position_m_byTrial_bySubject.setdefault(subject_id, [])
+    hand_to_pitcher_angles_rad_byTrial_bySubject.setdefault(subject_id, [])
     targetActivity_trial_index_start = 0
     for (filepath_index, hdf5_filepath) in enumerate(subject_hdf5_filepaths):
       print(' ', hdf5_filepath)
@@ -188,6 +193,24 @@ def main_processing(subject_id_toProcess, experiments_dir):
         bodyPath_data_byTrial, time_s_byTrial,
         referenceObject_start_time_s_byTrial, referenceObject_end_time_s_byTrial,
         referenceObject_bodySegment_name)
+      # Infer the angle of the pitcher in the person's hand.
+      if infer_pitcher_holding_angle:
+        print('    Inferring pitcher holding angles')
+        (hand_to_pitcher_angles_rad_byTrial, fig) = \
+          infer_pitcher_holding_angle_rad_byTrial(bodyPath_data_byTrial,
+                                                  stationary_pose_byTrial,
+                                                  referenceObject_position_m_byTrial,
+                                                  plot_distance_metrics_eachTrial=plot_pitcher_angle_distance_metrics or save_plot_pitcher_angle_distance_metrics,
+                                                  subject_id=subject_id)
+        if save_plot_pitcher_angle_distance_metrics:
+          print('    Saving the plot of pitcher angles')
+          plot_dir = os.path.join(output_dir, '%s_paths_human' % target_activity_keyword)
+          os.makedirs(plot_dir, exist_ok=True)
+          fig.savefig(
+            os.path.join(plot_dir, '%s_subject-%s_testing_pitcher_holding_angles.jpg' % (target_activity_keyword, subject_id)),
+            dpi=300)
+      else:
+        hand_to_pitcher_angles_rad_byTrial = [hand_to_pitcher_angles_rad]*len(bodyPath_data_byTrial)
   
       # Store the results
       time_s_byTrial_bySubject[subject_id].extend(time_s_byTrial)
@@ -195,7 +218,8 @@ def main_processing(subject_id_toProcess, experiments_dir):
       stationary_time_s_byTrial_bySubject[subject_id].extend(stationary_time_s_byTrial)
       stationary_pose_byTrial_bySubject[subject_id].extend(stationary_pose_byTrial)
       referenceObject_position_m_byTrial_bySubject[subject_id].extend(referenceObject_position_m_byTrial)
-  
+      hand_to_pitcher_angles_rad_byTrial_bySubject[subject_id].extend(hand_to_pitcher_angles_rad_byTrial)
+      
       # Plot the paths.
       if animate_trajectory_plots:
         print('    Animating the trajectories')
@@ -253,8 +277,8 @@ def main_processing(subject_id_toProcess, experiments_dir):
   # Save the all-trajectories plot if desired.
   if save_plot_all_trajectories:
     print('    Saving the plot of all trajectories')
-    plot_dir = os.path.join(output_dir, '%s_paths_human')
-    os.makedirs(plot_dir)
+    plot_dir = os.path.join(output_dir, '%s_paths_human' % target_activity_keyword)
+    os.makedirs(plot_dir, exist_ok=True)
     handles_allPaths[0].savefig(
       os.path.join(plot_dir, '%s_paths_human_allPaths.jpg' % (target_activity_keyword)),
       dpi=300)
@@ -265,10 +289,11 @@ def main_processing(subject_id_toProcess, experiments_dir):
     export_path_data(subject_id_toProcess,
                      time_s_byTrial_bySubject, bodyPath_data_byTrial_bySubject,
                      stationary_time_s_byTrial_bySubject, stationary_pose_byTrial_bySubject,
-                     referenceObject_position_m_byTrial_bySubject)
+                     referenceObject_position_m_byTrial_bySubject,
+                     hand_to_pitcher_angles_rad_byTrial_bySubject)
     
   # Show the final plot
-  if animate_trajectory_plots or plot_all_trajectories:
+  if animate_trajectory_plots or plot_all_trajectories or plot_pitcher_angle_distance_metrics:
     print('    Close the plots to continue')
     plt.show(block=True)
     
@@ -425,7 +450,8 @@ def save_activity_animation_videos(time_s_byTrial, bodyPath_data_byTrial,
 
 def export_path_data(subject_id_for_filename, time_s_byTrial_bySubject, bodyPath_data_byTrial_bySubject,
                      stationary_time_s_byTrial_bySubject, stationary_pose_byTrial_bySubject,
-                     referenceObject_position_m_byTrial_bySubject):
+                     referenceObject_position_m_byTrial_bySubject,
+                     hand_to_pitcher_angles_rad_byTrial_bySubject):
   # Open the output HDF5 file
   hdf5_output_filepath = os.path.join(output_dir, '%s_paths_humans_%s.hdf5' % (target_activity_keyword, subject_id_for_filename))
   if os.path.exists(hdf5_output_filepath):
@@ -496,10 +522,13 @@ def export_path_data(subject_id_for_filename, time_s_byTrial_bySubject, bodyPath
                                       data=stationary_time_s_byTrial_bySubject[subject_id][trial_index] - min(time_s))
       
       # Add estimated reference object position
-      referenceObject_group = trial_group.create_group('reference_object')
       data = referenceObject_position_m_byTrial_bySubject[subject_id][trial_index]
       data = np.stack(data, axis=0)
-      referenceObject_group.create_dataset('position_m', data=data)
+      trial_group.create_dataset('reference_object_position_m', data=data)
+      
+      # Add estimated pitcher holding angles.
+      data = hand_to_pitcher_angles_rad_byTrial_bySubject[subject_id][trial_index]
+      trial_group.create_dataset('hand_to_pitcher_angles_rad', data=data)
       
       # Store body segment and joint names.
       # This should be the same for every subject/trial.

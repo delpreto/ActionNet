@@ -36,9 +36,11 @@ stationary_position_hardcoded_time_fraction = 0.3 # if not doing pouring, will u
 
 hand_box_dimensions_cm = np.array([4.8, 3, 1.3]) # np.array([2, 9, 18]) # open hand
 pitcher_box_dimensions_cm = np.array([23, 23, 10.8]) # [height, top length, width]
-hand_to_pitcher_rotation = Rotation.from_rotvec(np.array([np.radians(90),
-                                                          np.radians(0),
-                                                          np.radians(-5)]))
+hand_to_pitcher_angles_rad = np.array([np.radians(90), # tilt left/right (positive/negative)
+                                       np.radians(0),  # tilt down/up (positive/negative)
+                                       np.radians(0)   # tilt inward/outward (positive/negative)
+                                       ])
+hand_to_pitcher_rotation = Rotation.from_rotvec(hand_to_pitcher_angles_rad)
 hand_to_pitcherTop_cm = 8
 hand_to_pitcher_offset_cm = np.array([hand_to_pitcherTop_cm - pitcher_box_dimensions_cm[0]/2,
                                       -(0+pitcher_box_dimensions_cm[1]/2),

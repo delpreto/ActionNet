@@ -29,9 +29,10 @@ import copy
 from learning_trajectories.helpers.configuration import *
 from learning_trajectories.helpers.transformation import *
 from learning_trajectories.helpers.timeseries_processing import *
+from learning_trajectories.helpers.numpy_scipy_utils import *
 
 # ================================================================
-# Parse feature matrices
+# Parse feature data
 # ================================================================
 
 # ================================================================
@@ -56,7 +57,8 @@ def parse_feature_data(feature_data):
         'shoulder': feature_data['shoulder_joint_angle_xyz_rad'],
       },
       'time_s': feature_data['time_s'],
-      'referenceObject_position_m': feature_data['referenceObject_position_m'],
+      'referenceObject_position_m': np.squeeze(feature_data['referenceObject_position_m']),
+      'hand_to_pitcher_angles_rad': np.squeeze(feature_data['hand_to_pitcher_angles_rad']),
     }
   # Parse a legacy feature matrix.
   else:
@@ -98,7 +100,31 @@ def parse_feature_data(feature_data):
         },
         'time_s': np.linspace(0, 10, feature_data.shape[0]),
       }
-    
+
+def bodyPath_data_to_parsed_feature_data(bodyPath_data, time_s,
+                                         referenceObject_position_m,
+                                         hand_to_pitcher_angles_rad):
+  return {
+    'position_m' : {
+      'hand': bodyPath_data['position_m']['RightHand'],
+      'elbow': bodyPath_data['position_m']['RightForeArm'],
+      'shoulder': bodyPath_data['position_m']['RightUpperArm'],
+    },
+    'quaternion_wijk': {
+      'hand': bodyPath_data['quaternion_wijk']['RightHand'],
+      'elbow': bodyPath_data['quaternion_wijk']['RightForeArm'],
+      'shoulder': bodyPath_data['quaternion_wijk']['RightUpperArm'],
+    },
+    'joint_angle_rad': {
+      'hand': bodyPath_data['joint_angle_eulerZXY_xyz_rad']['RightWrist'],
+      'elbow': bodyPath_data['joint_angle_eulerZXY_xyz_rad']['RightElbow'],
+      'shoulder': bodyPath_data['joint_angle_eulerXZY_xyz_rad']['RightShoulder'],
+    },
+    'time_s': time_s,
+    'referenceObject_position_m': referenceObject_position_m,
+    'hand_to_pitcher_angles_rad': hand_to_pitcher_angles_rad,
+  }
+  
 # ================================================================
 # Get feature data for specified time indexes.
 def get_feature_data_for_trial(parsed_feature_data, trial_indexes):
@@ -211,7 +237,7 @@ def get_trajectory_Fs_hz(feature_data):
 # Get the body position and orientation during an inferred pouring window.
 # Will infer the pouring window by finding a region that is the most stationary.
 def infer_pour_pose(feature_data):
-  # Parse the feature matrix.
+  # Parse the feature data if needed.
   parsed_data = parse_feature_data(feature_data)
   # Infer the stationary segment and pose.
   (stationary_time_s, stationary_pose) = infer_stationary_poses(
@@ -230,7 +256,7 @@ def infer_spout_tilting(feature_data, time_index=None):
       spout_tilts.append(infer_spout_tilting(feature_data, time_index=time_index))
     return np.array(spout_tilts)
   
-  # Parse the feature matrix.
+  # Parse the feature data if needed.
   parsed_data = parse_feature_data(feature_data)
   # Rotate a box for the pitcher according to the hand quaternion.
   hand_center_cm = 100*parsed_data['position_m']['hand'][time_index, :]
@@ -248,8 +274,8 @@ def infer_spout_tilting(feature_data, time_index=None):
 
 # ================================================================
 # Get the 3D spout position at a specific time index or during the entire trial.
-def infer_spout_position_m(feature_data=None, time_index=None):
-  # Parse the feature matrix if needed.
+def infer_spout_position_m(feature_data, time_index=None, hand_to_pitcher_rotation_toUse=None):
+  # Parse the feature data if needed.
   feature_data = parse_feature_data(feature_data)
   
   # Get position for all time if desired
@@ -260,10 +286,12 @@ def infer_spout_position_m(feature_data=None, time_index=None):
     return np.array(spout_position_m)
   
   # Rotate a box for the pitcher according to the hand quaternion.
+  if hand_to_pitcher_rotation_toUse is None:
+    hand_to_pitcher_rotation_toUse = hand_to_pitcher_rotation
   hand_center_cm = 100*feature_data['position_m']['hand'][time_index, :]
   hand_quaternion_localToGlobal_wijk = feature_data['quaternion_wijk']['hand'][time_index, :]
   hand_rotation = Rotation.from_quat(hand_quaternion_localToGlobal_wijk[[1,2,3,0]])
-  pitcher_rotation = hand_rotation * hand_to_pitcher_rotation
+  pitcher_rotation = hand_rotation * hand_to_pitcher_rotation_toUse
   pitcher_quaternion_localToGlobal_ijkw = pitcher_rotation.as_quat()
   (corners, faces) = rotate_3d_box(pitcher_quaternion_localToGlobal_ijkw[[3,0,1,2]],
                                    hand_to_pitcher_offset_cm, pitcher_box_dimensions_cm)
@@ -321,9 +349,12 @@ def infer_spout_jerk_m_s_s_s(feature_data, time_index=None):
 
 # ================================================================
 # Get the spout yaw vector at a specific time index or during the entire trial.
-def infer_spout_yawvector(feature_data=None, time_index=None):
-  # Parse the feature matrix if needed.
+def infer_spout_yawvector(feature_data, time_index=None, hand_to_pitcher_rotation_toUse=None):
+  # Parse the feature data if needed.
   feature_data = parse_feature_data(feature_data)
+  if hand_to_pitcher_rotation_toUse is None and 'hand_to_pitcher_angles_rad' in feature_data:
+    hand_to_pitcher_angles_rad = np.squeeze(feature_data['hand_to_pitcher_angles_rad'])
+    hand_to_pitcher_rotation_toUse = Rotation.from_rotvec(hand_to_pitcher_angles_rad)
   
   # Get vector for all time indexes if desired.
   if time_index is None:
@@ -333,10 +364,12 @@ def infer_spout_yawvector(feature_data=None, time_index=None):
     return np.array(spout_yawvectors)
   
   # Rotate a box for the pitcher according to the hand quaternion.
+  if hand_to_pitcher_rotation_toUse is None:
+    hand_to_pitcher_rotation_toUse = hand_to_pitcher_rotation
   hand_center_cm = 100*feature_data['position_m']['hand'][time_index, :]
   hand_quaternion_localToGlobal_wijk = feature_data['quaternion_wijk']['hand'][time_index, :]
   hand_rotation = Rotation.from_quat(hand_quaternion_localToGlobal_wijk[[1,2,3,0]])
-  pitcher_rotation = hand_rotation * hand_to_pitcher_rotation
+  pitcher_rotation = hand_rotation * hand_to_pitcher_rotation_toUse
   pitcher_quaternion_localToGlobal_ijkw = pitcher_rotation.as_quat()
   (corners, faces) = rotate_3d_box(pitcher_quaternion_localToGlobal_ijkw[[3,0,1,2]],
                                    hand_to_pitcher_offset_cm, pitcher_box_dimensions_cm)
@@ -353,7 +386,54 @@ def infer_spout_yawvector(feature_data=None, time_index=None):
   yawvector = spoutside_point - handside_point
   return yawvector/np.linalg.norm(yawvector)
 
+# ================================================================
+# Get the pouring relative offset at a specific time index or during the entire trial.
+# Will rotate such that positive y is the direction of water pouring.
+def infer_spout_relativeOffset_cm(feature_data, referenceObject_position_m=None,
+                                  time_index=None, hand_to_pitcher_rotation_toUse=None):
+  # Parse the feature data if needed.
+  feature_data = parse_feature_data(feature_data)
+  if referenceObject_position_m is None and 'referenceObject_position_m' in feature_data:
+    referenceObject_position_m = np.squeeze(feature_data['referenceObject_position_m'])
+  if hand_to_pitcher_rotation_toUse is None and 'hand_to_pitcher_angles_rad' in feature_data:
+    hand_to_pitcher_angles_rad = np.squeeze(feature_data['hand_to_pitcher_angles_rad'])
+    hand_to_pitcher_rotation_toUse = Rotation.from_rotvec(hand_to_pitcher_angles_rad)
+  
+  # Get vector for all time indexes if desired.
+  if time_index is None:
+    spout_relativeOffsets_cm = []
+    for time_index in range(feature_data['time_s'].shape[0]):
+      spout_relativeOffsets_cm.append(infer_spout_relativeOffset_cm(
+        feature_data, referenceObject_position_m, time_index=time_index,
+        hand_to_pitcher_rotation_toUse=hand_to_pitcher_rotation_toUse))
+    return np.array(spout_relativeOffsets_cm)
+  
+  # Infer the spout position and yaw.
+  spout_position_cm = 100*infer_spout_position_m(
+      feature_data=feature_data,
+      time_index=time_index,
+      hand_to_pitcher_rotation_toUse=hand_to_pitcher_rotation_toUse)
+  spout_yawvector = infer_spout_yawvector(feature_data=feature_data,
+                                          time_index=time_index,
+                                          hand_to_pitcher_rotation_toUse=hand_to_pitcher_rotation_toUse)
+  # Project everything to the XY plane.
+  spout_position_cm = spout_position_cm[0:2]
+  spout_yawvector = spout_yawvector[0:2]
+  referenceObject_position_cm = 100*referenceObject_position_m[0:2]
+  # Use the spout projection as the origin.
+  referenceObject_position_cm = referenceObject_position_cm - spout_position_cm
+  # Rotate so the yaw vector is the new y-axis.
+  yaw_rotation_matrix = rotation_matrix_from_vectors([spout_yawvector[0], spout_yawvector[1], 0],
+                                                     [0, 1, 0])
+  referenceObject_position_cm = yaw_rotation_matrix.dot(np.array([referenceObject_position_cm[0], referenceObject_position_cm[1], 0]))
+  referenceObject_position_cm = referenceObject_position_cm[0:2]
+  # Move the origin to the reference object.
+  spout_relativeOffset_cm = -referenceObject_position_cm
+  # Return the result.
+  return spout_relativeOffset_cm
 
+
+  
 
 
 

@@ -129,7 +129,7 @@ for subject_index in range(len(subject_ids_toProcess)):
       stationary_time_s = np.squeeze(np.array(trial_group_human['stationary']['time_s']))
       stationary_index = np.where(abs(stationary_time_s - time_s) == np.min(abs(stationary_time_s - time_s)))[0][-1]
       # Get the inferred reference object position.
-      referenceObject_position_m = np.squeeze(np.array(trial_group_human['reference_object']['position_m']))
+      referenceObject_position_m = np.squeeze(np.array(trial_group_human['referenceObject_position_m']))
   
       # Highlight data that should be used to generate a robot path.
       # The path should have the following characteristics:

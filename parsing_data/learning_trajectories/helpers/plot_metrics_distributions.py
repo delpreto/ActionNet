@@ -33,6 +33,7 @@ from learning_trajectories.helpers.plot_animations import plt_wait_for_keyboard_
 from scipy import stats
 import cv2
 import os
+import distinctipy
 
 import matplotlib
 default_matplotlib_backend = matplotlib.rcParams['backend']
@@ -49,7 +50,7 @@ from mpl_toolkits.mplot3d import art3d
 #   The y-axis is the pouring direction, as inferred from the yaw of the pitcher in each trial.
 #   A point will be plotted at the spout's projection onto the table, relative to the glass.
 #   So the water would pour upward on the plot from the plotted spout position.
-def plot_pour_relativePosition(feature_data_allTrials,
+def plot_pour_relativePosition(feature_data_byTrial,
                                plot_all_trials=True, plot_std_shading=False, plot_mean=False,
                                subtitle=None, label=None,
                                fig=None, hide_figure_window=False,
@@ -57,9 +58,9 @@ def plot_pour_relativePosition(feature_data_allTrials,
                                output_filepath=None):
   if output_filepath is not None:
     os.makedirs(os.path.split(output_filepath)[0], exist_ok=True)
-  if not isinstance(feature_data_allTrials, dict):
+  if not isinstance(feature_data_byTrial, dict):
     raise AssertionError('feature_data_allTrials should map keys to matrices whose first dimension is the trial index')
-  if not (isinstance(feature_data_allTrials['time_s'], np.ndarray) and feature_data_allTrials['time_s'].ndim == 3):
+  if not (isinstance(feature_data_byTrial['time_s'], np.ndarray) and feature_data_byTrial['time_s'].ndim == 3):
     raise AssertionError('feature_data_allTrials should map keys to matrices whose first dimension is the trial index')
   if isinstance(fig, (list, tuple)):
     fig = fig[0]
@@ -82,34 +83,21 @@ def plot_pour_relativePosition(feature_data_allTrials,
   else:
     ax = fig.get_axes()[0]
   
-  num_trials = feature_data_allTrials['time_s'].shape[0]
-  num_timesteps = feature_data_allTrials['time_s'].shape[1]
+  num_trials = feature_data_byTrial['time_s'].shape[0]
+  num_timesteps = feature_data_byTrial['time_s'].shape[1]
   
   spout_relativeOffsets_cm = np.zeros((num_trials, 2))
   for trial_index in range(num_trials):
-    feature_data = get_feature_data_for_trial(feature_data_allTrials, trial_index)
-    referenceObject_position_m = np.squeeze(feature_data['referenceObject_position_m'])
+    feature_data = get_feature_data_for_trial(feature_data_byTrial, trial_index)
     # Get the pouring time.
     pouring_inference = infer_pour_pose(feature_data)
     pour_index = pouring_inference['time_index']
-    # Get the spout projection and yaw.
-    spout_position_cm = 100*infer_spout_position_m(feature_data, pour_index)
-    spout_yawvector = infer_spout_yawvector(feature_data, time_index=pour_index)
-    # Project everything to the XY plane.
-    spout_position_cm = spout_position_cm[0:2]
-    spout_yawvector = spout_yawvector[0:2]
-    referenceObject_position_cm = 100*referenceObject_position_m[0:2]
-    # Use the spout projection as the origin.
-    referenceObject_position_cm = referenceObject_position_cm - spout_position_cm
-    # Rotate so the yaw vector is the new y-axis.
-    yaw_rotation_matrix = rotation_matrix_from_vectors([spout_yawvector[0], spout_yawvector[1], 0],
-                                                       [0, 1, 0])
-    referenceObject_position_cm = yaw_rotation_matrix.dot(np.array([referenceObject_position_cm[0], referenceObject_position_cm[1], 0]))
-    referenceObject_position_cm = referenceObject_position_cm[0:2]
-    # Move the origin to the reference object.
-    spout_relativeOffset_cm = -referenceObject_position_cm
-    # Store the result.
-    spout_relativeOffsets_cm[trial_index, :] = spout_relativeOffset_cm
+    # Get the pouring relative offset.
+    spout_relativeOffsets_cm[trial_index, :] = infer_spout_relativeOffset_cm(
+      feature_data,
+      referenceObject_position_m=None, # will use the one in feature_data
+      hand_to_pitcher_rotation_toUse=None, # will use the one in feature_data
+      time_index=pour_index)
   
   # Plot a standard deviation shaded region if desired.
   if plot_std_shading:
@@ -224,6 +212,56 @@ def plot_compare_distributions_spout_projections(feature_data_byType,
           print('Different? %s (p = %0.4f)' % ('yes' if p < 0.05 else 'no', p))
   
   return previous_results
+
+# ================================================================
+# Plot distributions of the hand-to-pitcher holding angles
+#  during the inferred pouring window.
+def plot_distribution_hand_to_pitcher_angles(feature_data_byType,
+                                              output_filepath=None,
+                                              hide_figure_window=False):
+  if hide_figure_window:
+    try:
+      matplotlib.use('Agg')
+    except:
+      pass
+  else:
+    matplotlib.use(default_matplotlib_backend)
+  fig, axs = plt.subplots(nrows=1, ncols=3,
+                          squeeze=False, # if False, always return 2D array of axes
+                          sharex=False, sharey=False,
+                          subplot_kw={'frame_on': True},
+                          )
+  if not hide_figure_window:
+    figManager = plt.get_current_fig_manager()
+    figManager.window.showMaximized()
+    plt_wait_for_keyboard_press(0.5)
+  # Plot box plots for each example type, for each angle axis.
+  axis_names = ['X (left/right)', 'Y (down/up)', 'Z (inward/outward)']
+  median_color = [0, 0, 0.75]
+  example_type_colors = distinctipy.get_colors(len(feature_data_byType), exclude_colors=[median_color])
+  for (axis_index, axis_name) in enumerate(axis_names):
+    ax = axs[0][axis_index]
+    data = []
+    for (example_type, feature_data) in feature_data_byType.items():
+      hand_to_pitcher_angles_rad = np.squeeze(feature_data['hand_to_pitcher_angles_rad'])
+      data.append(np.degrees(hand_to_pitcher_angles_rad[:, axis_index]))
+    boxplot_dict = ax.boxplot(data, labels=list(feature_data_byType.keys()), patch_artist=True)
+    for b, c in zip(boxplot_dict['boxes'], example_type_colors):
+      b.set_alpha(0.6)
+      b.set_edgecolor('k') # or try 'black'
+      b.set_facecolor(c)
+      b.set_linewidth(1)
+    for median in boxplot_dict['medians']:
+      median.set_color(median_color)
+      median.set_linewidth(2)
+    ax.set_title('%s' % axis_name)
+    # ax.set_xlabel('Data Source')
+    ax.set_ylabel('Angle [deg]')
+    ax.grid(True, color='lightgray')
+  # Save the plot if desired.
+  if output_filepath is not None:
+    fig.savefig(output_filepath, dpi=300)
+  return None
 
 # ================================================================
 # Plot and compare distributions of the spout speed and jerk.

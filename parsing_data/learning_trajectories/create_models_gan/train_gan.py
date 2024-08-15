@@ -39,6 +39,7 @@ script_dir = os.path.dirname(os.path.realpath(__file__))
 actionsense_root_dir = script_dir
 while os.path.split(actionsense_root_dir)[-1] != 'ActionSense':
   actionsense_root_dir = os.path.realpath(os.path.join(actionsense_root_dir, '..'))
+import matplotlib.pyplot as plt
 
 ###################################################################
 # Configuration
@@ -51,7 +52,7 @@ input_dir = os.path.realpath(os.path.join(actionsense_root_dir, 'results', 'lear
 # Define the dimensions.
 input_dims = [3,  # starting hand position
               4,  # starting hand quaternion
-              3,  # starting glass position
+              3,  # glass position
               3,  # hand-to-pitcher angles
             ]
 input_dim = sum(input_dims)
@@ -74,12 +75,16 @@ b1, b2 = 0.5, 0.9 # for Adam optimizer
 
 # Define the training loop.
 num_epochs = 10000
+epoch_ratio_add_starting_hand_position = 0
+epoch_ratio_add_starting_hand_quaternion = 0
+epoch_ratio_add_starting_reference_object_position = 0
+epoch_ratio_add_hand_pitcher_angles = 0
 batch_size = 64
 n_critic = 5
 use_wgangp = True
 g_lambda_reconstruction = 10  # Weight for the reconstruction loss
 g_lambda_adversarial = 1  # Weight for the adversarial loss
-g_lambda_wgangp = 10
+g_lambda_wgangp = 5
 d_lambda_real = 1
 d_lambda_fake = 1
 d_lambda_gradients = 10  # Weight for the gradient penalty if use_wgangp
@@ -181,11 +186,15 @@ dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 class Generator(nn.Module):
   def __init__(self):
     super(Generator, self).__init__()
-    self.fc1 = nn.Linear(input_dim + noise_dim, hidden_dim)
+    self.fc1s_by_input_dim = []
+    for x in range(input_dim+1):
+      self.fc1s_by_input_dim.append(nn.Linear(x + noise_dim, hidden_dim))
     self.fc2 = nn.Linear(hidden_dim, hidden_dim)
     self.fc3 = nn.Linear(hidden_dim, hidden_dim)
     # Skip connections
-    self.fc_skip = nn.Linear(input_dim + noise_dim, hidden_dim)
+    self.fc_skips_by_input_dim = []
+    for x in range(input_dim+1):
+      self.fc_skips_by_input_dim.append(nn.Linear(x + noise_dim, hidden_dim))
     # Output layers.
     self.fc_trajectory = nn.Linear(hidden_dim, trajectory_dim)
     self.fc_duration_s = nn.Linear(hidden_dim, duration_dim)
@@ -195,17 +204,20 @@ class Generator(nn.Module):
     else:
       self.dropout = None
   
-  def forward(self, starting_hand_position_m,
-              starting_hand_quaternion_wijk,
-              hand_to_pitcher_angles_rad,
-              reference_object_position_m,
-              noise_vector):
+  def forward(self, starting_hand_position_m=None,
+              starting_hand_quaternion_wijk=None,
+              hand_to_pitcher_angles_rad=None,
+              reference_object_position_m=None,
+              noise_vector=None):
     # Concatenate inputs and noise vector
-    x = torch.cat([starting_hand_position_m, starting_hand_quaternion_wijk,
+    to_cat = [starting_hand_position_m, starting_hand_quaternion_wijk,
                    hand_to_pitcher_angles_rad, reference_object_position_m,
-                   noise_vector], dim=1)
-    skip = self.fc_skip(x)
-    x = F.relu(self.fc1(x))
+                   noise_vector]
+    to_cat = [x for x in to_cat if x is not None]
+    x = torch.cat(to_cat, dim=1)
+    current_input_dim = x.size(1) - noise_dim
+    skip = self.fc_skips_by_input_dim[current_input_dim](x)
+    x = F.relu(self.fc1s_by_input_dim[current_input_dim](x))
     if self.dropout is not None:
       x = self.dropout(x)
     x = F.relu(self.fc2(x) + skip)
@@ -220,7 +232,9 @@ class Generator(nn.Module):
 class Discriminator(nn.Module):
   def __init__(self):
     super(Discriminator, self).__init__()
-    self.fc1 = nn.Linear(trajectory_dim + duration_dim + condition_dim, hidden_dim)
+    self.fc1s_by_condition_dim = []
+    for x in range(condition_dim+1):
+      self.fc1s_by_condition_dim.append(nn.Linear(trajectory_dim + duration_dim + x, hidden_dim))
     self.fc2 = nn.Linear(hidden_dim, hidden_dim)
     self.fc3 = nn.Linear(hidden_dim, 1)
     if dropout_rate_discriminator is not None:
@@ -231,13 +245,15 @@ class Discriminator(nn.Module):
   def forward(self, trajectory, duration_s,
               starting_hand_position_m, starting_hand_quaternion_wijk,
               hand_to_pitcher_angles_rad, reference_object_position_m):
-    # Flatten trajectory and concatenate with start, end positions
-    x = torch.cat([trajectory.view(trajectory.size(0), -1),
-                   duration_s.view(duration_s.size(0), -1),
-                   starting_hand_position_m, starting_hand_quaternion_wijk,
-                   hand_to_pitcher_angles_rad,
-                   reference_object_position_m], dim=1)
-    x = F.relu(self.fc1(x))
+    to_cat = [trajectory.view(trajectory.size(0), -1),
+              duration_s.view(duration_s.size(0), -1),
+              starting_hand_position_m, starting_hand_quaternion_wijk,
+              hand_to_pitcher_angles_rad,
+              reference_object_position_m]
+    to_cat = [x for x in to_cat if x is not None]
+    x = torch.cat(to_cat, dim=1)
+    current_condition_dim = x.size(1) - trajectory_dim - duration_dim
+    x = F.relu(self.fc1s_by_condition_dim[current_condition_dim](x))
     if self.dropout is not None:
       x = self.dropout(x)
     x = F.relu(self.fc2(x))
@@ -321,8 +337,12 @@ adversarial_loss = nn.BCEWithLogitsLoss() # nn.BCELoss()
 reconstruction_loss = nn.MSELoss() # torch.nn.L1Loss()
 
 # Training loop
+discriminator_loss_byEpoch = []
+generator_loss_byEpoch = []
 print()
 print('Training the models')
+training_start_time_s = time.time()
+last_print_time_s = time.time()
 for epoch in range(num_epochs):
   for i, trial_data in enumerate(dataloader):
     (real_trajectories_byBatchTrial, real_durations_s_byBatchTrial,
@@ -330,6 +350,16 @@ for epoch in range(num_epochs):
      hand_to_pitcher_angles_rad_byBatchTrial, reference_object_position_m_byBatchTrial) = trial_data
     
     current_batch_size = real_trajectories_byBatchTrial.size(0)
+    
+    # Gradually add conditioning information.
+    if epoch/num_epochs < epoch_ratio_add_starting_hand_position:
+      starting_hand_position_m_byBatchTrial = None
+    if epoch/num_epochs < epoch_ratio_add_starting_hand_quaternion:
+      starting_hand_quaternion_wijk_byBatchTrial = None
+    if epoch/num_epochs < epoch_ratio_add_hand_pitcher_angles:
+      hand_to_pitcher_angles_rad_byBatchTrial = None
+    if epoch/num_epochs < epoch_ratio_add_starting_reference_object_position:
+      reference_object_position_m_byBatchTrial = None
     
     # Ground truths
     valid = torch.ones(current_batch_size, 1)*real_label
@@ -393,10 +423,29 @@ for epoch in range(num_epochs):
       
       g_loss.backward()
       optimizer_G.step()
-    
-  if epoch % 10 == 0:
-    print(f" [Epoch {epoch}/{num_epochs}] [D loss: {d_loss.item():.4f}] [G loss: {g_loss.item():.4f}]")
+  
+  discriminator_loss_byEpoch.append(d_loss.detach().numpy())
+  generator_loss_byEpoch.append(g_loss.detach().numpy())
+  if time.time() - last_print_time_s > 5 \
+      or epoch == 0 or epoch == num_epochs-1:
+    print(' Epoch %d/%d (%0.1f%%) | D loss: %0.3f | G loss: %0.3f | Elapsed %0.1fs Remaining %0.1fs' % (
+      epoch, num_epochs, 100*(epoch+1)/num_epochs, d_loss.item(), g_loss.item(),
+      time.time() - training_start_time_s, (time.time() - training_start_time_s)/(epoch+1)*(num_epochs-epoch-1)
+    ))
+    # print(f" [Epoch {epoch}/{num_epochs}] [D loss: {d_loss.item():.4f}] [G loss: {g_loss.item():.4f}]")
+    last_print_time_s = time.time()
 
+# Plot the losses.
+plt.figure()
+figManager = plt.get_current_fig_manager()
+figManager.window.showMaximized()
+plt.plot(discriminator_loss_byEpoch, '*-', label='Discriminator')
+plt.plot(generator_loss_byEpoch, '*-', label='Generator')
+plt.grid(True, color='lightgray')
+plt.title('Training Losses')
+plt.xlabel('Epoch')
+plt.ylabel('Loss')
+plt.legend()
 
 ###################################################################
 # Using the model
@@ -424,7 +473,7 @@ real_duration_s = real_duration_s.detach().numpy()
 print()
 print(real_duration_s, gen_duration_s)
 
-import matplotlib.pyplot as plt
+# Plot the hand path.
 num_rows = 1
 num_cols = 1
 subplot_index = 0

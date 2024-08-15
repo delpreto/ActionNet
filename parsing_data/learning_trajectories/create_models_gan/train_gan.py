@@ -274,332 +274,332 @@ def compute_gradient_penalty(D, real_samples, fake_samples, durations_s,
 #  But it seemed like doing so actually slows down training a lot.
 ###################################################################
 
-# if __name__ == '__main__':
+if __name__ == '__main__':
   
-###################################################################
-# Load training data
-###################################################################
-
-# Load the training data and create a dataset.
-print('Loading training data')
-hand_position_m_byTrial = []
-hand_quaternion_wijk_byTrial = []
-time_s_byTrial = []
-hand_to_pitcher_angles_rad_byTrial = []
-reference_object_position_m_byTrial = []
-subject_ids_byTrial = []
-for subject_id in subject_ids:
-  input_filepath = os.path.join(input_dir, 'pouring_trainingData_%s.hdf5' % subject_id)
-  print(' Loading file %s' % os.path.basename(input_filepath))
-  training_data_file = h5py.File(input_filepath, 'r')
-  for trial_index in range(training_data_file['time_s'].shape[0]):
-    subject_ids_byTrial.append(subject_id)
-    hand_position_m_byTrial.append(np.array(training_data_file['hand_position_m'][trial_index, :, :]))
-    hand_quaternion_wijk_byTrial.append(np.array(training_data_file['hand_quaternion_wijk'][trial_index, :, :]))
-    time_s_byTrial.append(np.array(training_data_file['time_s'][trial_index, :, :]))
-    hand_to_pitcher_angles_rad_byTrial.append(np.squeeze(training_data_file['hand_to_pitcher_angles_rad'][trial_index, :, :]))
-    reference_object_position_m_byTrial.append(np.squeeze(training_data_file['referenceObject_position_m'][trial_index, :, :]))
-  training_data_file.close()
-
-# Normalize.
-print('Normalizing training data')
-def normalize(x_byTrial):
-  x = np.array(x_byTrial)
-  x = x - np.min(x, axis=tuple(range(0, x.ndim-1)))
-  x = x / np.max(x, axis=tuple(range(0, x.ndim-1)))
-  return x
-hand_position_m_byTrial = normalize(hand_position_m_byTrial)
-hand_quaternion_wijk_byTrial = normalize(hand_quaternion_wijk_byTrial)
-time_s_byTrial = normalize(time_s_byTrial)
-hand_to_pitcher_angles_rad_byTrial = normalize(hand_to_pitcher_angles_rad_byTrial)
-reference_object_position_m_byTrial = normalize(reference_object_position_m_byTrial)
-starting_hand_position_m_byTrial = [hand_position_m[0, :] for hand_position_m in hand_position_m_byTrial]
-starting_hand_quaternion_wijk_byTrial = [hand_quaternion_wijk[0, :] for hand_quaternion_wijk in hand_quaternion_wijk_byTrial]
-duration_s_byTrial = [time_s[-1] for time_s in time_s_byTrial]
-
-# Concatenate to form trajectory matrices.
-print('Creating a dataset and data loader on the %s' % str(device).upper())
-trajectory_byTrial = []
-for trial_index in range(len(time_s_byTrial)):
-  trajectory_byTrial.append(np.concatenate([hand_position_m_byTrial[trial_index],
-                                            hand_quaternion_wijk_byTrial[trial_index]], axis=1))
-
-# Convert all data to Torch tensors and move them to the GPU/CPU now instead of during training.
-trajectory_byTrial = torch.stack([torch.tensor(traj, dtype=torch.float32) for traj in trajectory_byTrial]).to(device)
-starting_hand_position_m_byTrial = torch.stack([torch.tensor(traj, dtype=torch.float32) for traj in starting_hand_position_m_byTrial]).to(device)
-starting_hand_quaternion_wijk_byTrial = torch.stack([torch.tensor(traj, dtype=torch.float32) for traj in starting_hand_quaternion_wijk_byTrial]).to(device)
-duration_s_byTrial = torch.stack([torch.tensor(traj, dtype=torch.float32) for traj in duration_s_byTrial]).to(device)
-hand_to_pitcher_angles_rad_byTrial = torch.stack([torch.tensor(traj, dtype=torch.float32) for traj in hand_to_pitcher_angles_rad_byTrial]).to(device)
-reference_object_position_m_byTrial = torch.stack([torch.tensor(traj, dtype=torch.float32) for traj in reference_object_position_m_byTrial]).to(device)
-
-# Create a dataset and data loader.
-dataset = TensorDataset(trajectory_byTrial, duration_s_byTrial,
-                        starting_hand_position_m_byTrial, starting_hand_quaternion_wijk_byTrial,
-                        hand_to_pitcher_angles_rad_byTrial, reference_object_position_m_byTrial)
-dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True,
-                        num_workers=0, pin_memory=False)
-
-###################################################################
-# Train the models
-###################################################################
-
-print()
-print('Creating the models')
-
-# Instantiate the models
-generator = Generator().to(device)
-discriminator = Discriminator().to(device)
-
-# Visualize the models.
-# Example inputs
-# Forward pass through the generator
-sample_inputs = [
-  torch.randn(1, input_dims[0]), torch.randn(1, input_dims[1]),
-  torch.randn(1, input_dims[2]), torch.randn(1, input_dims[3])
-]
-sample_inputs = [x.to(device) for x in sample_inputs]
-sample_noise = torch.randn(1, noise_dim).to(device)
-sample_generated_trajectory, sample_generated_duration = generator(
-  *sample_inputs, sample_noise)
-# Visualize the computation graph
-dot = make_dot(sample_generated_trajectory, params=dict(list(generator.named_parameters())))
-dot.format = 'png'
-dot.render('generator')
-# For discriminator
-validity = discriminator(sample_generated_trajectory, sample_generated_duration, *sample_inputs)
-dot = make_dot(validity, params=dict(list(discriminator.named_parameters())))
-dot.format = 'png'
-dot.render('discriminator')
-
-# Print a summary of the network architecture.
-print('Generator Summary:')
-summary(generator, *sample_inputs, sample_noise)
-time.sleep(0.1)
-print()
-print('Discriminator Summary:')
-summary(discriminator, sample_generated_trajectory, sample_generated_duration, *sample_inputs)
-time.sleep(0.1)
-
-# Optimizers.
-# Using AdamW (weight decay) rather than Adam.
-optimizer_G = optim.AdamW(generator.parameters(), lr=learning_rate_generator, betas=(b1, b2))
-optimizer_D = optim.AdamW(discriminator.parameters(), lr=learning_rate_discriminator, betas=(b1, b2))
-
-# Loss functions
-adversarial_loss = nn.BCEWithLogitsLoss() # nn.BCELoss()
-reconstruction_loss = nn.MSELoss() # torch.nn.L1Loss()
-
-# # Initialize a gradient scaler for automatic mixed precision (AMP)
-# scaler = GradScaler()
-
-# Training loop
-discriminator_loss_byEpoch = []
-generator_loss_byEpoch = []
-print()
-print('Training the models using %s' % str(device).upper())
-training_start_time_s = time.time()
-last_print_time_s = time.time()
-num_rows = 1
-num_cols = 1
-subplot_index = 0
-fig = plt.figure()
-fig.add_subplot(num_rows, num_cols, subplot_index+1, projection='3d')
-ax = fig.get_axes()[subplot_index]
-is_first_plot = True
-for epoch in range(num_epochs):
-  for i, trial_data in enumerate(dataloader):
-    (real_trajectories_byBatchTrial, real_durations_s_byBatchTrial,
-     starting_hand_position_m_byBatchTrial, starting_hand_quaternion_wijk_byBatchTrial,
-     hand_to_pitcher_angles_rad_byBatchTrial, reference_object_position_m_byBatchTrial) = trial_data
-    current_batch_size = real_trajectories_byBatchTrial.size(0)
-    
-    # Ground truths
-    valid = torch.ones(current_batch_size, 1)*real_label
-    fake = torch.ones(current_batch_size, 1)*fake_label
-    
-    # Generate noise vector
-    noise_vector = torch.randn(current_batch_size, noise_dim)
-    
-    # Move data to CPU/GPU as needed.
-    # real_trajectories_byBatchTrial = real_trajectories_byBatchTrial.to(device)
-    # real_durations_s_byBatchTrial = real_durations_s_byBatchTrial.to(device)
-    # starting_hand_position_m_byBatchTrial = starting_hand_position_m_byBatchTrial.to(device)
-    # starting_hand_quaternion_wijk_byBatchTrial = starting_hand_quaternion_wijk_byBatchTrial.to(device)
-    # hand_to_pitcher_angles_rad_byBatchTrial = hand_to_pitcher_angles_rad_byBatchTrial.to(device)
-    # reference_object_position_m_byBatchTrial = reference_object_position_m_byBatchTrial.to(device)
-    noise_vector = noise_vector.to(device)
-    valid = valid.to(device)
-    fake = fake.to(device)
+  ###################################################################
+  # Load training data
+  ###################################################################
   
-    # Gradually add conditioning information.
-    if epoch/num_epochs < epoch_ratio_add_starting_hand_position:
-      starting_hand_position_m_byBatchTrial = None
-    if epoch/num_epochs < epoch_ratio_add_starting_hand_quaternion:
-      starting_hand_quaternion_wijk_byBatchTrial = None
-    if epoch/num_epochs < epoch_ratio_add_hand_pitcher_angles:
-      hand_to_pitcher_angles_rad_byBatchTrial = None
-    if epoch/num_epochs < epoch_ratio_add_starting_reference_object_position:
-      reference_object_position_m_byBatchTrial = None
+  # Load the training data and create a dataset.
+  print('Loading training data')
+  hand_position_m_byTrial = []
+  hand_quaternion_wijk_byTrial = []
+  time_s_byTrial = []
+  hand_to_pitcher_angles_rad_byTrial = []
+  reference_object_position_m_byTrial = []
+  subject_ids_byTrial = []
+  for subject_id in subject_ids:
+    input_filepath = os.path.join(input_dir, 'pouring_trainingData_%s.hdf5' % subject_id)
+    print(' Loading file %s' % os.path.basename(input_filepath))
+    training_data_file = h5py.File(input_filepath, 'r')
+    for trial_index in range(training_data_file['time_s'].shape[0]):
+      subject_ids_byTrial.append(subject_id)
+      hand_position_m_byTrial.append(np.array(training_data_file['hand_position_m'][trial_index, :, :]))
+      hand_quaternion_wijk_byTrial.append(np.array(training_data_file['hand_quaternion_wijk'][trial_index, :, :]))
+      time_s_byTrial.append(np.array(training_data_file['time_s'][trial_index, :, :]))
+      hand_to_pitcher_angles_rad_byTrial.append(np.squeeze(training_data_file['hand_to_pitcher_angles_rad'][trial_index, :, :]))
+      reference_object_position_m_byTrial.append(np.squeeze(training_data_file['referenceObject_position_m'][trial_index, :, :]))
+    training_data_file.close()
+  
+  # Normalize.
+  print('Normalizing training data')
+  def normalize(x_byTrial):
+    x = np.array(x_byTrial)
+    x = x - np.min(x, axis=tuple(range(0, x.ndim-1)))
+    x = x / np.max(x, axis=tuple(range(0, x.ndim-1)))
+    return x
+  hand_position_m_byTrial = normalize(hand_position_m_byTrial)
+  hand_quaternion_wijk_byTrial = normalize(hand_quaternion_wijk_byTrial)
+  time_s_byTrial = normalize(time_s_byTrial)
+  hand_to_pitcher_angles_rad_byTrial = normalize(hand_to_pitcher_angles_rad_byTrial)
+  reference_object_position_m_byTrial = normalize(reference_object_position_m_byTrial)
+  starting_hand_position_m_byTrial = [hand_position_m[0, :] for hand_position_m in hand_position_m_byTrial]
+  starting_hand_quaternion_wijk_byTrial = [hand_quaternion_wijk[0, :] for hand_quaternion_wijk in hand_quaternion_wijk_byTrial]
+  duration_s_byTrial = [time_s[-1] for time_s in time_s_byTrial]
+  
+  # Concatenate to form trajectory matrices.
+  print('Creating a dataset and data loader on the %s' % str(device).upper())
+  trajectory_byTrial = []
+  for trial_index in range(len(time_s_byTrial)):
+    trajectory_byTrial.append(np.concatenate([hand_position_m_byTrial[trial_index],
+                                              hand_quaternion_wijk_byTrial[trial_index]], axis=1))
+  
+  # Convert all data to Torch tensors and move them to the GPU/CPU now instead of during training.
+  trajectory_byTrial = torch.stack([torch.tensor(traj, dtype=torch.float32) for traj in trajectory_byTrial]).to(device)
+  starting_hand_position_m_byTrial = torch.stack([torch.tensor(traj, dtype=torch.float32) for traj in starting_hand_position_m_byTrial]).to(device)
+  starting_hand_quaternion_wijk_byTrial = torch.stack([torch.tensor(traj, dtype=torch.float32) for traj in starting_hand_quaternion_wijk_byTrial]).to(device)
+  duration_s_byTrial = torch.stack([torch.tensor(traj, dtype=torch.float32) for traj in duration_s_byTrial]).to(device)
+  hand_to_pitcher_angles_rad_byTrial = torch.stack([torch.tensor(traj, dtype=torch.float32) for traj in hand_to_pitcher_angles_rad_byTrial]).to(device)
+  reference_object_position_m_byTrial = torch.stack([torch.tensor(traj, dtype=torch.float32) for traj in reference_object_position_m_byTrial]).to(device)
+  
+  # Create a dataset and data loader.
+  dataset = TensorDataset(trajectory_byTrial, duration_s_byTrial,
+                          starting_hand_position_m_byTrial, starting_hand_quaternion_wijk_byTrial,
+                          hand_to_pitcher_angles_rad_byTrial, reference_object_position_m_byTrial)
+  dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True,
+                          num_workers=0, pin_memory=False)
+  
+  ###################################################################
+  # Train the models
+  ###################################################################
+  
+  print()
+  print('Creating the models')
+  
+  # Instantiate the models
+  generator = Generator().to(device)
+  discriminator = Discriminator().to(device)
+  
+  # Visualize the models.
+  # Example inputs
+  # Forward pass through the generator
+  sample_inputs = [
+    torch.randn(1, input_dims[0]), torch.randn(1, input_dims[1]),
+    torch.randn(1, input_dims[2]), torch.randn(1, input_dims[3])
+  ]
+  sample_inputs = [x.to(device) for x in sample_inputs]
+  sample_noise = torch.randn(1, noise_dim).to(device)
+  sample_generated_trajectory, sample_generated_duration = generator(
+    *sample_inputs, sample_noise)
+  # Visualize the computation graph
+  dot = make_dot(sample_generated_trajectory, params=dict(list(generator.named_parameters())))
+  dot.format = 'png'
+  dot.render('generator')
+  # For discriminator
+  validity = discriminator(sample_generated_trajectory, sample_generated_duration, *sample_inputs)
+  dot = make_dot(validity, params=dict(list(discriminator.named_parameters())))
+  dot.format = 'png'
+  dot.render('discriminator')
+  
+  # Print a summary of the network architecture.
+  print('Generator Summary:')
+  summary(generator, *sample_inputs, sample_noise)
+  time.sleep(0.1)
+  print()
+  print('Discriminator Summary:')
+  summary(discriminator, sample_generated_trajectory, sample_generated_duration, *sample_inputs)
+  time.sleep(0.1)
+  
+  # Optimizers.
+  # Using AdamW (weight decay) rather than Adam.
+  optimizer_G = optim.AdamW(generator.parameters(), lr=learning_rate_generator, betas=(b1, b2))
+  optimizer_D = optim.AdamW(discriminator.parameters(), lr=learning_rate_discriminator, betas=(b1, b2))
+  
+  # Loss functions
+  adversarial_loss = nn.BCEWithLogitsLoss() # nn.BCELoss()
+  reconstruction_loss = nn.MSELoss() # torch.nn.L1Loss()
+  
+  # # Initialize a gradient scaler for automatic mixed precision (AMP)
+  # scaler = GradScaler()
+  
+  # Training loop
+  discriminator_loss_byEpoch = []
+  generator_loss_byEpoch = []
+  print()
+  print('Training the models using %s' % str(device).upper())
+  training_start_time_s = time.time()
+  last_print_time_s = time.time()
+  num_rows = 1
+  num_cols = 1
+  subplot_index = 0
+  fig = plt.figure()
+  fig.add_subplot(num_rows, num_cols, subplot_index+1, projection='3d')
+  ax = fig.get_axes()[subplot_index]
+  is_first_plot = True
+  for epoch in range(num_epochs):
+    for i, trial_data in enumerate(dataloader):
+      (real_trajectories_byBatchTrial, real_durations_s_byBatchTrial,
+       starting_hand_position_m_byBatchTrial, starting_hand_quaternion_wijk_byBatchTrial,
+       hand_to_pitcher_angles_rad_byBatchTrial, reference_object_position_m_byBatchTrial) = trial_data
+      current_batch_size = real_trajectories_byBatchTrial.size(0)
+      
+      # Ground truths
+      valid = torch.ones(current_batch_size, 1)*real_label
+      fake = torch.ones(current_batch_size, 1)*fake_label
+      
+      # Generate noise vector
+      noise_vector = torch.randn(current_batch_size, noise_dim)
+      
+      # Move data to CPU/GPU as needed.
+      # real_trajectories_byBatchTrial = real_trajectories_byBatchTrial.to(device)
+      # real_durations_s_byBatchTrial = real_durations_s_byBatchTrial.to(device)
+      # starting_hand_position_m_byBatchTrial = starting_hand_position_m_byBatchTrial.to(device)
+      # starting_hand_quaternion_wijk_byBatchTrial = starting_hand_quaternion_wijk_byBatchTrial.to(device)
+      # hand_to_pitcher_angles_rad_byBatchTrial = hand_to_pitcher_angles_rad_byBatchTrial.to(device)
+      # reference_object_position_m_byBatchTrial = reference_object_position_m_byBatchTrial.to(device)
+      noise_vector = noise_vector.to(device)
+      valid = valid.to(device)
+      fake = fake.to(device)
     
-    # Generate trajectories.
-    # Will use these results in both the discriminator and generator training below.
-    # with autocast(): # use automatic mixed precision
-    gen_trajectories, gen_durations_s = generator(starting_hand_position_m_byBatchTrial, starting_hand_quaternion_wijk_byBatchTrial,
-                                                  hand_to_pitcher_angles_rad_byBatchTrial, reference_object_position_m_byBatchTrial,
-                                                  noise_vector)
-    
-    # ---------------------
-    #  Train Discriminator
-    # ---------------------
-    
-    real_pred = discriminator(real_trajectories_byBatchTrial, real_durations_s_byBatchTrial,
-                              starting_hand_position_m_byBatchTrial, starting_hand_quaternion_wijk_byBatchTrial,
-                              hand_to_pitcher_angles_rad_byBatchTrial, reference_object_position_m_byBatchTrial)
-    fake_pred = discriminator(gen_trajectories.detach(), gen_durations_s.detach(),
-                              starting_hand_position_m_byBatchTrial, starting_hand_quaternion_wijk_byBatchTrial,
-                              hand_to_pitcher_angles_rad_byBatchTrial, reference_object_position_m_byBatchTrial)
-    if use_wgangp:
-      d_real_loss = -torch.mean(real_pred)
-      d_fake_loss =  torch.mean(fake_pred)
-      gradient_penalty = compute_gradient_penalty(discriminator, real_trajectories_byBatchTrial,
-                                                  gen_trajectories.detach(), gen_durations_s.detach(),
-                                                  starting_hand_position_m_byBatchTrial, starting_hand_quaternion_wijk_byBatchTrial,
-                                                  hand_to_pitcher_angles_rad_byBatchTrial, reference_object_position_m_byBatchTrial)
-      d_loss = d_lambda_real*d_real_loss + d_lambda_fake*d_fake_loss + d_lambda_gradients*gradient_penalty
-    else:
-      d_real_loss = adversarial_loss(real_pred, valid)
-      d_fake_loss = adversarial_loss(fake_pred, fake)
-      d_loss = (d_real_loss + d_fake_loss)/2
-    optimizer_D.zero_grad()
-    d_loss.backward() # scaler.scale(d_loss).backward()
-    optimizer_D.step() # scaler.step(optimizer_D) #
-    # scaler.update()
-    
-    # -----------------
-    #  Train Generator
-    # -----------------
-    if i % n_critic == 0:
-      # with autocast():
-      fake_pred = discriminator(gen_trajectories, gen_durations_s,
+      # Gradually add conditioning information.
+      if epoch/num_epochs < epoch_ratio_add_starting_hand_position:
+        starting_hand_position_m_byBatchTrial = None
+      if epoch/num_epochs < epoch_ratio_add_starting_hand_quaternion:
+        starting_hand_quaternion_wijk_byBatchTrial = None
+      if epoch/num_epochs < epoch_ratio_add_hand_pitcher_angles:
+        hand_to_pitcher_angles_rad_byBatchTrial = None
+      if epoch/num_epochs < epoch_ratio_add_starting_reference_object_position:
+        reference_object_position_m_byBatchTrial = None
+      
+      # Generate trajectories.
+      # Will use these results in both the discriminator and generator training below.
+      # with autocast(): # use automatic mixed precision
+      gen_trajectories, gen_durations_s = generator(starting_hand_position_m_byBatchTrial, starting_hand_quaternion_wijk_byBatchTrial,
+                                                    hand_to_pitcher_angles_rad_byBatchTrial, reference_object_position_m_byBatchTrial,
+                                                    noise_vector)
+      
+      # ---------------------
+      #  Train Discriminator
+      # ---------------------
+      
+      real_pred = discriminator(real_trajectories_byBatchTrial, real_durations_s_byBatchTrial,
                                 starting_hand_position_m_byBatchTrial, starting_hand_quaternion_wijk_byBatchTrial,
                                 hand_to_pitcher_angles_rad_byBatchTrial, reference_object_position_m_byBatchTrial)
-      g_reconstruction_loss = reconstruction_loss(gen_trajectories, real_trajectories_byBatchTrial)
+      fake_pred = discriminator(gen_trajectories.detach(), gen_durations_s.detach(),
+                                starting_hand_position_m_byBatchTrial, starting_hand_quaternion_wijk_byBatchTrial,
+                                hand_to_pitcher_angles_rad_byBatchTrial, reference_object_position_m_byBatchTrial)
       if use_wgangp:
-        g_wgangp_loss = -torch.mean(fake_pred)
-        g_loss = g_lambda_wgangp*g_wgangp_loss + g_lambda_reconstruction*g_reconstruction_loss
+        d_real_loss = -torch.mean(real_pred)
+        d_fake_loss =  torch.mean(fake_pred)
+        gradient_penalty = compute_gradient_penalty(discriminator, real_trajectories_byBatchTrial,
+                                                    gen_trajectories.detach(), gen_durations_s.detach(),
+                                                    starting_hand_position_m_byBatchTrial, starting_hand_quaternion_wijk_byBatchTrial,
+                                                    hand_to_pitcher_angles_rad_byBatchTrial, reference_object_position_m_byBatchTrial)
+        d_loss = d_lambda_real*d_real_loss + d_lambda_fake*d_fake_loss + d_lambda_gradients*gradient_penalty
       else:
-        g_adversarial_loss = adversarial_loss(fake_pred, valid)
-        g_loss = g_lambda_adversarial*g_adversarial_loss + g_lambda_reconstruction*g_reconstruction_loss
-      optimizer_G.zero_grad()
-      g_loss.backward() # scaler.scale(g_loss).backward()
-      optimizer_G.step() # scaler.step(optimizer_G)
+        d_real_loss = adversarial_loss(real_pred, valid)
+        d_fake_loss = adversarial_loss(fake_pred, fake)
+        d_loss = (d_real_loss + d_fake_loss)/2
+      optimizer_D.zero_grad()
+      d_loss.backward() # scaler.scale(d_loss).backward()
+      optimizer_D.step() # scaler.step(optimizer_D) #
       # scaler.update()
+      
+      # -----------------
+      #  Train Generator
+      # -----------------
+      if i % n_critic == 0:
+        # with autocast():
+        fake_pred = discriminator(gen_trajectories, gen_durations_s,
+                                  starting_hand_position_m_byBatchTrial, starting_hand_quaternion_wijk_byBatchTrial,
+                                  hand_to_pitcher_angles_rad_byBatchTrial, reference_object_position_m_byBatchTrial)
+        g_reconstruction_loss = reconstruction_loss(gen_trajectories, real_trajectories_byBatchTrial)
+        if use_wgangp:
+          g_wgangp_loss = -torch.mean(fake_pred)
+          g_loss = g_lambda_wgangp*g_wgangp_loss + g_lambda_reconstruction*g_reconstruction_loss
+        else:
+          g_adversarial_loss = adversarial_loss(fake_pred, valid)
+          g_loss = g_lambda_adversarial*g_adversarial_loss + g_lambda_reconstruction*g_reconstruction_loss
+        optimizer_G.zero_grad()
+        g_loss.backward() # scaler.scale(g_loss).backward()
+        optimizer_G.step() # scaler.step(optimizer_G)
+        # scaler.update()
+    
+    # Store the latest losses.
+    discriminator_loss_byEpoch.append(d_loss.detach().cpu().numpy())
+    generator_loss_byEpoch.append(g_loss.detach().cpu().numpy())
+    
+    # Print and plot if appropriate.
+    if time.time() - last_print_time_s > 5 \
+        or epoch == 0 or epoch == num_epochs-1:
+      print(' Epoch %d/%d (%0.1f%%) | D loss: %0.3f | G loss: %0.3f | Elapsed: %0.1fs  Remaining: %0.1fs  Epochs/sec: %0.1f' % (
+        epoch, num_epochs, 100*(epoch+1)/num_epochs, d_loss.item(), g_loss.item(),
+        time.time() - training_start_time_s, (time.time() - training_start_time_s)/(epoch+1)*(num_epochs-(epoch+1)),
+        (epoch+1)/(time.time() - training_start_time_s)
+      ))
+      last_print_time_s = time.time()
+      # Plot the latest hand path.
+      gen_hand_position_m = gen_trajectories[0, :, 0:3].detach().cpu().numpy()
+      gen_hand_quaternion_wijk = gen_trajectories[0, :, 3:7].detach().cpu().numpy()
+      gen_duration_s = gen_durations_s[0].detach().cpu().numpy()
+      real_hand_position_m = real_trajectories_byBatchTrial[0, :, 0:3].detach().cpu().numpy()
+      real_hand_quaternion_wijk = real_trajectories_byBatchTrial[0, :, 3:7].detach().cpu().numpy()
+      real_duration_s = real_durations_s_byBatchTrial[0, 0].detach().cpu().numpy()
+      ax.clear()
+      ax.plot3D(gen_hand_position_m[:, 0], gen_hand_position_m[:, 1], gen_hand_position_m[:, 2], alpha=0.8)
+      ax.plot3D(real_hand_position_m[:, 0], real_hand_position_m[:, 1], real_hand_position_m[:, 2], alpha=0.8)
+      if is_first_plot:
+        ax.set_xlabel('X [cm]')
+        ax.set_ylabel('Y [cm]')
+        ax.set_zlabel('Z [cm]')
+        x_lim = ax.get_xlim()
+        y_lim = ax.get_ylim()
+        z_lim = ax.get_zlim()
+        ax.set_box_aspect([ub - lb for lb, ub in (x_lim, y_lim, z_lim)])
+        is_first_plot = False
+      plt.show(block=False)
+      plt.draw()
+      plt_wait_for_keyboard_press(0.05)
   
-  # Store the latest losses.
-  discriminator_loss_byEpoch.append(d_loss.detach().cpu().numpy())
-  generator_loss_byEpoch.append(g_loss.detach().cpu().numpy())
+  # Plot the losses.
+  plt.figure()
+  figManager = plt.get_current_fig_manager()
+  figManager.window.showMaximized()
+  plt.plot(discriminator_loss_byEpoch, '*-', label='Discriminator')
+  plt.plot(generator_loss_byEpoch, '*-', label='Generator')
+  plt.grid(True, color='lightgray')
+  plt.title('Training Losses')
+  plt.xlabel('Epoch')
+  plt.ylabel('Loss')
+  plt.legend()
   
-  # Print and plot if appropriate.
-  if time.time() - last_print_time_s > 5 \
-      or epoch == 0 or epoch == num_epochs-1:
-    print(' Epoch %d/%d (%0.1f%%) | D loss: %0.3f | G loss: %0.3f | Elapsed: %0.1fs  Remaining: %0.1fs  Epochs/sec: %0.1f' % (
-      epoch, num_epochs, 100*(epoch+1)/num_epochs, d_loss.item(), g_loss.item(),
-      time.time() - training_start_time_s, (time.time() - training_start_time_s)/(epoch+1)*(num_epochs-(epoch+1)),
-      (epoch+1)/(time.time() - training_start_time_s)
-    ))
-    last_print_time_s = time.time()
-    # Plot the latest hand path.
-    gen_hand_position_m = gen_trajectories[0, :, 0:3].detach().cpu().numpy()
-    gen_hand_quaternion_wijk = gen_trajectories[0, :, 3:7].detach().cpu().numpy()
-    gen_duration_s = gen_durations_s[0].detach().cpu().numpy()
-    real_hand_position_m = real_trajectories_byBatchTrial[0, :, 0:3].detach().cpu().numpy()
-    real_hand_quaternion_wijk = real_trajectories_byBatchTrial[0, :, 3:7].detach().cpu().numpy()
-    real_duration_s = real_durations_s_byBatchTrial[0, 0].detach().cpu().numpy()
-    ax.clear()
-    ax.plot3D(gen_hand_position_m[:, 0], gen_hand_position_m[:, 1], gen_hand_position_m[:, 2], alpha=0.8)
-    ax.plot3D(real_hand_position_m[:, 0], real_hand_position_m[:, 1], real_hand_position_m[:, 2], alpha=0.8)
-    if is_first_plot:
-      ax.set_xlabel('X [cm]')
-      ax.set_ylabel('Y [cm]')
-      ax.set_zlabel('Z [cm]')
-      x_lim = ax.get_xlim()
-      y_lim = ax.get_ylim()
-      z_lim = ax.get_zlim()
-      ax.set_box_aspect([ub - lb for lb, ub in (x_lim, y_lim, z_lim)])
-      is_first_plot = False
-    plt.show(block=False)
-    plt.draw()
-    plt_wait_for_keyboard_press(0.05)
-
-# Plot the losses.
-plt.figure()
-figManager = plt.get_current_fig_manager()
-figManager.window.showMaximized()
-plt.plot(discriminator_loss_byEpoch, '*-', label='Discriminator')
-plt.plot(generator_loss_byEpoch, '*-', label='Generator')
-plt.grid(True, color='lightgray')
-plt.title('Training Losses')
-plt.xlabel('Epoch')
-plt.ylabel('Loss')
-plt.legend()
-
-###################################################################
-# Using the model
-###################################################################
-
-# Example: Generating a trajectory.
-generator.eval()
-
-trial_index = 0
-trial_data = dataset[trial_index]
-(real_trajectory, real_duration_s,
- starting_hand_position_m, starting_hand_quaternion_wijk,
- hand_to_pitcher_angles_rad, reference_object_position_m) = trial_data
-noise_vector = torch.randn(1, noise_dim).to(device)
-gen_trajectory, gen_duration_s = generator(starting_hand_position_m[None, :], starting_hand_quaternion_wijk[None, :],
-                                           hand_to_pitcher_angles_rad[None,:], reference_object_position_m[None,:],
-                                           noise_vector)
-gen_hand_position_m = gen_trajectory[0, :, 0:3].detach().cpu().numpy()
-gen_hand_quaternion_wijk = gen_trajectory[0, :, 3:7].detach().cpu().numpy()
-gen_duration_s = gen_duration_s[0].detach().cpu().numpy()
-real_hand_position_m = real_trajectory[:, 0:3].detach().cpu().numpy()
-real_hand_quaternion_wijk = real_trajectory[:, 3:7].detach().cpu().numpy()
-real_duration_s = real_duration_s.detach().cpu().numpy()
-
-print()
-print(real_duration_s, gen_duration_s)
-
-# Plot the hand path.
-num_rows = 1
-num_cols = 1
-subplot_index = 0
-fig = plt.figure()
-fig.add_subplot(num_rows, num_cols, subplot_index+1, projection='3d')
-ax = fig.get_axes()[subplot_index]
-ax.plot3D(gen_hand_position_m[:, 0], gen_hand_position_m[:, 1], gen_hand_position_m[:, 2], alpha=0.8)
-ax.plot3D(real_hand_position_m[:, 0], real_hand_position_m[:, 1], real_hand_position_m[:, 2], alpha=0.8)
-ax.set_xlabel('X [cm]')
-ax.set_ylabel('Y [cm]')
-ax.set_zlabel('Z [cm]')
-x_lim = ax.get_xlim()
-y_lim = ax.get_ylim()
-z_lim = ax.get_zlim()
-ax.set_box_aspect([ub - lb for lb, ub in (x_lim, y_lim, z_lim)])
-plt.show()
-
-###################################################################
-# Clean up
-###################################################################
-
-print()
-print('Done!')
-print()
-
-
-
-
-
-
-
-
-
+  ###################################################################
+  # Using the model
+  ###################################################################
+  
+  # Example: Generating a trajectory.
+  generator.eval()
+  
+  trial_index = 0
+  trial_data = dataset[trial_index]
+  (real_trajectory, real_duration_s,
+   starting_hand_position_m, starting_hand_quaternion_wijk,
+   hand_to_pitcher_angles_rad, reference_object_position_m) = trial_data
+  noise_vector = torch.randn(1, noise_dim).to(device)
+  gen_trajectory, gen_duration_s = generator(starting_hand_position_m[None, :], starting_hand_quaternion_wijk[None, :],
+                                             hand_to_pitcher_angles_rad[None,:], reference_object_position_m[None,:],
+                                             noise_vector)
+  gen_hand_position_m = gen_trajectory[0, :, 0:3].detach().cpu().numpy()
+  gen_hand_quaternion_wijk = gen_trajectory[0, :, 3:7].detach().cpu().numpy()
+  gen_duration_s = gen_duration_s[0].detach().cpu().numpy()
+  real_hand_position_m = real_trajectory[:, 0:3].detach().cpu().numpy()
+  real_hand_quaternion_wijk = real_trajectory[:, 3:7].detach().cpu().numpy()
+  real_duration_s = real_duration_s.detach().cpu().numpy()
+  
+  print()
+  print(real_duration_s, gen_duration_s)
+  
+  # Plot the hand path.
+  num_rows = 1
+  num_cols = 1
+  subplot_index = 0
+  fig = plt.figure()
+  fig.add_subplot(num_rows, num_cols, subplot_index+1, projection='3d')
+  ax = fig.get_axes()[subplot_index]
+  ax.plot3D(gen_hand_position_m[:, 0], gen_hand_position_m[:, 1], gen_hand_position_m[:, 2], alpha=0.8)
+  ax.plot3D(real_hand_position_m[:, 0], real_hand_position_m[:, 1], real_hand_position_m[:, 2], alpha=0.8)
+  ax.set_xlabel('X [cm]')
+  ax.set_ylabel('Y [cm]')
+  ax.set_zlabel('Z [cm]')
+  x_lim = ax.get_xlim()
+  y_lim = ax.get_ylim()
+  z_lim = ax.get_zlim()
+  ax.set_box_aspect([ub - lb for lb, ub in (x_lim, y_lim, z_lim)])
+  plt.show()
+  
+  ###################################################################
+  # Clean up
+  ###################################################################
+  
+  print()
+  print('Done!')
+  print()
+  
+  
+  
+  
+  
+  
+  
+  
+  

@@ -56,8 +56,8 @@ input_dims = [3,  # starting hand position
               3,  # hand-to-pitcher angles
             ]
 input_dim = sum(input_dims)
-noise_dim = 8  # Dimensionality of the noise vector
-hidden_dim = 64
+noise_dim = 64  # Dimensionality of the noise vector
+hidden_dim = 128
 num_timesteps = 100
 trajectory_feature_dims = [
                   3, # hand position
@@ -74,15 +74,15 @@ learning_rate_generator     = 0.00015
 b1, b2 = 0.5, 0.9 # for Adam optimizer
 
 # Define the training loop.
-num_epochs = 10000
-epoch_ratio_add_starting_hand_position = 0
-epoch_ratio_add_starting_hand_quaternion = 0
-epoch_ratio_add_starting_reference_object_position = 0
-epoch_ratio_add_hand_pitcher_angles = 0
+num_epochs = 200000
+epoch_ratio_add_starting_hand_position = 0.1
+epoch_ratio_add_starting_hand_quaternion = 0.1
+epoch_ratio_add_starting_reference_object_position = 0.1
+epoch_ratio_add_hand_pitcher_angles = 0.1
 batch_size = 64
 n_critic = 5
 use_wgangp = True
-g_lambda_reconstruction = 10  # Weight for the reconstruction loss
+g_lambda_reconstruction = 25  # Weight for the reconstruction loss
 g_lambda_adversarial = 1  # Weight for the adversarial loss
 g_lambda_wgangp = 5
 d_lambda_real = 1

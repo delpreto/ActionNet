@@ -69,8 +69,9 @@ normalize_time = False
 
 for subject_index in range(len(subject_ids_toProcess)):
   trajectory_data_filepath_humans = trajectory_data_filepaths_humans[subject_index]
-  trajectory_data_filepath_robots = trajectory_data_filepaths_robots[subject_index]
   training_data_filepath = training_data_filepaths[subject_index]
+  if include_robot_examples:
+    trajectory_data_filepath_robots = trajectory_data_filepaths_robots[subject_index]
   
   # Open the files of extracted trajectory data.
   data_file_humans = h5py.File(trajectory_data_filepath_humans, 'r')
@@ -118,8 +119,8 @@ for subject_index in range(len(subject_ids_toProcess)):
   # Helper to create a feature matrix from the processed trajectory data.
   def add_training_segment(time_s, body_segment_position_m, body_segment_quaternion_wijk,
                            joint_angle_eulerZXY_xyz_rad, joint_angle_eulerXZY_xyz_rad,
-                           referenceObject_position_m, hand_to_pitcher_angles_rad, is_human,
-                           subject_id=-1, trial_id=-1):
+                           referenceObject_position_m, hand_to_pitcher_angles_rad, stationary_time_s,
+                           is_human, subject_id=-1, trial_id=-1):
     
     # Collect position and orientation features.
     features = OrderedDict()
@@ -167,6 +168,10 @@ for subject_index in range(len(subject_ids_toProcess)):
     
     # Add the pitcher holding angle.
     features['hand_to_pitcher_angles_rad'] = np.atleast_2d(hand_to_pitcher_angles_rad)
+    
+    # Add the stationary pouring index.
+    stationary_index = np.squeeze(features['time_s']).searchsorted(stationary_time_s)
+    features['stationary_index'] = np.atleast_2d(stationary_index)
     
     # Add to the main lists.
     for key in features:
@@ -236,7 +241,6 @@ for subject_index in range(len(subject_ids_toProcess)):
       stationary_position_m = np.squeeze(np.array(trial_group_human['stationary']['body_segment_position_m']))
       stationary_quaternion_wijk = np.squeeze(np.array(trial_group_human['stationary']['body_segment_quaternion_wijk']))
       stationary_time_s = np.squeeze(np.array(trial_group_human['stationary']['time_s']))
-      stationary_index = np.where(abs(stationary_time_s - time_s) == np.min(abs(stationary_time_s - time_s)))[0][-1]
       # Get the reference object position.
       referenceObject_position_m = np.array(trial_group_human['reference_object_position_m'])
       # Get the pitcher holding angle.
@@ -245,14 +249,14 @@ for subject_index in range(len(subject_ids_toProcess)):
       # Add a labeled feature matrix for this trial.
       add_training_segment(time_s, body_segment_position_m, body_segment_quaternion_wijk,
                            body_joint_angle_eulerZXY_xyz_rad, body_joint_angle_eulerXZY_xyz_rad,
-                           referenceObject_position_m, hand_to_pitcher_angles_rad,
+                           referenceObject_position_m, hand_to_pitcher_angles_rad, stationary_time_s,
                            is_human=True, subject_id=subject_id, trial_id=trial_name)
       
       # Do the same for the robot path based on this trial.
       if include_robot_examples:
         body_segment_position_m = np.squeeze(np.array(trial_group_robot['body_segment_position_m']))
         body_segment_quaternion_wijk = np.squeeze(np.array(trial_group_robot['body_segment_quaternion_wijk']))
-        add_training_segment(time_s, body_segment_position_m, body_segment_quaternion_wijk, None, None, None, is_human=False)
+        add_training_segment(time_s, body_segment_position_m, body_segment_quaternion_wijk, None, None, None, None, None, is_human=False)
   
   print()
   

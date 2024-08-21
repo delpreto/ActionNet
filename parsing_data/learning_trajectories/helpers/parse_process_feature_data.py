@@ -37,8 +37,10 @@ from learning_trajectories.helpers.numpy_scipy_utils import *
 
 # ================================================================
 def parse_feature_data(feature_data):
+  # Check if the provided data is already parsed.
   if 'position_m' in feature_data:
     return copy.deepcopy(feature_data)
+  # Parse the latest feature data format.
   if not isinstance(feature_data, np.ndarray):
     return {
       'position_m' : {

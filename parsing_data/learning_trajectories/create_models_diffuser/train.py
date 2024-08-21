@@ -1,0 +1,232 @@
+
+
+import numpy as np
+import torch
+import pdb
+import os
+import time
+from datetime import datetime
+script_dir = os.path.dirname(os.path.realpath(__file__))
+actionsense_root_dir = script_dir
+while os.path.split(actionsense_root_dir)[-1] != 'ActionSense':
+  actionsense_root_dir = os.path.realpath(os.path.join(actionsense_root_dir, '..'))
+
+from denoising_diffusion_pytorch.datasets.actionsense_pouring import PouringDataset
+from denoising_diffusion_pytorch import Unet, GaussianDiffusion, Trainer
+from denoising_diffusion_pytorch.mixer import MixerUnet
+# from denoising_diffusion_pytorch.temporal import TemporalMixerUnet
+from denoising_diffusion_pytorch.temporal_attention import TemporalUnet
+
+from diffusion.models.mlp import TimeConditionedMLP
+from diffusion.models import Config
+
+import matplotlib.pyplot as plt
+from learning_trajectories.helpers.plot_animations import plt_wait_for_keyboard_press
+
+
+
+
+num_epochs = 150000
+num_diffusion_steps = 1000
+epoch_index_to_test = num_epochs-1
+horizon_length = 128
+
+
+
+# Load the dataset
+print('Loading the dataset')
+dataset = PouringDataset(horizon_length)
+num_trajectory_dimensions = dataset._num_trajectory_dimensions
+num_trajectory_timesteps = dataset._num_timesteps
+diffusion_model_dir = os.path.join(actionsense_root_dir,
+                   'results', 'learning_trajectories',
+                   'logs', 'pouring_model_horizon%03d_onlyHandPosition_%s' % (horizon_length,
+                                                                              datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d_%H-%M-%S')))
+os.makedirs(diffusion_model_dir, exist_ok=True)
+
+# renderer = KukaRenderer()
+
+# Create a model.
+
+# model = Unet(
+#   width = H,
+#   dim = 32,
+#   dim_mults = (1, 2, 4, 8),
+#   channels = 2,
+#   out_dim = 1,
+# ).cuda()
+
+# model = MixerUnet(
+#   dim = 32,
+#   image_size = (H, num_trajectory_dimensions),
+#   dim_mults = (1, 2, 4, 8),
+#   channels = 2,
+#   out_dim = 1,
+# ).cuda()
+
+# model = MixerUnet(
+#   horizon = H,
+#   transition_dim = num_trajectory_dimensions,
+#   cond_dim = H,
+#   dim = 32,
+#   dim_mults = (1, 2, 4, 8),
+# ).cuda()
+
+print('Creating the model')
+model = TemporalUnet(
+  horizon = horizon_length,
+  transition_dim = num_trajectory_dimensions,
+  cond_dim = horizon_length,
+  dim = 128, # size of the first layer
+  dim_mults = (1, 2, 4, 8), # subsequent layer sizes will be multiplied by these factors
+).cuda()
+
+diffusion = GaussianDiffusion(
+  model,
+  channels = 1,
+  image_size = (horizon_length, num_trajectory_dimensions),
+  timesteps = num_diffusion_steps,   # number of diffusion steps
+  loss_type = 'l2'  # L1 or L2
+).cuda()
+
+#### test
+print('Testing forward')
+x = dataset[0][0].view(1, horizon_length, num_trajectory_dimensions).cuda()
+mask = torch.zeros(1, horizon_length).cuda()
+
+loss = diffusion(x, mask)
+loss.backward()
+print('done')
+# pdb.set_trace()
+####
+
+trainer = Trainer(
+  diffusion,
+  dataset,
+  renderer=None,
+  train_batch_size = 32,
+  train_lr = 2e-5,
+  train_num_steps = num_epochs,     # total training steps
+  gradient_accumulate_every = 2,  # gradient accumulation steps
+  ema_decay = 0.995,        # exponential moving average decay
+  fp16 = False,           # turn on mixed precision training with apex
+  results_folder = diffusion_model_dir,
+  save_every = num_epochs//20,
+  save_last = True,
+  sample_every = None,
+)
+
+print('Training the model')
+trainer.train()
+
+# Sample the model.
+print('Loading model from epoch index %d' % epoch_index_to_test)
+trainer.load(epoch_index_to_test)
+trainer.ema_model.eval()
+# trainer.model.eval()
+
+# Conditions is (timestep, state at timestep (unused), desired state at timestep)
+for gen_index in range(50):
+  print()
+  print('Generating trajectory %d' % gen_index)
+  conditions = [
+    (0,  None, trainer.ds[0][0][None, :]), ## first state conditioning
+  ]
+  trajectory_samples = []
+  for start_timestep_index in range(0, num_trajectory_timesteps, horizon_length):
+    print('Generating window starting with timestep index %d' % start_timestep_index)
+    window_samples = trainer.ema_model.conditional_sample(batch_size=1, conditions=conditions)
+    trajectory_samples.append(np.squeeze(window_samples.cpu().numpy()[0,:]))
+    conditions = [(0, None, window_samples)]
+  trajectory_samples = np.concatenate(trajectory_samples, axis=0)
+  trajectory_samples = trajectory_samples[0:num_trajectory_timesteps, :]
+  
+  generated_hand_position_m = trajectory_samples[:, 0:3]
+  time_str = datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d_%H-%M-%S')
+  gen_filepath = os.path.join(diffusion_model_dir, 'sampled_trajectory_%02d_%s.npy' % (gen_index, time_str))
+  np.save(gen_filepath, trajectory_samples)
+  
+  fig = plt.figure()
+  figManager = plt.get_current_fig_manager()
+  figManager.window.showMaximized()
+  fig.add_subplot(1, 1, 0+1, projection='3d')
+  ax = fig.get_axes()[0]
+  plt_wait_for_keyboard_press(0.2)
+  ax.plot3D(generated_hand_position_m[:, 0], generated_hand_position_m[:, 1], generated_hand_position_m[:, 2], alpha=0.8)
+  ax.set_xlabel('X [cm]')
+  ax.set_ylabel('Y [cm]')
+  ax.set_zlabel('Z [cm]')
+  x_lim = ax.get_xlim()
+  y_lim = ax.get_ylim()
+  z_lim = ax.get_zlim()
+  ax.set_box_aspect([ub - lb for lb, ub in (x_lim, y_lim, z_lim)])
+  plt_wait_for_keyboard_press(0.2)
+  fig.savefig(gen_filepath.replace('.npy', '.png'), dpi=300)
+  plt.close(fig)
+  
+# Show the plots.
+print('Close the plots to exit')
+plt.show()
+
+# # Load the model weights
+# diffusion.load_state_dict(torch.load(os.path.join(diffusion_model_dir, 'model-)))
+
+
+
+# print('Loading model from epoch index %d' % epoch_index_to_test)
+# model_checkpoint_filepath = os.path.join(trainer.results_folder, 'model_epoch-%04d.pt' % epoch_index_to_test)
+#
+# hidden_dims = [128, 128, 128]
+# config = Config(
+#     model_class=TimeConditionedMLP,
+#     time_dim=128,
+#     input_dim=num_trajectory_dimensions,
+#     hidden_dims=hidden_dims,
+#     output_dim=12,
+#     savepath="",
+# )
+# device = torch.device('cuda')
+# model = config.make()
+# model.to(device)
+# model_checkpoint = torch.load(model_checkpoint_filepath)
+# model.load_state_dict(model_checkpoint)
+#
+# # Conditions is (timestep, state at timestep (unused), desired state at timestep)
+# conditions = [
+#   (0,  None, trainer.ds[0][0][None, :]), ## first state conditioning
+# ]
+# trajectory_samples = []
+# for start_timestep_index in range(0, num_trajectory_timesteps, horizon_length):
+#   print('Generating window starting with timestep index %d' % start_timestep_index)
+#   window_samples = model.conditional_sample(batch_size=1, conditions=conditions)
+#   trajectory_samples.append(np.squeeze(window_samples.cpu().numpy()[0,:]))
+#   conditions = [(0, None, window_samples)]
+# trajectory_samples = np.concatenate(trajectory_samples, axis=0)
+# trajectory_samples = trajectory_samples[0:num_trajectory_timesteps, :]
+#
+# generated_hand_position_m = trajectory_samples[:, 0:3]
+#
+# fig = plt.figure()
+# figManager = plt.get_current_fig_manager()
+# figManager.window.showMaximized()
+# fig.add_subplot(1, 1, 0+1, projection='3d')
+# ax = fig.get_axes()[0]
+# plt_wait_for_keyboard_press(0.2)
+# ax.plot3D(generated_hand_position_m[:, 0], generated_hand_position_m[:, 1], generated_hand_position_m[:, 2], alpha=0.8)
+# ax.set_xlabel('X [cm]')
+# ax.set_ylabel('Y [cm]')
+# ax.set_zlabel('Z [cm]')
+# x_lim = ax.get_xlim()
+# y_lim = ax.get_ylim()
+# z_lim = ax.get_zlim()
+# ax.set_box_aspect([ub - lb for lb, ub in (x_lim, y_lim, z_lim)])
+#
+# # Show the plots.
+# print('Close the plots to exit')
+# plt.show()
+
+
+
+
+
+

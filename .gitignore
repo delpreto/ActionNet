@@ -21,6 +21,9 @@
 *.ppt
 *.pptx
 data/
+parsing_data/learning_trajectories/create_models_diffuser/denoising_diffusion_pytorch/utils/models/
+
+parsing_data/learning_trajectories/from_diffuser_git/
 
 # Archived and notes
 ###################################

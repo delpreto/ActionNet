@@ -1,8 +1,6 @@
 import argparse
 from copy import deepcopy
-import pickle
 from typing import Optional, Tuple
-import pandas as pd
 import torch
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
@@ -10,14 +8,12 @@ from tqdm import tqdm
 import numpy as np
 import matplotlib.pyplot as plt
 import random
-from models import LSTMVanilla, GRUVanilla, NCPVanilla
-from preprocess import prepare_torch_datasets, min_max_decode
+from models import LSTMVanilla, GRUVanilla, NCPVanilla, LEM
+from preprocess import prepare_torch_datasets
 from utils import positional_encoding, \
     one_dim_positional_encoding
-
 import h5py
 import os
-output_data_dir = '/learning_trajectories/create_models/'
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -26,23 +22,30 @@ np.random.seed(422)
 random.seed(422)
 
 def add_args(_parser):
-    _parser.add_argument("--model_name", type=str, default='GRU', help="Model to use (LSTM, GRU, NCP)")
+    _parser.add_argument("--model_name", type=str, default='GRU', help="Model to use (LSTM, GRU, NCP, LEM)")
     _parser.add_argument("--cpu", action='store_true', help="Force training on CPU, even if CUDA is available.")
     _parser.add_argument("--size", type=int, default=64,
                          help="Size of the model (could be used to set hidden layers sizes), default: 64")
     _parser.add_argument("--epochs", type=int, default=200, help="Number of training epochs, default: 30")
     _parser.add_argument("--batch_size", type=int, default=16, help="Training batch size, default: 16")
     _parser.add_argument("--lr", type=float, default=0.001, help="Learning rate, default: 0.001")
-    _parser.add_argument("--checkpoint_path", type=str, default=None,
+    _parser.add_argument("--train_set", type=str, default='S10', help="Training set to use, default: S00, options: "
+                                                                      "S00, S10, S11, all")
+    _parser.add_argument("--test_set_size", type=float, default=0.1,
+                         help="Size of the test set, default: 0.2")
+    _parser.add_argument("--output_path", type=str, default='./Data',
                          help="Path to save the model checkpoint, default: None")
+    _parser.add_argument("--output_name", type=str, default='model01_S00',
+                         help="Name of the output file, default: model")
     _parser.add_argument("--loss_coefficient", type=float, default=1.0,
                          help="Coefficient to scale the loss, default: 1.0")
+    _parser.add_argument("--loss_speed_regularization", type=bool, default=False,
+                         help="use speed regularization in loss function, default: True")
     return _parser
-
 
 def plot_points(ref, points, preds):
     n = points.shape[0]  # Number of plots
-    n = 16
+    n = 4
     fig = plt.figure(figsize=(15, 15))  # Increase figure size for clarity
 
     # Determine grid size
@@ -72,7 +75,7 @@ def plot_points(ref, points, preds):
     plt.show()
 
 
-def plot_trajectory(model: nn.Module, labels, features):
+def plot_trajectory(model: nn.Module, labels, features, mis, maxs):
     features = features.to(device=device, dtype=torch.float)  # bring inputs to same device
     labels = labels.to(device=device, dtype=torch.float)
 
@@ -86,20 +89,22 @@ def plot_trajectory(model: nn.Module, labels, features):
     # Convert to Numpy for plotting
     y_pred_np = y_pred.detach().cpu().numpy()
     y_np = labels.detach().cpu().numpy()
-    
+    plot_points(features.cpu(), labels.cpu(), y_pred_np)
+
+    print("**************************", y_pred_np.shape, features.shape, mins.shape, maxs.shape)
+    y_pred_np[:, :, 0:3] = y_pred_np[:, :, 0:3] * (maxs.reshape(1, 1, -1) - mins.reshape(1, 1, -1)) + mins.reshape(1, 1, -1)
+
     # Save the output data as an HDF5 file.
-    if output_data_dir is not None:
-        fout = h5py.File(os.path.join(output_data_dir, 'model_output_data.hdf5'), 'w')
+    if args.output_path is not None:
+        fout = h5py.File(os.path.join(args.output_path, args.output_name+'_output_data.hdf5'), 'w')
         fout.create_dataset('feature_matrices', data=y_pred_np)
         fout.close()
-        fout = h5py.File(os.path.join(output_data_dir, 'model_referenceObject_positions.hdf5'), 'w')
-        fout.create_dataset('position_m', data=features[:, 0:3])
+        fout = h5py.File(os.path.join(args.output_path, args.output_name+'_referenceObject_positions.hdf5'), 'w')
+        fout.create_dataset('position_m', data=(features[:, 0:3] * (maxs.reshape(1, -1) - mins.reshape(1, -1))) + mins.reshape(1, -1))
         fout.close()
-        plot_points(features.cpu(), labels.cpu(), y_pred_np)
-
 
 def train_step(batch: Tuple[torch.Tensor, torch.Tensor], model: nn.Module, optimizer: torch.optim.Optimizer, loss_fn,
-               device: torch.device, loss_coefficient):
+               device: torch.device, loss_coefficient, loss_speed_regularization):
     features, y = batch
     features = features.to(device=device, dtype=torch.float)
     y = y.to(device=device, dtype=torch.float)
@@ -110,7 +115,28 @@ def train_step(batch: Tuple[torch.Tensor, torch.Tensor], model: nn.Module, optim
         device=device)  # Adjust the size according to your model's input
 
     y_pred = model(features, pos_encoding)
-    loss = loss_fn(loss_coefficient * y_pred, loss_coefficient * y)
+
+    if loss_speed_regularization:
+        movement_diffs = y[:, 1:, 0:3] - y[:, :-1, 0:3]
+
+        # Calculate the Euclidean distances for these differences
+        movement_distances = torch.sqrt(torch.sum(movement_diffs ** 2, dim=2))
+        threshold = 0.004  # minimal movement threshold
+        stationary_mask = (movement_distances < threshold)
+
+        # Compute mean squared error loss without reduction
+        loss_per_timestep = (y_pred - y) ** 2
+
+        # Apply higher weights to stationary points
+        weights = torch.ones_like(loss_per_timestep)
+        weights[:, :-1][stationary_mask] = 15  # Increase weight where movement is minimal
+
+        # Compute the weighted loss
+        loss = (loss_per_timestep * weights).mean()
+    else:
+        loss = loss_fn(loss_coefficient * y_pred, loss_coefficient * y)
+
+
     optimizer.zero_grad()
     loss.backward()
     nn.utils.clip_grad_norm_(model.parameters(), 0.5)
@@ -123,15 +149,15 @@ def evaluate(model: nn.Module, features, pos_encoding, y, loss_fn, device: torch
     y = y.to(device=device, dtype=torch.float)
 
     y_pred = model(features, pos_encoding)
-    loss = loss_fn(loss_coefficient * y_pred, loss_coefficient * y)
+    loss = loss_fn(y_pred, y)
 
     return {
         'loss': loss.cpu().item()
     }
 
 
-def train(model: nn.Module, datasets: Tuple[TensorDataset, Optional[TensorDataset]], num_epochs=20, batch_size=32,
-          loss_coefficient=10, lr=0.001, checkpoint: str = None):
+def train(model: nn.Module, datasets: Tuple[TensorDataset, Optional[TensorDataset]], dataset_mins, dataset_maxs, num_epochs=20, batch_size=32,
+          loss_coefficient=10, lr=0.001, checkpoint: str = None, loss_speed_regularization=True):
     train_set, test_set = datasets
     train_dataloader = DataLoader(train_set, batch_size=batch_size, shuffle=True)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -161,7 +187,8 @@ def train(model: nn.Module, datasets: Tuple[TensorDataset, Optional[TensorDatase
                 optimizer=optimizer,
                 loss_fn=criterion,
                 device=device,
-                loss_coefficient=loss_coefficient
+                loss_coefficient=loss_coefficient,
+                loss_speed_regularization=loss_speed_regularization
             )
             total_loss += loss.item()
 
@@ -200,7 +227,8 @@ def train(model: nn.Module, datasets: Tuple[TensorDataset, Optional[TensorDatase
                         torch.save(model.state_dict(), checkpoint)
 
         print(f'Epoch {epoch}/{num_epochs} - Train Loss: {avg_train_loss:.4f}, Val Loss: {val_loss:.4f}')
-    plot_trajectory(best_model, y, features)
+
+    plot_trajectory(best_model, y, features, dataset_mins, dataset_maxs)
 
     return logs, best_model
 
@@ -214,17 +242,19 @@ if __name__ == "__main__":
 
     # Dynamically select the model based on command line argument
     if args.model_name == 'LSTM':
-        model = LSTMVanilla(input_size=20, hidden_size=args.size, output_size=16, num_layers=2)
+        model = LSTMVanilla(input_size=26, hidden_size=args.size, output_size=19, num_layers=2)
     elif args.model_name == 'GRU':
-        model = GRUVanilla(input_size=20, hidden_size=args.size, output_size=16, num_layers=2)
+        model = GRUVanilla(input_size=26, hidden_size=args.size, output_size=19, num_layers=2)
     elif args.model_name == 'NCP':
-        model = NCPVanilla(input_size=20, hidden_size=args.size, output_size=16)
+        model = NCPVanilla(input_size=26, hidden_size=args.size, output_size=19)
+    elif args.model_name == 'LEM':
+        model = LEM(ninp=26, nhid=args.size, nout=19, dt=0.2371)
     else:
         raise ValueError(f"Unsupported model name: {args.model_name}")
 
     model = model.float().to(device)
 
-    train_set, test_set, mins, maxs = prepare_torch_datasets(normalize=True)
-    logs, best_model = train(model=model, datasets=(train_set, test_set), checkpoint=f'models/{args.model_name}.pt',
-                 num_epochs=args.epochs, batch_size=args.batch_size, lr=args.lr, loss_coefficient=args.loss_coefficient)
+    train_set, test_set, mins, maxs = prepare_torch_datasets(normalize=True, train_set=args.train_set, test_size=args.test_set_size)
+    logs, best_model = train(model=model, datasets=(train_set, test_set), dataset_mins=mins, dataset_maxs=maxs, checkpoint=f'models/{args.model_name}.pt',
+                 num_epochs=args.epochs, batch_size=args.batch_size, lr=args.lr, loss_coefficient=args.loss_coefficient, loss_speed_regularization=args.loss_speed_regularization)
     print(logs)

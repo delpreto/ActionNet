@@ -28,13 +28,26 @@ class PouringDataset(Dataset):
     # ([0,-1], 1), ## first and last
   ]
 
-  def __init__(self, horizon_length):
+  def __init__(self, horizon_length,
+               features_include_hand_position=True,
+               features_include_hand_quaternion=True,
+               features_include_elbow_position=True,
+               features_include_shoulder_position=True,
+               features_include_wrist_joint_angles=True,
+               features_include_elbow_joint_angles=True,
+               features_include_shoulder_joint_angles=True,
+               ):
     # Load the data.
     subject_ids = ['S00', 'S10', 'S11']
     input_dir = os.path.realpath(os.path.join(actionsense_root_dir, 'results', 'learning_trajectories'))
     print('Loading training data')
     hand_position_m_byTrial = []
     hand_quaternion_wijk_byTrial = []
+    wrist_joint_angle_xyz_rad_byTrial = []
+    elbow_joint_angle_xyz_rad_byTrial = []
+    shoulder_joint_angle_xyz_rad_byTrial = []
+    elbow_position_m_byTrial = []
+    shoulder_position_m_byTrial = []
     time_s_byTrial = []
     hand_to_pitcher_angles_rad_byTrial = []
     reference_object_position_m_byTrial = []
@@ -48,6 +61,11 @@ class PouringDataset(Dataset):
         subject_ids_byTrial.append(subject_id)
         hand_position_m_byTrial.append(np.array(training_data_file['hand_position_m'][trial_index, :, :]))
         hand_quaternion_wijk_byTrial.append(np.array(training_data_file['hand_quaternion_wijk'][trial_index, :, :]))
+        wrist_joint_angle_xyz_rad_byTrial.append(np.array(training_data_file['wrist_joint_angle_xyz_rad'][trial_index, :, :]))
+        elbow_joint_angle_xyz_rad_byTrial.append(np.array(training_data_file['elbow_joint_angle_xyz_rad'][trial_index, :, :]))
+        shoulder_joint_angle_xyz_rad_byTrial.append(np.array(training_data_file['shoulder_joint_angle_xyz_rad'][trial_index, :, :]))
+        elbow_position_m_byTrial.append(np.array(training_data_file['elbow_position_m'][trial_index, :, :]))
+        shoulder_position_m_byTrial.append(np.array(training_data_file['shoulder_position_m'][trial_index, :, :]))
         time_s_byTrial.append(np.array(training_data_file['time_s'][trial_index, :, :]))
         hand_to_pitcher_angles_rad_byTrial.append(np.squeeze(training_data_file['hand_to_pitcher_angles_rad'][trial_index, :, :]))
         reference_object_position_m_byTrial.append(np.squeeze(training_data_file['referenceObject_position_m'][trial_index, :, :]))
@@ -55,13 +73,23 @@ class PouringDataset(Dataset):
       training_data_file.close()
     num_trials = len(subject_ids_byTrial)
     num_trajectory_dimensions = 0 \
-                                + hand_position_m_byTrial[0].shape[-1]
-                                # + hand_quaternion_wijk_byTrial[0].shape[-1]
+                                + features_include_hand_position*hand_position_m_byTrial[0].shape[-1] \
+                                + features_include_hand_quaternion*hand_quaternion_wijk_byTrial[0].shape[-1] \
+                                + features_include_wrist_joint_angles*wrist_joint_angle_xyz_rad_byTrial[0].shape[-1] \
+                                + features_include_elbow_joint_angles*elbow_joint_angle_xyz_rad_byTrial[0].shape[-1] \
+                                + features_include_shoulder_joint_angles*shoulder_joint_angle_xyz_rad_byTrial[0].shape[-1] \
+                                + features_include_elbow_position*elbow_position_m_byTrial[0].shape[-1] \
+                                + features_include_shoulder_position*shoulder_position_m_byTrial[0].shape[-1]
     num_timesteps = hand_position_m_byTrial[0].shape[0]
     
     # Convert from lists to numpy arrays.
     hand_position_m_byTrial = np.array(hand_position_m_byTrial)
     hand_quaternion_wijk_byTrial = np.array(hand_quaternion_wijk_byTrial)
+    wrist_joint_angle_xyz_rad_byTrial = np.array(wrist_joint_angle_xyz_rad_byTrial)
+    elbow_joint_angle_xyz_rad_byTrial = np.array(elbow_joint_angle_xyz_rad_byTrial)
+    shoulder_joint_angle_xyz_rad_byTrial = np.array(shoulder_joint_angle_xyz_rad_byTrial)
+    elbow_position_m_byTrial = np.array(elbow_position_m_byTrial)
+    shoulder_position_m_byTrial = np.array(shoulder_position_m_byTrial)
     time_s_byTrial = np.array(time_s_byTrial)
     hand_to_pitcher_angles_rad_byTrial = np.array(hand_to_pitcher_angles_rad_byTrial)
     reference_object_position_m_byTrial = np.array(reference_object_position_m_byTrial)
@@ -85,13 +113,17 @@ class PouringDataset(Dataset):
     # Use the same normalization parameters for all spatial inputs.
     # Independently normalize each coordinate axis.
     min_position_m = np.min(np.stack([np.min(x, axis=tuple(range(0, x.ndim-1))) for x in [
-      hand_position_m_byTrial, reference_object_position_m_byTrial
+      hand_position_m_byTrial, reference_object_position_m_byTrial,
+      elbow_position_m_byTrial, shoulder_position_m_byTrial
     ]]), axis=0)
     max_position_m = np.max(np.stack([np.max(x, axis=tuple(range(0, x.ndim-1))) for x in [
-      hand_position_m_byTrial, reference_object_position_m_byTrial
+      hand_position_m_byTrial, reference_object_position_m_byTrial,
+      elbow_position_m_byTrial, shoulder_position_m_byTrial
     ]]), axis=0)
     print('  Using min/max position coordinates (%s, %s) cm' % (100*min_position_m, 100*max_position_m))
     hand_position_m_byTrial = normalize(hand_position_m_byTrial, min_position_m, max_position_m)
+    elbow_position_m_byTrial = normalize(elbow_position_m_byTrial, min_position_m, max_position_m)
+    shoulder_position_m_byTrial = normalize(shoulder_position_m_byTrial, min_position_m, max_position_m)
     reference_object_position_m_byTrial = normalize(reference_object_position_m_byTrial, min_position_m, max_position_m)
     # Normalize time by the maximum duration.
     min_time_s = np.min(time_s_byTrial)
@@ -105,20 +137,39 @@ class PouringDataset(Dataset):
     hand_to_pitcher_angles_rad_byTrial = normalize(hand_to_pitcher_angles_rad_byTrial)
     # Quaternions should already be close to normalized.
     print('  Quaternion min/max are unchanged at (%s, %s)' % (np.min(hand_quaternion_wijk_byTrial, axis=tuple(range(0, hand_quaternion_wijk_byTrial.ndim-1))), np.max(hand_quaternion_wijk_byTrial, axis=tuple(range(0, hand_quaternion_wijk_byTrial.ndim-1)))))
+    # Normalize joint angles.
+    print('  Using min/max wrist joint angles %s deg' % np.degrees([(np.min(wrist_joint_angle_xyz_rad_byTrial, axis=tuple(range(0, wrist_joint_angle_xyz_rad_byTrial.ndim-1))), np.max(wrist_joint_angle_xyz_rad_byTrial, axis=tuple(range(0, wrist_joint_angle_xyz_rad_byTrial.ndim-1))))]))
+    wrist_joint_angle_xyz_rad_byTrial = normalize(wrist_joint_angle_xyz_rad_byTrial)
+    print('  Using min/max elbow joint angles %s deg' % np.degrees([(np.min(elbow_joint_angle_xyz_rad_byTrial, axis=tuple(range(0, elbow_joint_angle_xyz_rad_byTrial.ndim-1))), np.max(elbow_joint_angle_xyz_rad_byTrial, axis=tuple(range(0, elbow_joint_angle_xyz_rad_byTrial.ndim-1))))]))
+    elbow_joint_angle_xyz_rad_byTrial = normalize(elbow_joint_angle_xyz_rad_byTrial)
+    print('  Using min/max shoulder joint angles %s deg' % np.degrees([(np.min(shoulder_joint_angle_xyz_rad_byTrial, axis=tuple(range(0, shoulder_joint_angle_xyz_rad_byTrial.ndim-1))), np.max(shoulder_joint_angle_xyz_rad_byTrial, axis=tuple(range(0, shoulder_joint_angle_xyz_rad_byTrial.ndim-1))))]))
+    shoulder_joint_angle_xyz_rad_byTrial = normalize(shoulder_joint_angle_xyz_rad_byTrial)
     
-    # Extract single-timestep metrics.
-    starting_hand_position_m_byTrial = [hand_position_m[0, :] for hand_position_m in hand_position_m_byTrial]
-    starting_hand_quaternion_wijk_byTrial = [hand_quaternion_wijk[0, :] for hand_quaternion_wijk in hand_quaternion_wijk_byTrial]
-    duration_s_byTrial = [time_s[-1] for time_s in time_s_byTrial]
+    # # Extract single-timestep metrics.
+    # starting_hand_position_m_byTrial = [hand_position_m[0, :] for hand_position_m in hand_position_m_byTrial]
+    # starting_hand_quaternion_wijk_byTrial = [hand_quaternion_wijk[0, :] for hand_quaternion_wijk in hand_quaternion_wijk_byTrial]
+    # duration_s_byTrial = [time_s[-1] for time_s in time_s_byTrial]
     
     # Create state vectors from trial data.
     q_states = np.zeros((num_trials, num_timesteps, num_trajectory_dimensions))
     path_lengths = np.zeros(num_trials, dtype=int)
     for trial_index in range(num_trials):
-      q_state = np.concatenate([
-        hand_position_m_byTrial[trial_index],
-        # hand_quaternion_wijk_byTrial[trial_index],
-      ], axis=1)
+      to_concatenate = []
+      if features_include_hand_position:
+        to_concatenate.append(hand_position_m_byTrial[trial_index])
+      if features_include_hand_quaternion:
+        to_concatenate.append(hand_quaternion_wijk_byTrial[trial_index])
+      if features_include_elbow_position:
+        to_concatenate.append(elbow_position_m_byTrial[trial_index])
+      if features_include_shoulder_position:
+        to_concatenate.append(shoulder_position_m_byTrial[trial_index])
+      if features_include_wrist_joint_angles:
+        to_concatenate.append(wrist_joint_angle_xyz_rad_byTrial[trial_index])
+      if features_include_elbow_joint_angles:
+        to_concatenate.append(elbow_joint_angle_xyz_rad_byTrial[trial_index])
+      if features_include_shoulder_joint_angles:
+        to_concatenate.append(shoulder_joint_angle_xyz_rad_byTrial[trial_index])
+      q_state = np.concatenate(to_concatenate, axis=1)
       path_length = q_state.shape[0]
       q_states[trial_index, 0:path_length, :] = q_state
       path_lengths[trial_index] = path_length

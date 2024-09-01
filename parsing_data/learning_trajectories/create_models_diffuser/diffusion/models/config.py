@@ -2,7 +2,7 @@ import os
 import collections
 import pickle
 
-class Config(collections.Mapping):
+class Config(collections.abc.Mapping):
 
 	def __init__(self, model_class, savepath, verbose=True, **kwargs):
 		self.model_class = model_class

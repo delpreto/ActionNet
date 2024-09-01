@@ -60,7 +60,7 @@ include_robot_examples = False
 plot_hand_path_features = False
 
 # Specify how to standardize training data segment times and lengths.
-num_resampled_timesteps = 100
+num_resampled_timesteps = 128
 normalize_time = False
 
 ###################################################################

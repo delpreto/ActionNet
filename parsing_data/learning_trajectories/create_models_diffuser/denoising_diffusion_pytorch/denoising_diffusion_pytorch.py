@@ -754,10 +754,10 @@ class Trainer(object):
             'model': self.model.state_dict(),
             'ema': self.ema_model.state_dict()
         }
-        torch.save(data, os.path.join(self.results_folder, 'model_epoch-%04d.pt' % epoch_index))
+        torch.save(data, os.path.join(self.results_folder, 'model_epoch-%07d.pt' % epoch_index))
 
     def load(self, epoch_index):
-        data = torch.load(os.path.join(self.results_folder, 'model_epoch-%04d.pt' % epoch_index))
+        data = torch.load(os.path.join(self.results_folder, 'model_epoch-%07d.pt' % epoch_index))
 
         self.step = data['step']
         self.model.load_state_dict(data['model'])
@@ -778,11 +778,16 @@ class Trainer(object):
                 # print(f'Step {self.step}: Loss {loss.item()}')
                 elapsed_s = time.time() - start_training_time_s
                 remaining_s = elapsed_s/(self.step+1) * (self.train_num_steps-self.step)
-                print('Step %d/%d (%0.2f%%) | Loss %0.4f | Elapsed %0.2fs | Remaining %0.2fs (%0.2f hr) | %0.2f epochs/s' % (
+                msg = 'Step %d/%d (%0.2f%%) | Loss %0.4f | Elapsed %0.2fs | Remaining %0.2fs (%0.2f hr) | %0.2f epochs/s' % (
                     self.step, self.train_num_steps, 100*(self.step+1)/self.train_num_steps,
                     loss.item(), elapsed_s, remaining_s, remaining_s/3600,
                     (self.step+1)/elapsed_s
-                ))
+                )
+                print(msg)
+                fout = open(os.path.join(self.results_folder, '_log.txt'), 'a')
+                fout.write(msg)
+                fout.write('\n')
+                fout.close()
 
             self.opt.step()
             self.opt.zero_grad()

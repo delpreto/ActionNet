@@ -41,7 +41,7 @@ def parse_feature_data(feature_data):
   if 'position_m' in feature_data:
     return copy.deepcopy(feature_data)
   # Parse the latest feature data format.
-  if not isinstance(feature_data, np.ndarray):
+  try:
     return {
       'position_m' : {
         'hand': feature_data['hand_position_m'],
@@ -60,48 +60,75 @@ def parse_feature_data(feature_data):
       },
       'time_s': feature_data['time_s'],
       'referenceObject_position_m': np.squeeze(feature_data['referenceObject_position_m']),
-      'hand_to_pitcher_angles_rad': np.squeeze(feature_data['hand_to_pitcher_angles_rad']),
+      # 'hand_to_pitcher_angles_rad': np.squeeze(feature_data['hand_to_pitcher_angles_rad']),
     }
-  # Parse a legacy feature matrix.
-  else:
-    if feature_data.shape[-1] == 31: # human demonstrations
-      return {
-        'position_m' : {
-          'hand': feature_data[:, 0:3],
-          'elbow': feature_data[:, 3:6],
-          'shoulder': feature_data[:, 6:9],
-        },
-        'quaternion_wijk': {
-          'hand': feature_data[:, 9:13],
-          'elbow': feature_data[:, 13:17],
-          'shoulder': feature_data[:, 17:21],
-        },
-        'joint_angle_rad': {
-          'hand': feature_data[:, 21:24],
-          'elbow': feature_data[:, 24:27],
-          'shoulder': feature_data[:, 27:30],
-        },
-        'time_s': feature_data[:, 30]
-      }
-    elif feature_data.shape[-1] == 16: # model outputs
-      return {
-        'position_m' : {
-          'hand': feature_data[:, 0:3],
-          # 'elbow':    None,
-          # 'shoulder': None,
-        },
-        'quaternion_wijk': {
-          'hand': feature_data[:, 3:7],
-          # 'elbow':    None,
-          # 'shoulder': None,
-        },
-        'joint_angle_rad': {
-          'hand': feature_data[:, 7:10],
-          'elbow': feature_data[:, 10:13],
-          'shoulder': feature_data[:, 13:16],
-        },
-        'time_s': np.linspace(0, 10, feature_data.shape[0]),
-      }
+  except:
+    pass
+  # Parse a model output.
+  try:
+    return {
+      'position_m' : {
+        'hand': feature_data['hand_position_m'],
+        # 'elbow':    None,
+        # 'shoulder': None,
+      },
+      'quaternion_wijk': {
+        'hand': feature_data['hand_quaternion_wijk'],
+        # 'elbow':    None,
+        # 'shoulder': None,
+      },
+      # 'joint_angle_rad': {
+      #   'hand': feature_data[:, 7:10],
+      #   'elbow': feature_data[:, 10:13],
+      #   'shoulder': feature_data[:, 13:16],
+      # },
+      # 'time_s': np.linspace(0, 10, feature_data['hand_position_m'].shape[1]),
+      'time_s': feature_data['time_s'],
+      'referenceObject_position_m': np.squeeze(feature_data['referenceObject_position_m']),
+    }
+  except:
+    pass
+  # Parse a legacy feature matrix of human demonstrations.
+  if isinstance(feature_data, np.ndarray) and feature_data.shape[-1] == 31:
+    return {
+      'position_m' : {
+        'hand': feature_data[:, 0:3],
+        'elbow': feature_data[:, 3:6],
+        'shoulder': feature_data[:, 6:9],
+      },
+      'quaternion_wijk': {
+        'hand': feature_data[:, 9:13],
+        'elbow': feature_data[:, 13:17],
+        'shoulder': feature_data[:, 17:21],
+      },
+      'joint_angle_rad': {
+        'hand': feature_data[:, 21:24],
+        'elbow': feature_data[:, 24:27],
+        'shoulder': feature_data[:, 27:30],
+      },
+      'time_s': feature_data[:, 30]
+    }
+  
+  # Parse a legacy model output.
+  if isinstance(feature_data, np.ndarray) and feature_data.shape[-1] == 16:
+    return {
+      'position_m' : {
+        'hand': feature_data[:, 0:3],
+        # 'elbow':    None,
+        # 'shoulder': None,
+      },
+      'quaternion_wijk': {
+        'hand': feature_data[:, 3:7],
+        # 'elbow':    None,
+        # 'shoulder': None,
+      },
+      'joint_angle_rad': {
+        'hand': feature_data[:, 7:10],
+        'elbow': feature_data[:, 10:13],
+        'shoulder': feature_data[:, 13:16],
+      },
+      'time_s': np.linspace(0, 10, feature_data.shape[0]),
+    }
 
 def bodyPath_data_to_parsed_feature_data(bodyPath_data, time_s,
                                          referenceObject_position_m,

@@ -28,9 +28,10 @@ data_dir = os.path.realpath(os.path.join(actionsense_root_dir, 'results', 'learn
 # For example, may have entries for each subject
 #  and may have an entries for model outputs.
 feature_data_filepaths_byType = {
-  'S00': os.path.join(data_dir, 'pouring_trainingData_S00.hdf5'),
-  'S10': os.path.join(data_dir, 'pouring_trainingData_S10.hdf5'),
-  'S11': os.path.join(data_dir, 'pouring_trainingData_S11.hdf5'),
+  # 'S00': os.path.join(data_dir, 'pouring_trainingData_S00.hdf5'),
+  # 'S10': os.path.join(data_dir, 'pouring_trainingData_S10.hdf5'),
+  # 'S11': os.path.join(data_dir, 'pouring_trainingData_S11.hdf5'),
+  'model': os.path.join(data_dir, 'rnns', 'model_train-all_output_data.hdf5'),
 }
 
 # Specify which outputs to process.
@@ -39,20 +40,22 @@ interactively_animate_trajectories_exampleType = None # 'S00' # interactive - ca
 save_trajectory_animations_eachType = False
 save_trajectory_animations_compositeTypes = False
 # Plots (mostly time series).
+plot_all_trajectories_singlePlot = True
+plot_all_startingConditions_singlePlot = True
 plot_spout_tilt = True
 plot_spout_pouring_projection = True
 plot_spout_height = True
 plot_spout_speedJerk = True
 plot_body_speedJerk = True
-plot_joint_angles = True
+plot_joint_angles = False
 # Plots and comparisons of distributions.
 plot_compare_distribution_body_speedJerk = True
 plot_compare_distribution_spout_speedJerk = True
-plot_compare_distribution_joint_angles = True
+plot_compare_distribution_joint_angles = False
 plot_compare_distribution_spout_projection = True
 plot_compare_distribution_spout_height = True
 plot_compare_distribution_spout_tilt = True
-plot_distributions_hand_to_pitcher_angles = True
+plot_distributions_hand_to_pitcher_angles = False
 
 # Specify whether to show figure windows or process them in the background.
 # Either way, plots will be saved as images if output_dir is specified below.
@@ -60,7 +63,7 @@ keep_plots_open = True
 
 # Specify where outputs should be saved.
 # Can be None to not save any outputs.
-output_dir = os.path.join(data_dir, 'evaluation_outputs')
+output_dir = os.path.join(data_dir, 'rnns', 'evaluation_outputs')
 
 print()
 
@@ -82,7 +85,8 @@ for (example_type, feature_data_filepath) in feature_data_filepaths_byType.items
     for key in feature_data_file:
       if key == 'labels':
         labels = [x.decode('utf-8') for x in np.array(feature_data_file[key])]
-      feature_data_byType[example_type][key] = np.array(feature_data_file[key])
+      if isinstance(feature_data_file[key], h5py._hl.dataset.Dataset): # check that it is not a group
+        feature_data_byType[example_type][key] = np.array(feature_data_file[key])
     feature_data_file.close()
     
     # If labels are provided, only use the human examples.
@@ -90,8 +94,7 @@ for (example_type, feature_data_filepath) in feature_data_filepaths_byType.items
       example_indices_toUse = [i for (i, label) in enumerate(labels) if label == 'human']
       for key in feature_data_byType[example_type]:
         feature_data_byType[example_type][key] = feature_data_byType[example_type][key][example_indices_toUse]
-
-
+    
 ##################################################################
 # Results: Trajectory Visualizations
 ##################################################################
@@ -109,14 +112,18 @@ print('='*70)
 # Will create a subplot for each example type in the dictionaries provided.
 if save_trajectory_animations_compositeTypes or save_trajectory_animations_eachType or (interactively_animate_trajectories_exampleType is not None):
   # Loop through each trial.
-  max_num_trials = max([len(x['time_s']) for x in feature_data_byType.values()])
+  try:
+    num_trials_byType = dict([(example_type, len(x['time_s'])) for (example_type, x) in feature_data_byType.items()])
+  except:
+    num_trials_byType = dict([(example_type, x['feature_matrices'].shape[0]) for (example_type, x) in feature_data_byType.items()])
+  max_num_trials = max(num_trials_byType.values())
   for trial_index in range(max_num_trials):
     # Get the data for this trial for each type of example provided.
     feature_data_byType_forTrial = {}
     durations_s_byType_forTrial = {}
     have_trial_for_all_types = True
     for example_type in example_types:
-      if trial_index >= len(feature_data_byType[example_type]['time_s']):
+      if trial_index >= num_trials_byType[example_type]:
         feature_data_byType_forTrial[example_type] = None
         durations_s_byType_forTrial[example_type] = None
         have_trial_for_all_types = False
@@ -157,6 +164,24 @@ if save_trajectory_animations_compositeTypes or save_trajectory_animations_eachT
 ##################################################################
 # Results: Plots
 ##################################################################
+
+# Plot all trajectories on a single graph.
+if plot_all_trajectories_singlePlot:
+  print('Plotting all trajectories on a single graph')
+  for example_type in example_types:
+    plot_all_trajectories(
+      feature_data_byType[example_type],
+      subject_id=example_type,
+      output_filepath=os.path.join(output_dir, 'all_trajectories_%s.jpg' % (example_type)) if output_dir is not None else None,
+      hide_figure_window=not keep_plots_open)
+
+# Plot all starting conditions on a single graph.
+if plot_all_startingConditions_singlePlot:
+  print('Plotting all starting conditions on a single graph')
+  plot_all_startingConditions(
+    feature_data_byType,
+    output_filepath=os.path.join(output_dir, 'all_startingConditions.jpg') if output_dir is not None else None,
+    hide_figure_window=not keep_plots_open)
 
 # Plot the spout tilt over time.
 if plot_spout_tilt:

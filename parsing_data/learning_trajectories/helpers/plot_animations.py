@@ -165,6 +165,8 @@ def plot_timestep(time_s, time_index,
   # Get the table height.
   if referenceObject_position_m is not None:
     table_z_cm = 100*referenceObject_position_m[2] - referenceObject_height_cm
+  else:
+    table_z_cm = None
   
   # Draw items that remain the same across frames.
   if previous_handles is None or redraw_trajectory_each_timestep:
@@ -251,10 +253,14 @@ def plot_timestep(time_s, time_index,
     h_scatters.append(ax.scatter(x, y, z, s=25, color=[0.5, 0.5, 0.5]))
     
   if include_spout_projection:
+    if table_z_cm is not None:
+      spout_projection_z_cm = table_z_cm
+    else:
+      spout_projection_z_cm = 0
     # Draw the pitcher tip projection onto the table.
     position_cm = 100*infer_spout_position_m(feature_data=feature_data, time_index=time_index)
     h_scatters.append(ax.scatter(position_cm[0], position_cm[1],
-                                 table_z_cm,
+                                 spout_projection_z_cm,
                                  s=30, color='m'))
     # Draw an indicator of the spout direction on the table.
     spout_yawvector = infer_spout_yawvector(feature_data=feature_data, time_index=time_index)
@@ -262,7 +268,7 @@ def plot_timestep(time_s, time_index,
     spout_yawsegment = np.array([[0,0,0], list(spout_yawvector)])
     spout_yawsegment = spout_yawsegment + position_cm
     h_chains.append(ax.plot3D(spout_yawsegment[:,0], spout_yawsegment[:,1],
-                              (table_z_cm+0.1)*np.array([1,1]),
+                              (spout_projection_z_cm+0.1)*np.array([1,1]),
                               color='r', linewidth=2))
   
   x_lim = ax.get_xlim()
@@ -417,6 +423,59 @@ def save_trajectory_animation(feature_data_byType,
                         )
     video_writer.write(frame_img)
   video_writer.release()
+
+
+# ================================================================
+# Plot all trajectories.
+def plot_all_trajectories(feature_data_allTrials, subject_id=None, output_filepath=None, hide_figure_window=False):
+  num_trials = feature_data_allTrials['time_s'].shape[0]
+  handles_allPaths = None
+  for trial_index in range(num_trials):
+    feature_data = get_feature_data_for_trial(feature_data_allTrials, trial_index)
+    handles_allPaths = plot_timestep(feature_data['time_s'], time_index=0,
+                  feature_data=feature_data, bodyPath_data=None,  # supply one of these
+                  subject_id=subject_id,
+                  previous_handles=handles_allPaths, clear_previous_timestep=False,
+                  redraw_trajectory_each_timestep=True,
+                  include_skeleton=False, include_pitcher=False, include_hand=False,
+                  include_spout_projection=False, include_referenceObject=False,
+                  wait_for_user_after_plotting=False, hide_figure_window=hide_figure_window)
+  if output_filepath is not None:
+    os.makedirs(os.path.split(output_filepath)[0], exist_ok=True)
+    plt.savefig(output_filepath, dpi=300)
+  return handles_allPaths
+
+# ================================================================
+# Plot all starting conditions.
+def plot_all_startingConditions(feature_data_allTrials_byType, output_filepath=None, hide_figure_window=False):
+  fig = plt.figure()
+  if not hide_figure_window:
+    plt.get_current_fig_manager().window.showMaximized()
+  colors = ['m', 'g', 'c', 'k', 'r', 'b']
+  for (example_index, example_type) in enumerate(list(feature_data_allTrials_byType.keys())):
+    feature_data_allTrials = feature_data_allTrials_byType[example_type]
+    color = colors[example_index % len(colors)]
+    num_trials = feature_data_allTrials['time_s'].shape[0]
+    for trial_index in range(num_trials):
+      feature_data = get_feature_data_for_trial(feature_data_allTrials, trial_index)
+      feature_data = parse_feature_data(feature_data)
+      referenceObject_position_cm = 100*feature_data['referenceObject_position_m']
+      hand_position_cm = 100*feature_data['position_m']['hand']
+      plt.plot(referenceObject_position_cm[1], referenceObject_position_cm[0], 'd', markersize=10, color=color,
+               label=('Glass: %s' % example_type) if trial_index == 0 else None)
+      plt.plot(hand_position_cm[0, 1], hand_position_cm[0, 0], '.', markersize=20, color=color,
+               label=('Hand: %s' % example_type) if trial_index == 0 else None)
+  plt.legend()
+  plt.grid(True, color='lightgray')
+  plt.xlabel('Y [cm]')
+  plt.ylabel('X [cm]')
+  plt.title('Projections of Glass and Starting Hand Position')
+  # Set the aspect ratio
+  plt.gca().set_aspect('equal')
+  if output_filepath is not None:
+    os.makedirs(os.path.split(output_filepath)[0], exist_ok=True)
+    plt.savefig(output_filepath, dpi=300)
+
 
 
 

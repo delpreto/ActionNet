@@ -17,7 +17,7 @@ actionsense_root_dir = script_dir
 while os.path.split(actionsense_root_dir)[-1] != 'ActionSense':
   actionsense_root_dir = os.path.realpath(os.path.join(actionsense_root_dir, '..'))
 
-from learning_trajectories.create_models_rnn.models import LSTMVanilla, GRUVanilla, NCPVanilla
+from learning_trajectories.create_models_rnn.models import LSTMVanilla, GRUVanilla, NCPVanilla, GRUModel1
 from learning_trajectories.create_models_rnn.preprocess import prepare_torch_datasets, cartesian_to_polar
 from learning_trajectories.create_models_rnn.utils import positional_encoding
 from learning_trajectories.create_models_rnn.utils import one_dim_positional_encoding
@@ -38,9 +38,9 @@ random.seed(422)
 def add_args(_parser):
     _parser.add_argument("--model_name", type=str, default='GRU', help="Model to use (LSTM, GRU, NCP)")
     _parser.add_argument("--cpu", action='store_true', help="Force training on CPU, even if CUDA is available.")
-    _parser.add_argument("--size", type=int, default=64,
+    _parser.add_argument("--size", type=int, default=256,
                          help="Size of the model (could be used to set hidden layers sizes), default: 64")
-    _parser.add_argument("--epochs", type=int, default=200, help="Number of training epochs, default: 30")
+    _parser.add_argument("--epochs", type=int, default=100, help="Number of training epochs, default: 30")
     _parser.add_argument("--batch_size", type=int, default=16, help="Training batch size, default: 16")
     _parser.add_argument("--lr", type=float, default=0.001, help="Learning rate, default: 0.001")
     _parser.add_argument("--train_set", type=str, default='S00,S11', help="Training set to use, default: S00, options: "
@@ -59,7 +59,7 @@ def add_args(_parser):
                          help="Name of the output file, default: model")
     _parser.add_argument("--loss_coefficient", type=float, default=1.0,
                          help="Coefficient to scale the loss, default: 1.0")
-    _parser.add_argument("--loss_speed_regularization", type=bool, default=True,
+    _parser.add_argument("--loss_speed_regularization", type=bool, default=False,
                          help="use speed regularization in loss function, default: True")
     return _parser
 
@@ -91,12 +91,12 @@ def plot_points(input_features, points_true, points_predicted):
         ax.scatter(x_model, y_model, z_model,
                    c='b', marker='o', s=10, alpha=0.5)
         # Plot the human starting hand position.
-        ax.scatter(input_features[trial_index, 9], input_features[trial_index, 10], input_features[trial_index, 11],
+        ax.scatter(input_features[trial_index, 3], input_features[trial_index, 4], input_features[trial_index, 5],
                    c='red', marker='o', s=30)
         # Plot the first model position.
         # Note: index 0 has been set to the target start, so the first generated timestep is index 1.
         ax.scatter(x_model[1], y_model[1], z_model[1],
-                   c='m', marker='o', s=30, alpha=0.5)
+                   c='c', marker='o', s=50, alpha=0.5)
         # Plot the reference object position.
         ax.scatter(input_features[trial_index, 0], input_features[trial_index, 1], input_features[trial_index, 2],
                    c='black', marker='o', s=30)
@@ -145,22 +145,22 @@ def plot_trajectory(model: nn.Module, y_true, features, mins_byFrame, maxs_byFra
     y_true_np = y_true.detach().cpu().numpy()
     features_np = features.detach().cpu().numpy()
 
-    # Compute one-dimensional positional encoding
-    distances = torch.norm(features[:, 0:3] - features[:, 3:6], dim=1)
-    pos_encoding = one_dim_positional_encoding(99, distances).to(
-        device=device)  # Adjust the size according to your model's input
+    # # Compute one-dimensional positional encoding
+    # distances = torch.norm(features[:, 0:3] - features[:, 3:6], dim=1)
+    # pos_encoding = one_dim_positional_encoding(99, distances).to(
+    #     device=device)  # Adjust the size according to your model's input
     # Predict a trajectory for each test scenario.
-    y_pred = model(features, pos_encoding)
+    y_pred = model(features)
     y_pred_np = y_pred.detach().cpu().numpy()
     # Add the starting position.
     empty_entries = np.zeros(shape=(y_pred_np.shape[0], 1, y_pred_np.shape[2]), dtype=y_pred_np.dtype)
     y_pred_np = np.concatenate([empty_entries, y_pred_np], axis=1)
     for trial_index in range(y_pred_np.shape[0]):
-        starting_hand_position = features_np[trial_index, 9:12]
-        starting_hand_quaternion = features_np[trial_index, 12:16]
+        starting_hand_position = features_np[trial_index, 3:6]
+        # starting_hand_quaternion = features_np[trial_index, 12:16]
         y_pred_np[trial_index, 0, 0:3] = starting_hand_position
-        y_pred_np[trial_index, 0, 3:7] = starting_hand_quaternion
-        y_pred_np[trial_index, 0, 7:10] = cartesian_to_polar(starting_hand_position)
+        # y_pred_np[trial_index, 0, 3:7] = starting_hand_quaternion
+        # y_pred_np[trial_index, 0, 7:10] = cartesian_to_polar(starting_hand_position)
     # Generate a time vector.
     time_s_pred = [np.linspace(0, 7.7, y_pred_np.shape[1])[:,None] for trial_index in range(y_pred_np.shape[0])]
 
@@ -175,19 +175,19 @@ def plot_trajectory(model: nn.Module, y_true, features, mins_byFrame, maxs_byFra
     if maxs_byFrame is not None and 'hand_location' in maxs_byFrame:
         y_pred_np[:, :, 0:3] = y_pred_np[:, :, 0:3] * (maxs_byFrame['hand_location'].reshape(1, 1, -1) - mins_byFrame['hand_location'].reshape(1, 1, -1)) + mins_byFrame['hand_location'].reshape(1, 1, -1)
         y_true_np[:, :, 0:3] = y_true_np[:, :, 0:3] * (maxs_byFrame['hand_location'].reshape(1, 1, -1) - mins_byFrame['hand_location'].reshape(1, 1, -1)) + mins_byFrame['hand_location'].reshape(1, 1, -1)
-        features_np[:, 9:12] = features_np[:, 9:12] * (maxs_byFrame['hand_location'].reshape(1, 1, -1) - mins_byFrame['hand_location'].reshape(1, 1, -1)) + mins_byFrame['hand_location'].reshape(1, 1, -1)
-    if maxs_byFrame is not None and 'hand_quaternion' in maxs_byFrame:
-        y_pred_np[:, :, 3:7] = y_pred_np[:, :, 3:7] * (maxs_byFrame['hand_quaternion'].reshape(1, 1, -1) - mins_byFrame['hand_quaternion'].reshape(1, 1, -1)) + mins_byFrame['hand_quaternion'].reshape(1, 1, -1)
-        y_true_np[:, :, 3:7] = y_true_np[:, :, 3:7] * (maxs_byFrame['hand_quaternion'].reshape(1, 1, -1) - mins_byFrame['hand_quaternion'].reshape(1, 1, -1)) + mins_byFrame['hand_quaternion'].reshape(1, 1, -1)
-        features_np[:, 12:16] = features_np[:, 12:16] * (maxs_byFrame['hand_quaternion'].reshape(1, 1, -1) - mins_byFrame['hand_quaternion'].reshape(1, 1, -1)) + mins_byFrame['hand_quaternion'].reshape(1, 1, -1)
-    if maxs_byFrame is not None and 'hand_location_polar' in maxs_byFrame:
-        y_pred_np[:, :, 7:10] = y_pred_np[:, :, 7:10] * (maxs_byFrame['hand_location_polar'].reshape(1, 1, -1) - mins_byFrame['hand_location_polar'].reshape(1, 1, -1)) + mins_byFrame['hand_location_polar'].reshape(1, 1, -1)
-        y_true_np[:, :, 7:10] = y_true_np[:, :, 7:10] * (maxs_byFrame['hand_location_polar'].reshape(1, 1, -1) - mins_byFrame['hand_location_polar'].reshape(1, 1, -1)) + mins_byFrame['hand_location_polar'].reshape(1, 1, -1)
-        features_np[:, 6:9] = features_np[:, 6:9] * (maxs_byFrame['hand_location_polar'].reshape(1, 1, -1) - mins_byFrame['hand_location_polar'].reshape(1, 1, -1)) + mins_byFrame['hand_location_polar'].reshape(1, 1, -1)
+        features_np[:, 3:6] = features_np[:, 3:6] * (maxs_byFrame['hand_location'].reshape(1, 1, -1) - mins_byFrame['hand_location'].reshape(1, 1, -1)) + mins_byFrame['hand_location'].reshape(1, 1, -1)
+    # if maxs_byFrame is not None and 'hand_quaternion' in maxs_byFrame:
+    #     y_pred_np[:, :, 3:7] = y_pred_np[:, :, 3:7] * (maxs_byFrame['hand_quaternion'].reshape(1, 1, -1) - mins_byFrame['hand_quaternion'].reshape(1, 1, -1)) + mins_byFrame['hand_quaternion'].reshape(1, 1, -1)
+    #     y_true_np[:, :, 3:7] = y_true_np[:, :, 3:7] * (maxs_byFrame['hand_quaternion'].reshape(1, 1, -1) - mins_byFrame['hand_quaternion'].reshape(1, 1, -1)) + mins_byFrame['hand_quaternion'].reshape(1, 1, -1)
+    #     features_np[:, 12:16] = features_np[:, 12:16] * (maxs_byFrame['hand_quaternion'].reshape(1, 1, -1) - mins_byFrame['hand_quaternion'].reshape(1, 1, -1)) + mins_byFrame['hand_quaternion'].reshape(1, 1, -1)
+    # if maxs_byFrame is not None and 'hand_location_polar' in maxs_byFrame:
+    #     y_pred_np[:, :, 7:10] = y_pred_np[:, :, 7:10] * (maxs_byFrame['hand_location_polar'].reshape(1, 1, -1) - mins_byFrame['hand_location_polar'].reshape(1, 1, -1)) + mins_byFrame['hand_location_polar'].reshape(1, 1, -1)
+    #     y_true_np[:, :, 7:10] = y_true_np[:, :, 7:10] * (maxs_byFrame['hand_location_polar'].reshape(1, 1, -1) - mins_byFrame['hand_location_polar'].reshape(1, 1, -1)) + mins_byFrame['hand_location_polar'].reshape(1, 1, -1)
+    #     features_np[:, 6:9] = features_np[:, 6:9] * (maxs_byFrame['hand_location_polar'].reshape(1, 1, -1) - mins_byFrame['hand_location_polar'].reshape(1, 1, -1)) + mins_byFrame['hand_location_polar'].reshape(1, 1, -1)
     if maxs_byFrame is not None and 'object_location' in maxs_byFrame:
         features_np[:, 0:3] = features_np[:, 0:3] * (maxs_byFrame['object_location'].reshape(1, 1, -1) - mins_byFrame['object_location'].reshape(1, 1, -1)) + mins_byFrame['object_location'].reshape(1, 1, -1)
-    if maxs_byFrame is not None and 'object_location_polar' in maxs_byFrame:
-        features_np[:, 3:6] = features_np[:, 3:6] * (maxs_byFrame['object_location_polar'].reshape(1, 1, -1) - mins_byFrame['object_location_polar'].reshape(1, 1, -1)) + mins_byFrame['object_location_polar'].reshape(1, 1, -1)
+    # if maxs_byFrame is not None and 'object_location_polar' in maxs_byFrame:
+    #     features_np[:, 3:6] = features_np[:, 3:6] * (maxs_byFrame['object_location_polar'].reshape(1, 1, -1) - mins_byFrame['object_location_polar'].reshape(1, 1, -1)) + mins_byFrame['object_location_polar'].reshape(1, 1, -1)
     # print('-'*50)
     # print('Object location denormalizing')
     # for i in range(features_np.shape[0]):
@@ -204,9 +204,9 @@ def plot_trajectory(model: nn.Module, y_true, features, mins_byFrame, maxs_byFra
     if args.output_dir is not None:
         os.makedirs(args.output_dir, exist_ok=True)
         fout = h5py.File(os.path.join(args.output_dir, args.output_name+'_output_data.hdf5'), 'w')
-        fout.create_dataset('hand_position_m', data=y_pred_np[:,:,0:3])
-        fout.create_dataset('hand_quaternion_wijk', data=y_pred_np[:,:,3:7])
-        fout.create_dataset('hand_position_polar', data=y_pred_np[:,:,7:11])
+        fout.create_dataset('hand_position_m', data=y_pred_np[:,:,3:6])
+        # fout.create_dataset('hand_quaternion_wijk', data=y_pred_np[:,:,3:7])
+        # fout.create_dataset('hand_position_polar', data=y_pred_np[:,:,7:11])
         fout.create_dataset('referenceObject_position_m', data=features_np[:,0:3])
         fout.create_dataset('time_s', data=time_s_pred)
         # fout.create_dataset('wrist_angles', data=y_pred_np[:,:,7:10])
@@ -215,10 +215,10 @@ def plot_trajectory(model: nn.Module, y_true, features, mins_byFrame, maxs_byFra
         # fout.create_dataset('hand_location_polar', data=y_pred_np[:,:,16:19])
         truth_group = fout.create_group('truth')
         truth_group.create_dataset('referenceObject_position_m', data=features_np[:,0:3])
-        truth_group.create_dataset('referenceObject_position_polar', data=features_np[:,3:6])
-        truth_group.create_dataset('hand_position_polar', data=features_np[:,6:9])
-        truth_group.create_dataset('hand_position_m', data=features_np[:,9:12])
-        truth_group.create_dataset('hand_quaternion_wijk', data=features_np[:,12:16])
+        # truth_group.create_dataset('referenceObject_position_polar', data=features_np[:,3:6])
+        # truth_group.create_dataset('hand_position_polar', data=features_np[:,6:9])
+        truth_group.create_dataset('hand_position_m', data=features_np[:,0:3])
+        # truth_group.create_dataset('hand_quaternion_wijk', data=features_np[:,12:16])
         # truth_group.create_dataset('object_location', data=features_np[:,0:3])
         # truth_group.create_dataset('object_location_polar', data=features_np[:,3:6])
         # truth_group.create_dataset('hand_location_polar', data=features_np[:,6:9])
@@ -243,7 +243,7 @@ def train_step(batch: Tuple[torch.Tensor, torch.Tensor], model: nn.Module, optim
     pos_encoding = one_dim_positional_encoding(99, distances).to(
         device=device)  # Adjust the size according to your model's input
 
-    y_pred = model(features, pos_encoding)
+    y_pred = model(features)
 
     if loss_speed_regularization:
         movement_diffs = y[:, 1:, 0:3] - y[:, :-1, 0:3]
@@ -268,7 +268,7 @@ def train_step(batch: Tuple[torch.Tensor, torch.Tensor], model: nn.Module, optim
 
     optimizer.zero_grad()
     loss.backward()
-    nn.utils.clip_grad_norm_(model.parameters(), 0.5)
+    #nn.utils.clip_grad_norm_(model.parameters(), 0.5)
     optimizer.step()
     return loss
 
@@ -277,7 +277,7 @@ def evaluate(model: nn.Module, features, pos_encoding, y, loss_fn, device: torch
     features = features.to(device=device, dtype=torch.float)  # bring inputs to same device
     y = y.to(device=device, dtype=torch.float)
 
-    y_pred = model(features, pos_encoding)
+    y_pred = model(features)
     loss = loss_fn(y_pred, y)
 
     return {
@@ -291,7 +291,7 @@ def train(model: nn.Module, datasets: Tuple[TensorDataset, Optional[TensorDatase
           loss_speed_regularization=True):
     print('Preparing to train')
     train_set, test_set = datasets
-    train_dataloader = DataLoader(train_set, batch_size=batch_size, shuffle=True)
+    train_dataloader = DataLoader(train_set, batch_size=batch_size, shuffle=False)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = model.to(device=device, dtype=torch.float)
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
@@ -307,18 +307,18 @@ def train(model: nn.Module, datasets: Tuple[TensorDataset, Optional[TensorDatase
         #     print('  Training epoch %d/%d' % (epoch+1, num_epochs))
         model.train()  # Set model to training mode
         total_loss = 0
+        
+        for features_train, y_train in train_dataloader:
+            features_train = features_train.to(device)
+            y_train = y_train.to(device)
 
-        for features, y in train_dataloader:
-            features = features.to(device)
-            y = y.to(device)
-
-            # Compute one-dimensional positional encoding for each batch
-            distances = torch.norm(features[:, 0:3] - features[:, 3:6], dim=1)
-            pos_encoding = one_dim_positional_encoding(99, distances).to(
-                device)  # Adjust according to your model's input
+            # # Compute one-dimensional positional encoding for each batch
+            # distances = torch.norm(features[:, 0:3] - features[:, 3:6], dim=1)
+            # pos_encoding = one_dim_positional_encoding(99, distances).to(
+            #     device)  # Adjust according to your model's input
 
             loss = train_step(
-                batch=(features, y),
+                batch=(features_train, y_train),
                 model=model,
                 optimizer=optimizer,
                 loss_fn=criterion,
@@ -385,7 +385,8 @@ def train(model: nn.Module, datasets: Tuple[TensorDataset, Optional[TensorDatase
         os.makedirs(args.output_dir, exist_ok=True)
         plt.savefig(os.path.join(args.output_dir, args.output_name+'_losses.png'), dpi=300)
       
-    plot_trajectory(best_model, y, features, dataset_mins_byFrame, dataset_maxs_byFrame)
+    plot_trajectory(best_model, y_train, features_train, dataset_mins_byFrame, dataset_maxs_byFrame)
+    # plot_trajectory(best_model, y, features, dataset_mins_byFrame, dataset_maxs_byFrame)
     
     if not hide_figure_windows:
         print('Close all plot windows to continue')
@@ -405,7 +406,8 @@ if __name__ == "__main__":
     if args.model_name == 'LSTM':
         model = LSTMVanilla(input_size=17, hidden_size=args.size, output_size=10, num_layers=2)
     elif args.model_name == 'GRU':
-        model = GRUVanilla(input_size=17, hidden_size=args.size, output_size=10, num_layers=2)
+        model = GRUModel1(input_size=6,hidden_size=args.size, output_size=3)
+        #model = GRUVanilla(input_size=17, hidden_size=args.size, output_size=10, num_layers=2)
     elif args.model_name == 'NCP':
         model = NCPVanilla(input_size=17, hidden_size=args.size, output_size=10)
     # elif args.model_name == 'LEM':

@@ -43,10 +43,10 @@ def split_sequences(data_df):
     # Creating input 'x'
     x = [np.concatenate([
             row['object_location'],
-            row['object_location_polar'],
-            row['hand_location_polar'][0],
+            # row['object_location_polar'],
+            # row['hand_location_polar'][0],
             row['hand_location'][0],
-            row['hand_quaternion'][0],
+            # row['hand_quaternion'][0],
             # row['wrist_angles'][0],
             # row['elbow_angles'][0],
             # row['shoulder_angles'][0]
@@ -54,12 +54,12 @@ def split_sequences(data_df):
 
     # Creating target 'y'
     y = [np.concatenate([
-            row['hand_location'][1:],
-            row['hand_quaternion'][1:],
+            row['hand_location'][:],
+            # row['hand_quaternion'][1:],
             # row['wrist_angles'][1:],
             # row['elbow_angles'][1:],
             # row['shoulder_angles'][1:],
-            row['hand_location_polar'][1:],
+            # row['hand_location_polar'][1:],
         ], axis=1) for _, row in data_df.iterrows()]
 
     return np.array(x), np.array(y)

@@ -153,7 +153,7 @@ class MyoStreamer(myo.ApiDeviceListener, SensorStreamer):
     if check_existence and device_id not in self._get_device_ids():
       msg = 'Received an event for unknown device %s' % device_id
       self._log_error('\nXXXXX\n%s\nXXXXXX\n' % msg)
-      raise Exception(msg)
+      # raise Exception(msg)
     return device_id
 
   # Get the device name currently associated with the device in an event object

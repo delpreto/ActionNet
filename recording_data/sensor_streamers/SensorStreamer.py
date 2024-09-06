@@ -128,11 +128,11 @@ class SensorStreamer(ABC):
     self._metadata = new_metadata
 
   def get_num_devices(self):
-    return len(self._streams_info)
+    return len([key for key in self._streams_info if 'myo-' in key])
 
   # Get the names of streaming devices
   def get_device_names(self):
-    return list(self._streams_info.keys())
+    return [key for key in self._streams_info.keys() if 'myo-' in key]
 
   # Rename a device (and keep the device indexing order the same).
   # If the name already exists, will not do anything.

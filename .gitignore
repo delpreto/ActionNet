@@ -18,6 +18,8 @@
 *.avi
 *.ppt
 *.pptx
+data/tests/
+data/experiments/
 
 
 

@@ -447,11 +447,12 @@ def plot_all_trajectories(feature_data_allTrials, subject_id=None, output_filepa
 
 # ================================================================
 # Plot all starting conditions.
-def plot_all_startingConditions(feature_data_allTrials_byType, output_filepath=None, hide_figure_window=False):
+def plot_all_startingConditions(feature_data_allTrials_byType, truth_data_byType=None, output_filepath=None, hide_figure_window=False):
   fig = plt.figure()
   if not hide_figure_window:
     plt.get_current_fig_manager().window.showMaximized()
   colors = ['m', 'g', 'c', 'k', 'r', 'b']
+  starting_position_offsets_cm = []
   for (example_index, example_type) in enumerate(list(feature_data_allTrials_byType.keys())):
     feature_data_allTrials = feature_data_allTrials_byType[example_type]
     color = colors[example_index % len(colors)]
@@ -465,6 +466,15 @@ def plot_all_startingConditions(feature_data_allTrials_byType, output_filepath=N
                label=('Glass: %s' % example_type) if trial_index == 0 else None)
       plt.plot(hand_position_cm[0, 1], hand_position_cm[0, 0], '.', markersize=20, color=color,
                label=('Hand: %s' % example_type) if trial_index == 0 else None)
+      try:
+        truth_starting_hand_position_cm = 100*truth_data_byType[example_type]['starting_hand_position_m'][trial_index]
+        plt.plot(truth_starting_hand_position_cm[1], truth_starting_hand_position_cm[0], '.', markersize=20,
+                 color='y',
+                 label=('Target Hand: %s' % example_type) if trial_index == 0 else None)
+        starting_position_offsets_cm.append(np.array(truth_starting_hand_position_cm) - np.array(hand_position_cm[0, :]))
+      except:
+        if example_type == 'model':
+          raise
   plt.legend()
   plt.grid(True, color='lightgray')
   plt.xlabel('Y [cm]')
@@ -475,6 +485,20 @@ def plot_all_startingConditions(feature_data_allTrials_byType, output_filepath=N
   if output_filepath is not None:
     os.makedirs(os.path.split(output_filepath)[0], exist_ok=True)
     plt.savefig(output_filepath, dpi=300)
+  # Print information about the starting hand position offsets if available.
+  if len(starting_position_offsets_cm) > 0:
+    print('Starting position offsets [cm]')
+    starting_position_offsets_cm = np.array(starting_position_offsets_cm)
+    for (axis_index, axis_name) in enumerate(['x', 'y', 'z']):
+      axis_offsets_cm = starting_position_offsets_cm[:, axis_index]
+      print('  %s axis  : min %5.2f | max %5.2f | mean %5.2f | stdev %5.2f' % (
+        axis_name, np.min(axis_offsets_cm), np.max(axis_offsets_cm), np.mean(axis_offsets_cm), np.std(axis_offsets_cm)
+      ))
+    distances_cm = np.linalg.norm(starting_position_offsets_cm, axis=1)
+    print('  distance: min %5.2f | max %5.2f | mean %5.2f | stdev %5.2f' % (
+        np.min(distances_cm), np.max(distances_cm), np.mean(distances_cm), np.std(distances_cm)
+      ))
+  return starting_position_offsets_cm
 
 
 

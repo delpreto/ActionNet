@@ -260,6 +260,8 @@ def load_and_prep_df(normalize=False, train_set="S00", test_set=None, test_size=
             mins_byFrame = None
             maxs_byFrame = None
         
+        print('mins_byFrame', mins_byFrame)
+        print('maxs_byFrame', maxs_byFrame)
         print('Splitting the dataset with test_size=%g' % test_size)
         train, test = train_test_split(df, train_size=1-test_size, random_state=42)
         # train = pd.concat([df_S00,df_S11], ignore_index=True)

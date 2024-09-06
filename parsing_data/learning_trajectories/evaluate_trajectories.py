@@ -28,16 +28,17 @@ data_dir = os.path.realpath(os.path.join(actionsense_root_dir, 'results', 'learn
 # For example, may have entries for each subject
 #  and may have an entries for model outputs.
 feature_data_filepaths_byType = {
-  # 'S00': os.path.join(data_dir, 'pouring_trainingData_S00.hdf5'),
+  'S00': os.path.join(data_dir, 'pouring_trainingData_S00.hdf5'),
   # 'S10': os.path.join(data_dir, 'pouring_trainingData_S10.hdf5'),
-  # 'S11': os.path.join(data_dir, 'pouring_trainingData_S11.hdf5'),
-  'model': os.path.join(data_dir, 'rnns', 'model_train-all_output_data.hdf5'),
+  'S11': os.path.join(data_dir, 'pouring_trainingData_S11.hdf5'),
+  # 'model': os.path.join(data_dir, 'from_konstantin', '2024-09-06_13-35', 'data_to_evaluate.hdf5'),
+  'model': os.path.join(data_dir, 'from_konstantin', '2024-09-06_17-25', 'data_to_evaluate.hdf5'),
 }
 
 # Specify which outputs to process.
 # Animations.
 interactively_animate_trajectories_exampleType = None # 'S00' # interactive - can move around scene and press enter to step through time # None to not animate
-save_trajectory_animations_eachType = False
+save_trajectory_animations_eachType = True
 save_trajectory_animations_compositeTypes = False
 # Plots (mostly time series).
 plot_all_trajectories_singlePlot = True
@@ -63,7 +64,7 @@ keep_plots_open = True
 
 # Specify where outputs should be saved.
 # Can be None to not save any outputs.
-output_dir = os.path.join(data_dir, 'rnns', 'evaluation_outputs')
+output_dir = os.path.join(data_dir, 'from_konstantin', 'evaluation_outputs')
 
 print()
 
@@ -76,9 +77,11 @@ example_types = list(feature_data_filepaths_byType.keys())
 
 # Load the feature datas.
 feature_data_byType = {}
+truth_data_byType = {}
 for (example_type, feature_data_filepath) in feature_data_filepaths_byType.items():
   if feature_data_filepath is not None:
     feature_data_byType[example_type] = {}
+    truth_data_byType[example_type] = {}
     labels = None
     # Load the feature data.
     feature_data_file = h5py.File(feature_data_filepath, 'r')
@@ -87,6 +90,12 @@ for (example_type, feature_data_filepath) in feature_data_filepaths_byType.items
         labels = [x.decode('utf-8') for x in np.array(feature_data_file[key])]
       if isinstance(feature_data_file[key], h5py._hl.dataset.Dataset): # check that it is not a group
         feature_data_byType[example_type][key] = np.array(feature_data_file[key])
+    
+    # Load truth data if it is provided.
+    if 'truth' in feature_data_file:
+      for key in feature_data_file['truth']:
+        truth_data_byType[example_type][key] = np.array(feature_data_file['truth'][key])
+    
     feature_data_file.close()
     
     # If labels are provided, only use the human examples.
@@ -94,6 +103,8 @@ for (example_type, feature_data_filepath) in feature_data_filepaths_byType.items
       example_indices_toUse = [i for (i, label) in enumerate(labels) if label == 'human']
       for key in feature_data_byType[example_type]:
         feature_data_byType[example_type][key] = feature_data_byType[example_type][key][example_indices_toUse]
+      for key in truth_data_byType[example_type]:
+        truth_data_byType[example_type][key] = truth_data_byType[example_type][key][example_indices_toUse]
     
 ##################################################################
 # Results: Trajectory Visualizations
@@ -179,7 +190,7 @@ if plot_all_trajectories_singlePlot:
 if plot_all_startingConditions_singlePlot:
   print('Plotting all starting conditions on a single graph')
   plot_all_startingConditions(
-    feature_data_byType,
+    feature_data_byType, truth_data_byType=truth_data_byType,
     output_filepath=os.path.join(output_dir, 'all_startingConditions.jpg') if output_dir is not None else None,
     hide_figure_window=not keep_plots_open)
 

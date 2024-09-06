@@ -45,7 +45,7 @@ def add_args(_parser):
     _parser.add_argument("--lr", type=float, default=0.001, help="Learning rate, default: 0.001")
     _parser.add_argument("--train_set", type=str, default='S00,S11', help="Training set to use, default: S00, options: "
                                                                       "S00, S10, S11, all")
-    _parser.add_argument("--test_set", type=str, default='S10',
+    _parser.add_argument("--test_set", type=str, default=None,
                          help="Size of the test set, default: 0.2")
     _parser.add_argument("--test_set_size", type=float, default=0.2,
                          help="Size of the test set, default: 0.2")

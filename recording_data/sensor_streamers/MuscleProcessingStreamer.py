@@ -27,10 +27,13 @@
 import numpy as np
 from scipy import interpolate
 from scipy.signal import butter, lfilter
+import json
+import pickle
 from threading import Thread
 from threading import Lock
 import copy
 import time
+import socket
 
 from sensor_streamers.SensorStreamer import SensorStreamer
 from sensor_streamers.MyoStreamer import MyoStreamer
@@ -81,18 +84,35 @@ class MuscleProcessingStreamer(MyoStreamer):
     self._buffers_mutex = Lock()
     
     # Create a thread to periodically process the buffers of data.
-    self._process_data_period_s = 1/5
+    self._process_data_period_s = 1/1
     self._processData_thread = Thread(target=self._process_data, args=())
     self._processData_thread_is_running = True
     self._processData_thread.start()
-  
+    
+    # Create a thread to handle UDP communication of processed data.
+    self._receiver_ip_address = '128.30.10.150'
+    self._socket_ports = {
+      'emg_envelope': 65432,
+      'emg_stiffness': 65431,
+    }
+    self._udp_buffers = dict((stream_key, []) for stream_key in self._socket_ports)
+    self._max_udp_buffer_length = 1000
+    self._udp_buffers_mutex = Lock()
+    self._udp_thread_polling_period_s = 0.05
+    self._udp_thread = Thread(target=self._send_data_udp, args=())
+    self._udp_thread_is_running = True
+    self._udp_thread.start()
+    
   # Add new processed data streams when the device connects.
   def on_arm_synced(self, event):
     MyoStreamer.on_arm_synced(self, event)
     if self._device_name_to_buffer in self._metadata:
-      # Add a stream for processed EMG envelopes.
+      # Add streams for processed EMG data.
       self.add_stream(self._device_name_processed_data, stream_name='emg_envelope',
                       data_type='int32', sample_size=[8], sampling_rate_hz=200,
+                      data_notes=None)
+      self.add_stream(self._device_name_processed_data, stream_name='emg_stiffness',
+                      data_type='int32', sample_size=[1], sampling_rate_hz=200,
                       data_notes=None)
       self._metadata[self._device_name_processed_data] = self._metadata[self._device_name_to_buffer].copy()
     
@@ -159,7 +179,11 @@ class MuscleProcessingStreamer(MyoStreamer):
         emg_data_rectified = np.abs(emg_data)
         emg_data_envelope = lowpass_filter(emg_data_rectified, self._lowpass_cutoff_emg_Hz, emg_Fs_Hz)
         
-        # Add the envelope data as a stream that can be saved and visualized.
+        # Estimate overall stiffness.
+        emg_stiffness = np.sum(emg_data_envelope, axis=1)
+        # emg_stiffness = np.prod(emg_data_envelope, axis=1)
+        
+        # Add processed data as streams that can be saved and visualized.
         for (time_index, time_s) in enumerate(emg_time_s):
           if time_s > last_process_time_s:
             SensorStreamer.append_data(self,
@@ -167,7 +191,25 @@ class MuscleProcessingStreamer(MyoStreamer):
                                        stream_name='emg_envelope',
                                        time_s=emg_time_s[time_index],
                                        data=list(emg_data_envelope[time_index, :]))
+            SensorStreamer.append_data(self,
+                                       device_name=self._device_name_processed_data,
+                                       stream_name='emg_stiffness',
+                                       time_s=emg_time_s[time_index],
+                                       data=[emg_stiffness[time_index]])
         
+        # Send results via UDP.
+        for (time_index, time_s) in enumerate(emg_time_s):
+          if time_s > last_process_time_s:
+            self._udp_buffers_mutex.acquire()
+            data_to_send = (emg_time_s[time_index], emg_data_envelope[time_index, :].tolist())
+            self._udp_buffers['emg_envelope'].append(data_to_send)
+            data_to_send = (emg_time_s[time_index], emg_stiffness[time_index])
+            self._udp_buffers['emg_stiffness'].append(data_to_send)
+            while len(self._udp_buffers['emg_envelope']) > self._max_udp_buffer_length:
+              del self._udp_buffers['emg_envelope'][0]
+              del self._udp_buffers['emg_stiffness'][0]
+            self._udp_buffers_mutex.release()
+            
         # Update loop state.
         last_process_time_s = time.time()
         
@@ -176,6 +218,25 @@ class MuscleProcessingStreamer(MyoStreamer):
       sleep_duration_s = target_processing_time_s - time.time()
       if sleep_duration_s > 0.01:
         time.sleep(sleep_duration_s)
+  
+  # Send data via UDP when it is ready.
+  def _send_data_udp(self):
+    # Create sockets to send data via udp.
+    self._sockets = {}
+    for (stream_name, port) in self._socket_ports.items():
+      self._sockets[stream_name] = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    # Periodically send any new data that has been processed.
+    while self._udp_thread_is_running:
+      self._udp_buffers_mutex.acquire()
+      for (stream_name, buffer) in self._udp_buffers.items():
+        for data in buffer:
+          self._sockets[stream_name].sendto(json.dumps(data).encode(), (self._receiver_ip_address, self._socket_ports[stream_name]))
+      self._udp_buffers = dict((stream_key, []) for stream_key in self._socket_ports)
+      self._udp_buffers_mutex.release()
+      time.sleep(self._udp_thread_polling_period_s)
+    for (stream_name, stream_socket) in self._sockets.items():
+      stream_socket.close()
+      
   
   ###########################
   ###### VISUALIZATION ######
@@ -188,16 +249,21 @@ class MuscleProcessingStreamer(MyoStreamer):
     processed_options = MyoStreamer.get_default_visualization_options(self, visualization_options=visualization_options)
     # Copy the emg graph options.
     emg_envelope_options = processed_options[self._device_name_to_buffer]['emg'].copy()
+    emg_stiffness_options = processed_options[self._device_name_to_buffer]['emg'].copy()
     
     # Override with any provided options.
     if isinstance(visualization_options, dict):
       if 'emg_envelope' in visualization_options:
         for (k, v) in visualization_options['emg'].items():
           emg_envelope_options[k] = v
+      if 'emg_stiffness' in visualization_options:
+        for (k, v) in visualization_options['emg'].items():
+          emg_stiffness_options[k] = v
 
     # Set all devices to the same options.
     processed_options[self._device_name_processed_data] = {
-      'emg_envelope': emg_envelope_options
+      'emg_envelope': emg_envelope_options,
+      'emg_stiffness': emg_stiffness_options
     }
 
     return processed_options
@@ -210,7 +276,9 @@ class MuscleProcessingStreamer(MyoStreamer):
     # Stop the processing thread and wait for it to finish.
     try:
       self._processData_thread_is_running = False
+      self._udp_thread_is_running = False
       self._processData_thread.join()
+      self._udp_thread.join()
     except:
       pass
     MyoStreamer.quit(self)

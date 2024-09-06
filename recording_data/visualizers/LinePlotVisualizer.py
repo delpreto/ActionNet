@@ -151,7 +151,7 @@ class LinePlotVisualizer(Visualizer):
       if len(sample_size) == 1:
         num_rows = num_elements
         num_columns = 1
-        extract_data_for_axis_fn = lambda new_data, row, col: [new_data[:, row]]
+        extract_data_for_axis_fn = lambda new_data, row, col: [np.atleast_2d(new_data)[:, row]]
       elif len(sample_size) == 2:
         num_rows = sample_size[0]
         num_columns = sample_size[1]

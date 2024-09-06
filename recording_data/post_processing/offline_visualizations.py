@@ -42,11 +42,11 @@ if __name__ == '__main__':
   
   if len(sys.argv) <= 1:
     # Define the log(s) to replay.
-    data_dir = os.path.realpath(os.path.join(script_dir, '..', '..', 'data'))
+    data_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'data'))
     experiments_dir = os.path.join(data_dir, 'tests')
     log_dirs = [
-      # os.path.join(experiments_dir, '2023-05-24_shoeAngle_testing', '2023-05-24_18-00-03_shoeAngle_testing'),
-      os.path.join(experiments_dir, '2023-05-24_shoeAngle_testing', '2023-05-24_17-41-33_shoeAngle_testing_full'),
+      os.path.join(experiments_dir, '2024-09-06_testing_robotHand_setup',
+                   '2024-09-06_19-17-11_testing_robotHand_setup'),
     ]
   else:
     log_dirs = sys.argv[1:]
@@ -76,7 +76,7 @@ if __name__ == '__main__':
     # Configure visualizations to be shown as a simulation of real-time streaming.
     visualization_options = None
     composite_video_filepath = os.path.join(log_dir,
-                                  'composite_visualization_postProcessed_shear_newVis_10fps')
+                                  'composite_visualization_postProcessed_10fps')
 
     # Create a sensor manager.
     sensor_manager = SensorManager(sensor_streamer_specs=None,
@@ -97,14 +97,13 @@ if __name__ == '__main__':
                                 update_period_s = 0.1,
                                 use_composite_video=True,
                                 composite_video_layout = [
-                                  [ # row  0
-                                    {'device_name':'video', 'stream_name':'frame', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
-                                    {'device_name':'shear-sensor-left', 'stream_name':'tactile_data_calibrated', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
+                                  [ # row 0
+                                    {'device_name':'myo-left', 'stream_name':'emg', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':   composite_row_height},
+                                    {'device_name':'camera', 'stream_name':'frame', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
                                   ],
-                                  [ # row  1
-                                    {'device_name':'shear-sensor-left', 'stream_name':'tactile_tiled', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
-                                    # {'device_name':'shear-sensor-left', 'stream_name':'force_magnitude', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
-                                    {'device_name':'shear-sensor-left', 'stream_name':'force_vector', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
+                                  [ # row 1
+                                    {'device_name':'myoProcessed-left', 'stream_name':'emg_envelope', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':   composite_row_height},
+                                    {'device_name':'myoProcessed-left', 'stream_name':'emg_stiffness', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':   composite_row_height},
                                   ],
                                 ],
                                 #   [ # row  0

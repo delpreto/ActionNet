@@ -70,7 +70,7 @@ if __name__ == '__main__':
     ('ScaleStreamer',            False),  # The Dymo M25 digital postal scale
     ('MoticonStreamer',          False),  # Moticon insole pressure sensors
     ('MicrophoneStreamer',       False),  # One or more microphones
-    ('CameraStreamer',           False),  # One or more cameras
+    ('CameraStreamer',           True),  # One or more cameras
     ('SerialStreamer',           False),  # One or more serial streams
     ('ResistanceStreamer',       False),  # One or more resistance readings
     ('DummyStreamer',            False),  # Dummy data (no hardware required)
@@ -130,7 +130,7 @@ if __name__ == '__main__':
     # Stream from one or more cameras.
     {'class': 'CameraStreamer',
      'cameras_to_stream': { # map camera names (usable as device names in the HDF5 file) to capture device indexes
-       'external_camera': 0,
+       'camera': 0,
      },
      'print_debug': print_debug, 'print_status': print_status
      },
@@ -172,7 +172,7 @@ if __name__ == '__main__':
   if enable_data_logging:
     script_dir = os.path.dirname(os.path.realpath(__file__))
     (log_time_str, log_time_s) = get_time_str(return_time_s=True)
-    log_dir_root = os.path.join(script_dir, '..', '..', 'data',
+    log_dir_root = os.path.join(script_dir, '..', '..', '..', 'data',
                                 'tests', # recommend 'tests' and 'experiments' for testing vs "real" data
                                 '%s_testing_robotHand_setup' % get_time_str(format='%Y-%m-%d'))
     log_tag = 'testing_robotHand_setup'
@@ -225,11 +225,11 @@ if __name__ == '__main__':
       [
         [ # row 0
           {'device_name':'myo-left', 'stream_name':'emg', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':   composite_row_height},
-          {'device_name':'external_camera', 'stream_name':'frame', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
+          {'device_name':'camera', 'stream_name':'frame', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
         ],
         [ # row 1
           {'device_name':'myoProcessed-left', 'stream_name':'emg_envelope', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':   composite_row_height},
-          {'device_name':'dummy-device', 'stream_name':'dummy-stream', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':   composite_row_height},
+          {'device_name':'myoProcessed-left', 'stream_name':'emg_stiffness', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':   composite_row_height},
         ],
       ],
   }
@@ -253,22 +253,25 @@ if __name__ == '__main__':
     global fps_start_time_s, fps_last_print_time_s, fps_start_num_timesteps, fps_num_timesteps
     printed_fps = False
     for (streamer_index, streamer) in enumerate(streamers_for_fps):
-      device_for_fps = streamer.get_device_names()[0]
-      stream_for_fps = streamer.get_stream_names(device_for_fps)[0]
-      num_timesteps = streamer.get_num_timesteps(device_for_fps, stream_for_fps)
-      if fps_start_time_s[streamer_index] is None or num_timesteps < fps_num_timesteps[streamer_index]:
-        fps_start_time_s[streamer_index] = time.time()
-        fps_start_num_timesteps[streamer_index] = num_timesteps
-        fps_num_timesteps[streamer_index] = num_timesteps - fps_start_num_timesteps[streamer_index]
-        fps_last_print_time_s = time.time()
-      elif time.time() - fps_last_print_time_s > 5:
-        printed_fps = True
-        fps_duration_s = time.time() - fps_start_time_s[streamer_index]
-        fps_num_timesteps[streamer_index] = num_timesteps - fps_start_num_timesteps[streamer_index]
-        _log_status('Status: %5.1f Hz (%4d timesteps in %6.2fs) for %s: %s' %
-                    ((fps_num_timesteps[streamer_index]-1)/fps_duration_s,
-                     fps_num_timesteps[streamer_index], fps_duration_s,
-                     device_for_fps, stream_for_fps))
+      try:
+        device_for_fps = streamer.get_device_names()[0]
+        stream_for_fps = streamer.get_stream_names(device_for_fps)[0]
+        num_timesteps = streamer.get_num_timesteps(device_for_fps, stream_for_fps)
+        if fps_start_time_s[streamer_index] is None or num_timesteps < fps_num_timesteps[streamer_index]:
+          fps_start_time_s[streamer_index] = time.time()
+          fps_start_num_timesteps[streamer_index] = num_timesteps
+          fps_num_timesteps[streamer_index] = num_timesteps - fps_start_num_timesteps[streamer_index]
+          fps_last_print_time_s = time.time()
+        elif time.time() - fps_last_print_time_s > 5:
+          printed_fps = True
+          fps_duration_s = time.time() - fps_start_time_s[streamer_index]
+          fps_num_timesteps[streamer_index] = num_timesteps - fps_start_num_timesteps[streamer_index]
+          _log_status('Status: %5.1f Hz (%4d timesteps in %6.2fs) for %s: %s' %
+                      ((fps_num_timesteps[streamer_index]-1)/fps_duration_s,
+                       fps_num_timesteps[streamer_index], fps_duration_s,
+                       device_for_fps, stream_for_fps))
+      except:
+        pass
     if printed_fps:
       fps_last_print_time_s = time.time()
   # Define a callback to print averaged data when notes are entered.

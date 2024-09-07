@@ -28,16 +28,21 @@ data_dir = os.path.realpath(os.path.join(actionsense_root_dir, 'results', 'learn
 # For example, may have entries for each subject
 #  and may have an entries for model outputs.
 feature_data_filepaths_byType = {
-  'S00': os.path.join(data_dir, 'pouring_trainingData_S00.hdf5'),
+  # 'S00': os.path.join(data_dir, 'pouring_trainingData_S00.hdf5'),
   # 'S10': os.path.join(data_dir, 'pouring_trainingData_S10.hdf5'),
-  'S11': os.path.join(data_dir, 'pouring_trainingData_S11.hdf5'),
+  # 'S11': os.path.join(data_dir, 'pouring_trainingData_S11.hdf5'),
   # 'model': os.path.join(data_dir, 'from_konstantin', '2024-09-06_13-35', 'data_to_evaluate.hdf5'),
-  'model': os.path.join(data_dir, 'from_konstantin', '2024-09-06_17-25', 'data_to_evaluate.hdf5'),
+  # 'model': os.path.join(data_dir, 'from_konstantin', '2024-09-06_17-25', 'data_to_evaluate.hdf5'),
+  # 'model': os.path.join(data_dir, 'from_konstantin', '2024-09-06_19-02', 'data_to_evaluate.hdf5'),
+  'model': os.path.join(data_dir, 'from_konstantin', '2024-09-07_09-58', 'data_to_evaluate.hdf5'),
 }
+# Specify where outputs should be saved.
+# Can be None to not save any outputs.
+output_dir = os.path.join(data_dir, 'from_konstantin', '2024-09-07_09-58', 'evaluation_outputs')
 
 # Specify which outputs to process.
 # Animations.
-interactively_animate_trajectories_exampleType = None # 'S00' # interactive - can move around scene and press enter to step through time # None to not animate
+interactively_animate_trajectories_exampleType = 'model' # 'S00' # interactive - can move around scene and press enter to step through time # None to not animate
 save_trajectory_animations_eachType = True
 save_trajectory_animations_compositeTypes = False
 # Plots (mostly time series).
@@ -60,11 +65,7 @@ plot_distributions_hand_to_pitcher_angles = False
 
 # Specify whether to show figure windows or process them in the background.
 # Either way, plots will be saved as images if output_dir is specified below.
-keep_plots_open = True
-
-# Specify where outputs should be saved.
-# Can be None to not save any outputs.
-output_dir = os.path.join(data_dir, 'from_konstantin', 'evaluation_outputs')
+keep_plots_open = False
 
 print()
 

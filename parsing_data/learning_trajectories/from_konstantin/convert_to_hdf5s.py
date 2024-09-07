@@ -12,7 +12,9 @@ while os.path.split(actionsense_root_dir)[-1] != 'ActionSense':
 output_dir = os.path.realpath(os.path.join(actionsense_root_dir, 'results', 'learning_trajectories',
                                          'from_konstantin',
                                          # '2024-09-06_13-35'
-                                         '2024-09-06_17-25'
+                                         # '2024-09-06_17-25'
+                                         # '2024-09-06_19-02'
+                                         '2024-09-07_09-58'
                                            ))
 os.makedirs(output_dir, exist_ok=True)
 

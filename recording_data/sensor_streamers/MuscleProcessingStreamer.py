@@ -64,8 +64,8 @@ class MuscleProcessingStreamer(MyoStreamer):
     # Define buffers of streaming data.
     # For example, they can be accessed as self._buffers['data']['emg'][time_index]
     self._buffer_duration_s = 30
-    self._device_name_to_buffer = 'myo-left'
-    self._device_name_processed_data = 'myoProcessed-left'
+    self._device_name_to_buffer = 'myo-right'
+    self._device_name_processed_data = 'myoProcessed-right'
     self._stream_keys = [
       'emg',
       'acceleration_g',

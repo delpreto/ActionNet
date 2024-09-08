@@ -224,12 +224,12 @@ if __name__ == '__main__':
     'composite_video_layout':
       [
         [ # row 0
-          {'device_name':'myo-left', 'stream_name':'emg', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':   composite_row_height},
+          {'device_name':'myo-right', 'stream_name':'emg', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':   composite_row_height},
           {'device_name':'camera', 'stream_name':'frame', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
         ],
         [ # row 1
-          {'device_name':'myoProcessed-left', 'stream_name':'emg_envelope', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':   composite_row_height},
-          {'device_name':'myoProcessed-left', 'stream_name':'emg_stiffness', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':   composite_row_height},
+          {'device_name':'myoProcessed-right', 'stream_name':'emg_envelope', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':   composite_row_height},
+          {'device_name':'myoProcessed-right', 'stream_name':'emg_stiffness', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':   composite_row_height},
         ],
       ],
   }

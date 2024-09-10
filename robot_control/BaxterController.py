@@ -89,7 +89,7 @@ class BaxterController:
                                                             ('e1',  1.50),
                                                             ('w0',  0.00),
                                                             ('w1', -1.30),
-                                                            ('w2',  0.00), ]))
+                                                            ('w2', 0 if self._limb_name == 'left' else -1.5), ]))
 
     self._absolute_torque_limits  = self.prepend_limb_name(OrderedDict([
                                                         ('s0', [-50, 50]),
@@ -583,7 +583,11 @@ class BaxterController:
   
   def move_to_trajectory_start(self, wait_for_completion=True, should_print=None):
     self._print('Moving to the trajectory start point', should_print=should_print)
-    self.move_to_joint_angles_rad(self._trajectory.get_joint_angles_rad(step_index=0), wait_for_completion=True)
+    self.move_to_joint_angles_rad(self._trajectory.get_joint_angles_rad(step_index=0), wait_for_completion=wait_for_completion)
+  
+  def move_to_trajectory_index(self, step_index, wait_for_completion=True, should_print=None):
+    self._print('Moving to trajectory index %d' % step_index, should_print=should_print)
+    self.move_to_joint_angles_rad(self._trajectory.get_joint_angles_rad(step_index=step_index), wait_for_completion=wait_for_completion)
 
   ##############################################
   # Gripper

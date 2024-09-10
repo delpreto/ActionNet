@@ -88,9 +88,11 @@ def plot_hand_box(ax, hand_quaternion_localToGlobal_wijk, hand_center_cm):
 
 # ================================================================
 # Plot a box representing the pitcher pose.
-def plot_pitcher_box(ax, hand_quaternion_localToGlobal_wijk, hand_center_cm):
+def plot_pitcher_box(ax, hand_quaternion_localToGlobal_wijk, hand_center_cm, hand_to_pitcher_rotation_toUse=None):
+  if hand_to_pitcher_rotation_toUse is None:
+    hand_to_pitcher_rotation_toUse = hand_to_pitcher_rotation
   hand_rotation = Rotation.from_quat(hand_quaternion_localToGlobal_wijk[[1,2,3,0]])
-  pitcher_rotation = hand_rotation * hand_to_pitcher_rotation
+  pitcher_rotation = hand_rotation * hand_to_pitcher_rotation_toUse
   pitcher_quaternion_localToGlobal_ijkw = pitcher_rotation.as_quat()
   return plot_3d_box(ax, pitcher_quaternion_localToGlobal_ijkw[[3,0,1,2]],
                      hand_center_cm, hand_to_pitcher_offset_cm,
@@ -287,8 +289,14 @@ def plot_timestep(time_s, time_index,
     h_hand = plot_hand_box(ax, hand_center_cm=100*feature_data['position_m']['hand'][time_index, :],
                                hand_quaternion_localToGlobal_wijk=feature_data['quaternion_wijk']['hand'][time_index, :])
   if include_pitcher:
+    if 'hand_to_pitcher_angles_rad' in feature_data:
+      hand_to_pitcher_angles_rad = np.squeeze(feature_data['hand_to_pitcher_angles_rad'])
+      hand_to_pitcher_rotation_toUse = Rotation.from_rotvec(hand_to_pitcher_angles_rad)
+    else:
+      hand_to_pitcher_rotation_toUse = None
     h_pitcher = plot_pitcher_box(ax, hand_center_cm=100*feature_data['position_m']['hand'][time_index, :],
-                                     hand_quaternion_localToGlobal_wijk=feature_data['quaternion_wijk']['hand'][time_index, :])
+                                     hand_quaternion_localToGlobal_wijk=feature_data['quaternion_wijk']['hand'][time_index, :],
+                                     hand_to_pitcher_rotation_toUse=hand_to_pitcher_rotation_toUse)
   
   # Set the aspect ratio
   ax.set_xlim(x_lim)

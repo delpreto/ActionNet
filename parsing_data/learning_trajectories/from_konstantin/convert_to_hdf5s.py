@@ -25,6 +25,7 @@ os.makedirs(output_dir, exist_ok=True)
 init_values = np.load(os.path.join(output_dir, 'initial_vals_LOSS.npy'))
 trajectories = np.load(os.path.join(output_dir, 'trajectories_LOSS.npy'))
 
+print('Parsing data')
 model_inputs = {
   'hand_position': init_values[:, 0:3],
   'hand_quaternion': init_values[:, 3:7],
@@ -39,7 +40,29 @@ num_timesteps = model_outputs['hand_position'].shape[1]
 num_trials = model_outputs['hand_position'].shape[0]
 
 #################################################
+# Prepend the initial conditions if needed.
+if num_timesteps == 99:
+  print('Prepending the initial pose')
+  new_model_outputs_hand_position = []
+  new_model_outputs_hand_quaternion = []
+  for trial_index in range(num_trials):
+    starting_hand_position = model_inputs['hand_position'][trial_index:trial_index+1, :]
+    hand_position = model_outputs['hand_position'][trial_index, :, :]
+    hand_position = np.array(starting_hand_position.tolist() + hand_position.tolist())
+    new_model_outputs_hand_position.append(hand_position)
+    
+    starting_hand_quaternion = model_inputs['hand_quaternion'][trial_index:trial_index+1, :]
+    hand_quaternion = model_outputs['hand_quaternion'][trial_index, :, :]
+    hand_quaternion = np.array(starting_hand_quaternion.tolist() + hand_quaternion.tolist())
+    new_model_outputs_hand_quaternion.append(hand_quaternion)
+  model_outputs['hand_position'] = np.array(new_model_outputs_hand_position)
+  model_outputs['hand_quaternion'] = np.array(new_model_outputs_hand_quaternion)
+
+  num_timesteps += 1
+
+#################################################
 # Denormalize
+print('Denormalizing')
 mins_byFrame = {'hand_location': np.array([-0.53807845, -0.3380863 ,  0.04596044]), 'object_location': np.array([-0.53807845, -0.3380863 ,  0.04596044]), 'hand_location_polar': np.array([ 0.24093589, -3.14143613,  0.75810699]), 'object_location_polar': np.array([ 0.24093589, -3.14143613,  0.75810699])}
 maxs_byFrame = {'hand_location': np.array([-0.15750682,  0.37952101,  0.4150433 ]), 'object_location': np.array([-0.15750682,  0.37952101,  0.4150433 ]), 'hand_location_polar': np.array([0.63575751, 3.14148258, 1.46840939]), 'object_location_polar': np.array([0.63575751, 3.14148258, 1.46840939])}
 spatial_mins = mins_byFrame['hand_location'].reshape(1, 1, -1)
@@ -53,10 +76,12 @@ model_outputs['hand_position'] = denormalize(model_outputs['hand_position'], spa
 
 #################################################
 # Generate a time vector for each trial.
+print('Generating a time vector')
 time_s_pred = [np.linspace(0, 7.7, num_timesteps)[:,None] for trial_index in range(num_trials)]
 
 #################################################
 # Save the output data.
+print('Saving output data')
 h5file = h5py.File(os.path.join(output_dir, 'data_to_evaluate.hdf5'), 'w')
 h5file.create_dataset('hand_position_m', data=model_outputs['hand_position'])
 h5file.create_dataset('hand_quaternion_wijk', data=model_outputs['hand_quaternion'])
@@ -67,3 +92,6 @@ truth_group.create_dataset('referenceObject_position_m', data=model_inputs['glas
 truth_group.create_dataset('starting_hand_position_m', data=model_inputs['hand_position'])
 # truth_group.create_dataset('hand_quaternion_wijk', data=)
 h5file.close()
+
+print('Done!')
+print()

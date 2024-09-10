@@ -277,21 +277,27 @@ def infer_pour_pose(feature_data):
 
 # ================================================================
 # Get the tilt angle of the spout at a specific time index or during the entire trial.
-def infer_spout_tilting(feature_data, time_index=None):
+def infer_spout_tilting(feature_data, time_index=None, hand_to_pitcher_rotation_toUse=None):
+  # Parse the feature data if needed.
+  parsed_data = parse_feature_data(feature_data)
+  if hand_to_pitcher_rotation_toUse is None and 'hand_to_pitcher_angles_rad' in parsed_data:
+    hand_to_pitcher_angles_rad = np.squeeze(parsed_data['hand_to_pitcher_angles_rad'])
+    hand_to_pitcher_rotation_toUse = Rotation.from_rotvec(hand_to_pitcher_angles_rad)
+  if hand_to_pitcher_rotation_toUse is None:
+    hand_to_pitcher_rotation_toUse = hand_to_pitcher_rotation
+    
   # Get tilt for all time if desired
   if time_index is None:
     spout_tilts = []
-    for time_index in range(feature_data.shape[0]):
+    for time_index in range(parsed_data['time_s'].shape[0]):
       spout_tilts.append(infer_spout_tilting(feature_data, time_index=time_index))
     return np.array(spout_tilts)
   
-  # Parse the feature data if needed.
-  parsed_data = parse_feature_data(feature_data)
   # Rotate a box for the pitcher according to the hand quaternion.
   hand_center_cm = 100*parsed_data['position_m']['hand'][time_index, :]
   hand_quaternion_localToGlobal_wijk = parsed_data['quaternion_wijk']['hand'][time_index, :]
   hand_rotation = Rotation.from_quat(hand_quaternion_localToGlobal_wijk[[1,2,3,0]])
-  pitcher_rotation = hand_rotation * hand_to_pitcher_rotation
+  pitcher_rotation = hand_rotation * hand_to_pitcher_rotation_toUse
   pitcher_quaternion_localToGlobal_ijkw = pitcher_rotation.as_quat()
   (corners, faces) = rotate_3d_box(pitcher_quaternion_localToGlobal_ijkw[[3,0,1,2]], hand_to_pitcher_offset_cm, pitcher_box_dimensions_cm)
   # Get a line segment along the long axis of the top of the pitcher, and move it to the origin.
@@ -306,6 +312,11 @@ def infer_spout_tilting(feature_data, time_index=None):
 def infer_spout_position_m(feature_data, time_index=None, hand_to_pitcher_rotation_toUse=None):
   # Parse the feature data if needed.
   feature_data = parse_feature_data(feature_data)
+  if hand_to_pitcher_rotation_toUse is None and 'hand_to_pitcher_angles_rad' in feature_data:
+    hand_to_pitcher_angles_rad = np.squeeze(feature_data['hand_to_pitcher_angles_rad'])
+    hand_to_pitcher_rotation_toUse = Rotation.from_rotvec(hand_to_pitcher_angles_rad)
+  if hand_to_pitcher_rotation_toUse is None:
+    hand_to_pitcher_rotation_toUse = hand_to_pitcher_rotation
   
   # Get position for all time if desired
   if time_index is None:
@@ -315,8 +326,6 @@ def infer_spout_position_m(feature_data, time_index=None, hand_to_pitcher_rotati
     return np.array(spout_position_m)
   
   # Rotate a box for the pitcher according to the hand quaternion.
-  if hand_to_pitcher_rotation_toUse is None:
-    hand_to_pitcher_rotation_toUse = hand_to_pitcher_rotation
   hand_center_cm = 100*feature_data['position_m']['hand'][time_index, :]
   hand_quaternion_localToGlobal_wijk = feature_data['quaternion_wijk']['hand'][time_index, :]
   hand_rotation = Rotation.from_quat(hand_quaternion_localToGlobal_wijk[[1,2,3,0]])
@@ -384,6 +393,8 @@ def infer_spout_yawvector(feature_data, time_index=None, hand_to_pitcher_rotatio
   if hand_to_pitcher_rotation_toUse is None and 'hand_to_pitcher_angles_rad' in feature_data:
     hand_to_pitcher_angles_rad = np.squeeze(feature_data['hand_to_pitcher_angles_rad'])
     hand_to_pitcher_rotation_toUse = Rotation.from_rotvec(hand_to_pitcher_angles_rad)
+  if hand_to_pitcher_rotation_toUse is None:
+    hand_to_pitcher_rotation_toUse = hand_to_pitcher_rotation
   
   # Get vector for all time indexes if desired.
   if time_index is None:
@@ -393,8 +404,6 @@ def infer_spout_yawvector(feature_data, time_index=None, hand_to_pitcher_rotatio
     return np.array(spout_yawvectors)
   
   # Rotate a box for the pitcher according to the hand quaternion.
-  if hand_to_pitcher_rotation_toUse is None:
-    hand_to_pitcher_rotation_toUse = hand_to_pitcher_rotation
   hand_center_cm = 100*feature_data['position_m']['hand'][time_index, :]
   hand_quaternion_localToGlobal_wijk = feature_data['quaternion_wijk']['hand'][time_index, :]
   hand_rotation = Rotation.from_quat(hand_quaternion_localToGlobal_wijk[[1,2,3,0]])
@@ -427,7 +436,9 @@ def infer_spout_relativeOffset_cm(feature_data, referenceObject_position_m=None,
   if hand_to_pitcher_rotation_toUse is None and 'hand_to_pitcher_angles_rad' in feature_data:
     hand_to_pitcher_angles_rad = np.squeeze(feature_data['hand_to_pitcher_angles_rad'])
     hand_to_pitcher_rotation_toUse = Rotation.from_rotvec(hand_to_pitcher_angles_rad)
-  
+  if hand_to_pitcher_rotation_toUse is None:
+    hand_to_pitcher_rotation_toUse = hand_to_pitcher_rotation
+    
   # Get vector for all time indexes if desired.
   if time_index is None:
     spout_relativeOffsets_cm = []

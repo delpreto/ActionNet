@@ -130,10 +130,10 @@ def parse_feature_data(feature_data):
       'time_s': np.linspace(0, 10, feature_data.shape[0]),
     }
 
-def bodyPath_data_to_parsed_feature_data(bodyPath_data, time_s,
-                                         referenceObject_position_m,
-                                         hand_to_pitcher_angles_rad):
-  return {
+def bodyPath_data_to_parsed_feature_data(bodyPath_data, time_s=None,
+                                         referenceObject_position_m=None,
+                                         hand_to_pitcher_angles_rad=None):
+  feature_data = {
     'position_m' : {
       'hand': bodyPath_data['position_m']['RightHand'],
       'elbow': bodyPath_data['position_m']['RightForeArm'],
@@ -148,11 +148,15 @@ def bodyPath_data_to_parsed_feature_data(bodyPath_data, time_s,
       'hand': bodyPath_data['joint_angle_eulerZXY_xyz_rad']['RightWrist'],
       'elbow': bodyPath_data['joint_angle_eulerZXY_xyz_rad']['RightElbow'],
       'shoulder': bodyPath_data['joint_angle_eulerXZY_xyz_rad']['RightShoulder'],
-    },
-    'time_s': time_s,
-    'referenceObject_position_m': referenceObject_position_m,
-    'hand_to_pitcher_angles_rad': hand_to_pitcher_angles_rad,
+    }
   }
+  if time_s is not None:
+    feature_data['time_s'] = time_s
+  if referenceObject_position_m is not None:
+    feature_data['referenceObject_position_m'] = referenceObject_position_m
+  if hand_to_pitcher_angles_rad is not None:
+    feature_data['hand_to_pitcher_angles_rad'] = hand_to_pitcher_angles_rad
+  return feature_data
   
 # ================================================================
 # Get feature data for specified time indexes.

@@ -47,6 +47,9 @@ hand_to_pitcher_offset_cm = np.array([hand_to_pitcherTop_cm - pitcher_box_dimens
                                       2])
 # hand_to_pitcher_offset_cm = np.array([-3, -13, 0]) # used -15 for Baxter videos so the orange hides behind pitcher less
 
+table_height_cm = 88.7 + 0.5 # Table height plus foam board thickness
+target_starting_righthand_height_cm = np.mean([19.4132, 11.3471]) # average of medians for S00-S11, which seems to match measurements on the pitcher (note S10 was average 10.60645)
+
 referenceObject_bodySegment_name = 'LeftHand'
 referenceObject_diameter_cm = 7.3 # glass top 7.3 bottom 6.3
 referenceObject_height_cm = 15.8
@@ -60,6 +63,7 @@ pitcher_box_color = 0.8*np.array([1, 1, 1])
 animation_view_angle_backLeft = (16, -28)
 animation_view_angle_backRight = (16, 44)
 animation_view_angle_forBaxter = (30, -179.9)
+animation_view_angle_forAllTrajectories = (10, -160)
 # animation_view_angle = animation_view_angle_backLeft
 # animation_view_angle = animation_view_angle_backRight
 animation_view_angle = animation_view_angle_forBaxter

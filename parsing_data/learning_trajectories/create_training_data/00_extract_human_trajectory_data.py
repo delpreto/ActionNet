@@ -61,14 +61,15 @@ save_composite_videos = False # save the eye-tracking video and animated plot fo
 save_results_data = True
 plot_pitcher_angle_distance_metrics = False
 save_plot_pitcher_angle_distance_metrics = False
-infer_pitcher_holding_angle = True
+infer_pitcher_holding_angle = False
 
 # Specify the subjects to consider.
 subject_ids_toProcess = ['S00', 'S10', 'S11'] # S00, S10, S11, ted_S00
 subject_ids_filter = None # None to consider all subjects
 
 data_dir = os.path.realpath(os.path.join(actionsense_root_dir, 'data'))
-results_dir = os.path.realpath(os.path.join(actionsense_root_dir, 'results'))
+output_dir = os.path.realpath(os.path.join(actionsense_root_dir, 'results', 'learning_trajectories'))
+os.makedirs(output_dir, exist_ok=True)
 
 experiments_dirs = []
 for subject_id_toProcess in subject_ids_toProcess:
@@ -82,9 +83,6 @@ for subject_id_toProcess in subject_ids_toProcess:
   elif subject_id_toProcess == 'ted_S00':
     experiments_dirs.append(os.path.join(data_dir, 'experiments', '2024-03-04_experiment_S00_selectedRun'))
 
-# Specify the output folder.
-output_dir = os.path.realpath(os.path.join(results_dir, 'learning_trajectories'))
-os.makedirs(output_dir, exist_ok=True)
 
 # Choose the activity to process.
 activity_mode = 'pouring' # 'pouring', 'scooping'
@@ -137,6 +135,7 @@ def main_processing(subject_id_toProcess, experiments_dir):
   referenceObject_position_m_byTrial_bySubject = OrderedDict()
   hand_to_pitcher_angles_rad_byTrial_bySubject = OrderedDict()
   for subject_id, subject_hdf5_filepaths in hdf5_filepaths.items():
+    print('='*75)
     print('Processing subject %02d' % subject_id)
     time_s_byTrial_bySubject.setdefault(subject_id, [])
     bodyPath_data_byTrial_bySubject.setdefault(subject_id, [])
@@ -192,8 +191,29 @@ def main_processing(subject_id_toProcess, experiments_dir):
       referenceObject_position_m_byTrial = infer_referenceObject_position_m_byTrial(
         bodyPath_data_byTrial, time_s_byTrial,
         referenceObject_start_time_s_byTrial, referenceObject_end_time_s_byTrial,
-        referenceObject_bodySegment_name)
-      # Infer the angle of the pitcher in the person's hand.
+        referenceObject_bodySegment_name,
+        use_pouring_position_xy=True,
+        stationary_pose_byTrial=stationary_pose_byTrial)
+      
+      # Correct the trajectory to be above the glass at pouring time if needed.
+      print('    Correcting trajectory height to be above the reference object')
+      bodyPath_data_byTrial = transform_bodyPath_data_referenceObjectHeight(
+        bodyPath_data_byTrial, stationary_pose_byTrial, referenceObject_position_m_byTrial)
+      # Infer the hand position while being relatively stationary
+      print('    Inferring stationary poses again')
+      (stationary_time_s_byTrial, stationary_pose_byTrial) = infer_stationary_poses(
+        time_s_byTrial, bodyPath_data_byTrial, use_variance=stationary_position_use_variance,
+        hand_segment_key='RightHand')
+      # Infer the reference object position
+      print('    Inferring reference object positions again')
+      referenceObject_position_m_byTrial = infer_referenceObject_position_m_byTrial(
+        bodyPath_data_byTrial, time_s_byTrial,
+        referenceObject_start_time_s_byTrial, referenceObject_end_time_s_byTrial,
+        referenceObject_bodySegment_name,
+        use_pouring_position_xy=True,
+        stationary_pose_byTrial=stationary_pose_byTrial)
+      
+      # Infer the angle of the pitcher in the person's hand if desired.
       if infer_pitcher_holding_angle:
         print('    Inferring pitcher holding angles')
         (hand_to_pitcher_angles_rad_byTrial, fig) = \
@@ -459,6 +479,7 @@ def export_path_data(subject_id_for_filename, time_s_byTrial_bySubject, bodyPath
     print('Output file exists at [%s]' % hdf5_output_filepath)
     print('  Overwrite the file? [y/N] ', end='')
     overwrite_file = input()
+    # overwrite_file = 'y'
     if overwrite_file.lower().strip() != 'y':
       print('  Aborting')
       return

@@ -114,6 +114,7 @@ def plot_timestep(time_s, time_index,
                   previous_handles=None, clear_previous_timestep=True, redraw_trajectory_each_timestep=False,
                   include_skeleton=True, include_pitcher=True, include_hand=True,
                   include_spout_projection=True, include_referenceObject=True,
+                  animation_view_angle_toUse=None,
                   wait_for_user_after_plotting=False, hide_figure_window=False):
   # Parse the feature data if needed.
   if feature_data is not None:
@@ -181,7 +182,9 @@ def plot_timestep(time_s, time_index,
     ax.set_zlabel('Z [cm]')
     
     # Set the view angle
-    ax.view_init(*animation_view_angle)
+    if animation_view_angle_toUse is None:
+      animation_view_angle_toUse = animation_view_angle
+    ax.view_init(*animation_view_angle_toUse)
     
     # Plot trajectories of the right arm and pelvis.
     hand_position_cm = 100*feature_data['position_m']['hand']
@@ -447,6 +450,7 @@ def plot_all_trajectories(feature_data_allTrials, subject_id=None, output_filepa
                   redraw_trajectory_each_timestep=True,
                   include_skeleton=False, include_pitcher=False, include_hand=False,
                   include_spout_projection=False, include_referenceObject=False,
+                  animation_view_angle_toUse=animation_view_angle_forAllTrajectories,
                   wait_for_user_after_plotting=False, hide_figure_window=hide_figure_window)
   if output_filepath is not None:
     os.makedirs(os.path.split(output_filepath)[0], exist_ok=True)
@@ -457,6 +461,10 @@ def plot_all_trajectories(feature_data_allTrials, subject_id=None, output_filepa
 # Plot all starting conditions.
 def plot_all_startingConditions(feature_data_allTrials_byType, truth_data_byType=None, output_filepath=None, hide_figure_window=False):
   fig = plt.figure()
+  fig.add_subplot(1, 2, 1)
+  fig.add_subplot(1, 2, 2)
+  ax_xy = fig.get_axes()[0]
+  ax_z = fig.get_axes()[1]
   if not hide_figure_window:
     plt.get_current_fig_manager().window.showMaximized()
   colors = ['m', 'g', 'c', 'k', 'r', 'b']
@@ -470,26 +478,33 @@ def plot_all_startingConditions(feature_data_allTrials_byType, truth_data_byType
       feature_data = parse_feature_data(feature_data)
       referenceObject_position_cm = 100*feature_data['referenceObject_position_m']
       hand_position_cm = 100*feature_data['position_m']['hand']
-      plt.plot(referenceObject_position_cm[1], referenceObject_position_cm[0], 'd', markersize=10, color=color,
+      ax_xy.plot(referenceObject_position_cm[1], referenceObject_position_cm[0], 'd', markersize=10, color=color,
                label=('Glass: %s' % example_type) if trial_index == 0 else None)
-      plt.plot(hand_position_cm[0, 1], hand_position_cm[0, 0], '.', markersize=20, color=color,
+      ax_xy.plot(hand_position_cm[0, 1], hand_position_cm[0, 0], '.', markersize=20, color=color,
                label=('Hand: %s' % example_type) if trial_index == 0 else None)
       try:
         truth_starting_hand_position_cm = 100*truth_data_byType[example_type]['starting_hand_position_m'][trial_index]
-        plt.plot(truth_starting_hand_position_cm[1], truth_starting_hand_position_cm[0], '.', markersize=20,
+        ax_xy.plot(truth_starting_hand_position_cm[1], truth_starting_hand_position_cm[0], '.', markersize=20,
                  color='y',
                  label=('Target Hand: %s' % example_type) if trial_index == 0 else None)
         starting_position_offsets_cm.append(np.array(truth_starting_hand_position_cm) - np.array(hand_position_cm[0, :]))
       except:
         if example_type == 'model':
           raise
-  plt.legend()
-  plt.grid(True, color='lightgray')
-  plt.xlabel('Y [cm]')
-  plt.ylabel('X [cm]')
-  plt.title('Projections of Glass and Starting Hand Position')
-  # Set the aspect ratio
-  plt.gca().set_aspect('equal')
+      ax_z.plot(trial_index, hand_position_cm[0, 2], '.', markersize=20, color=color,
+                label=('Hand: %s' % example_type) if trial_index == 0 else None)
+  ax_xy.legend()
+  ax_xy.grid(True, color='lightgray')
+  ax_xy.set_xlabel('Y [cm]')
+  ax_xy.set_ylabel('X [cm]')
+  ax_xy.set_title('Projections of Glass and Starting Hand Position')
+  ax_xy.set_aspect('equal')
+  ax_z.legend()
+  ax_z.grid(True, color='lightgray')
+  ax_z.set_xlabel('Trial Index')
+  ax_z.set_ylabel('Z [cm]')
+  ax_z.set_title('Starting Hand Height')
+  
   if output_filepath is not None:
     os.makedirs(os.path.split(output_filepath)[0], exist_ok=True)
     plt.savefig(output_filepath, dpi=300)

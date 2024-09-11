@@ -10,11 +10,12 @@ while os.path.split(actionsense_root_dir)[-1] != 'ActionSense':
 #################################################
 # Specify the output folder.
 output_dir = os.path.realpath(os.path.join(actionsense_root_dir, 'results', 'learning_trajectories',
-                                         'from_konstantin',
+                                         'models', 'state-space',
                                          # '2024-09-06_13-35'
                                          # '2024-09-06_17-25'
                                          # '2024-09-06_19-02'
-                                         '2024-09-07_09-58'
+                                         # '2024-09-07_09-58'
+                                         '2024-09-10_17-10'
                                            ))
 os.makedirs(output_dir, exist_ok=True)
 
@@ -50,7 +51,7 @@ if num_timesteps == 99:
     hand_position = model_outputs['hand_position'][trial_index, :, :]
     hand_position = np.array(starting_hand_position.tolist() + hand_position.tolist())
     new_model_outputs_hand_position.append(hand_position)
-    
+
     starting_hand_quaternion = model_inputs['hand_quaternion'][trial_index:trial_index+1, :]
     hand_quaternion = model_outputs['hand_quaternion'][trial_index, :, :]
     hand_quaternion = np.array(starting_hand_quaternion.tolist() + hand_quaternion.tolist())
@@ -63,8 +64,10 @@ if num_timesteps == 99:
 #################################################
 # Denormalize
 print('Denormalizing')
-mins_byFrame = {'hand_location': np.array([-0.53807845, -0.3380863 ,  0.04596044]), 'object_location': np.array([-0.53807845, -0.3380863 ,  0.04596044]), 'hand_location_polar': np.array([ 0.24093589, -3.14143613,  0.75810699]), 'object_location_polar': np.array([ 0.24093589, -3.14143613,  0.75810699])}
-maxs_byFrame = {'hand_location': np.array([-0.15750682,  0.37952101,  0.4150433 ]), 'object_location': np.array([-0.15750682,  0.37952101,  0.4150433 ]), 'hand_location_polar': np.array([0.63575751, 3.14148258, 1.46840939]), 'object_location_polar': np.array([0.63575751, 3.14148258, 1.46840939])}
+# mins_byFrame = {'hand_location': np.array([-0.53807845, -0.3380863 ,  0.04596044]), 'object_location': np.array([-0.53807845, -0.3380863 ,  0.04596044]), 'hand_location_polar': np.array([ 0.24093589, -3.14143613,  0.75810699]), 'object_location_polar': np.array([ 0.24093589, -3.14143613,  0.75810699])}
+# maxs_byFrame = {'hand_location': np.array([-0.15750682,  0.37952101,  0.4150433 ]), 'object_location': np.array([-0.15750682,  0.37952101,  0.4150433 ]), 'hand_location_polar': np.array([0.63575751, 3.14148258, 1.46840939]), 'object_location_polar': np.array([0.63575751, 3.14148258, 1.46840939])}
+mins_byFrame = {'hand_location': np.array([-0.58123652, -0.3375666 ,  0.14079341]), 'object_location': np.array([-0.58123652, -0.3375666 ,  0.14079341]), 'hand_location_polar': np.array([ 0.30370537, -3.14143613,  0.71982327]), 'object_location_polar': np.array([ 0.30370537, -3.14143613,  0.71982327])}
+maxs_byFrame = {'hand_location': np.array([-0.15750682,  0.37952101,  0.39201931]), 'object_location': np.array([-0.15750682,  0.37952101,  0.39201931]), 'hand_location_polar': np.array([0.62828742, 3.14148258, 1.31659006]), 'object_location_polar': np.array([0.62828742, 3.14148258, 1.31659006])}
 spatial_mins = mins_byFrame['hand_location'].reshape(1, 1, -1)
 spatial_maxs = maxs_byFrame['hand_location'].reshape(1, 1, -1)
 def denormalize(x, mins, maxs):
@@ -82,7 +85,7 @@ time_s_pred = [np.linspace(0, 7.7, num_timesteps)[:,None] for trial_index in ran
 #################################################
 # Save the output data.
 print('Saving output data')
-h5file = h5py.File(os.path.join(output_dir, 'data_to_evaluate.hdf5'), 'w')
+h5file = h5py.File(os.path.join(output_dir, 'pouring_modelData.hdf5'), 'w')
 h5file.create_dataset('hand_position_m', data=model_outputs['hand_position'])
 h5file.create_dataset('hand_quaternion_wijk', data=model_outputs['hand_quaternion'])
 h5file.create_dataset('referenceObject_position_m', data=model_inputs['glass_position'])

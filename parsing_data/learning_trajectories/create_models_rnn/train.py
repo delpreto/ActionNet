@@ -49,9 +49,9 @@ def add_args(_parser):
                          help="Size of the test set, default: 0.2")
     _parser.add_argument("--test_set_size", type=float, default=0.2,
                          help="Size of the test set, default: 0.2")
-    _parser.add_argument("--output_dir", type=str, default=
-        os.path.join(actionsense_root_dir, 'results', 'learning_trajectories', 'rnns'),
-                         help="Folder to save the model checkpoint")
+    _parser.add_argument("--output_dir", type=str, default=None)
+        # os.path.join(actionsense_root_dir, 'results', 'learning_trajectories', 'models', 'rnns'),
+        #                  help="Folder to save the model checkpoint")
     _parser.add_argument("--data_dir", type=str, default=
         os.path.join(actionsense_root_dir, 'results', 'learning_trajectories'),
                          help="Folder with training data HDF5 files, default: ./Data")

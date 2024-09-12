@@ -63,11 +63,11 @@ def plot_pour_tilting(feature_data_allTrials, shade_pouring_region=False,
         pass
     else:
       matplotlib.use(default_matplotlib_backend)
-    fig = plt.figure()
+    fig = plt.figure(figsize=(13, 7))
     if not hide_figure_window:
       figManager = plt.get_current_fig_manager()
       figManager.window.showMaximized()
-      plt_wait_for_keyboard_press(0.5)
+      plt_wait_for_keyboard_press(0.3)
     plt.ion()
     fig.add_subplot(1, 1, 1)
   ax = fig.get_axes()[0]
@@ -165,11 +165,11 @@ def plot_pour_relativeHeight(feature_data_allTrials,
         pass
     else:
       matplotlib.use(default_matplotlib_backend)
-    fig = plt.figure()
+    fig = plt.figure(figsize=(13, 7))
     if not hide_figure_window:
       figManager = plt.get_current_fig_manager()
       figManager.window.showMaximized()
-      plt_wait_for_keyboard_press(0.5)
+      plt_wait_for_keyboard_press(0.3)
     plt.ion()
     fig.add_subplot(1, 1, 1)
     ax = fig.get_axes()[0]
@@ -280,11 +280,12 @@ def plot_spout_dynamics(feature_data_allTrials,
                                squeeze=False, # if False, always return 2D array of axes
                                sharex=True, sharey=False,
                                subplot_kw={'frame_on': True},
+                               figsize=(13, 7),
                                )
     if not hide_figure_window:
       figManager = plt.get_current_fig_manager()
       figManager.window.showMaximized()
-      plt_wait_for_keyboard_press(0.5)
+      plt_wait_for_keyboard_press(0.3)
     plt.ion()
   else:
     (fig, axs) = fig
@@ -404,11 +405,12 @@ def plot_body_dynamics(feature_data_allTrials,
                                squeeze=False, # if False, always return 2D array of axes
                                sharex=True, sharey=False,
                                subplot_kw={'frame_on': True},
+                               figsize=(13, 7),
                                )
     if not hide_figure_window:
       figManager = plt.get_current_fig_manager()
       figManager.window.showMaximized()
-      plt_wait_for_keyboard_press(0.5)
+      plt_wait_for_keyboard_press(0.3)
     plt.ion()
   else:
     (fig, axs) = fig
@@ -537,11 +539,12 @@ def plot_body_joint_angles(feature_data_allTrials,
                                squeeze=False, # if False, always return 2D array of axes
                                sharex=True, sharey=False,
                                subplot_kw={'frame_on': True},
+                               figsize=(13, 7),
                                )
     if not hide_figure_window:
       figManager = plt.get_current_fig_manager()
       figManager.window.showMaximized()
-      plt_wait_for_keyboard_press(0.5)
+      plt_wait_for_keyboard_press(0.3)
     plt.ion()
   else:
     (fig, axs) = fig

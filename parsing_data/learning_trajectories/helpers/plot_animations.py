@@ -154,10 +154,11 @@ def plot_timestep(time_s, time_index,
       matplotlib.use('Agg')
     else:
       matplotlib.use(default_matplotlib_backend)
-    fig = plt.figure()
+    fig = plt.figure(figsize=(13, 7))
     if not hide_figure_window:
       figManager = plt.get_current_fig_manager()
       figManager.window.showMaximized()
+      plt_wait_for_keyboard_press(0.3)
     plt.ion()
     num_rows = int(np.sqrt(num_total_subjects))
     num_cols = int(np.ceil(num_total_subjects/num_rows))
@@ -459,15 +460,18 @@ def plot_all_trajectories(feature_data_allTrials, subject_id=None, output_filepa
 
 # ================================================================
 # Plot all starting conditions.
-def plot_all_startingConditions(feature_data_allTrials_byType, truth_data_byType=None, output_filepath=None, hide_figure_window=False):
-  fig = plt.figure()
+def plot_all_startingConditions(feature_data_allTrials_byType, truth_data_byType=None,
+                                model_timestep_index=0,
+                                output_filepath=None, hide_figure_window=False):
+  fig = plt.figure(figsize=(13, 7))
   fig.add_subplot(1, 2, 1)
   fig.add_subplot(1, 2, 2)
   ax_xy = fig.get_axes()[0]
   ax_z = fig.get_axes()[1]
   if not hide_figure_window:
     plt.get_current_fig_manager().window.showMaximized()
-  colors = ['m', 'g', 'c', 'k', 'r', 'b']
+    plt_wait_for_keyboard_press(2)
+  colors = ['m', 'r', 'g', 'b', 'k']
   starting_position_offsets_cm = []
   for (example_index, example_type) in enumerate(list(feature_data_allTrials_byType.keys())):
     feature_data_allTrials = feature_data_allTrials_byType[example_type]
@@ -478,32 +482,47 @@ def plot_all_startingConditions(feature_data_allTrials_byType, truth_data_byType
       feature_data = parse_feature_data(feature_data)
       referenceObject_position_cm = 100*feature_data['referenceObject_position_m']
       hand_position_cm = 100*feature_data['position_m']['hand']
-      ax_xy.plot(referenceObject_position_cm[1], referenceObject_position_cm[0], 'd', markersize=10, color=color,
-               label=('Glass: %s' % example_type) if trial_index == 0 else None)
-      ax_xy.plot(hand_position_cm[0, 1], hand_position_cm[0, 0], '.', markersize=20, color=color,
-               label=('Hand: %s' % example_type) if trial_index == 0 else None)
-      try:
+      ax_xy.plot(referenceObject_position_cm[1], referenceObject_position_cm[0], 'd',
+                 markersize=10, color=color,
+                 label=('Glass: %s' % example_type) if trial_index == 0 else None)
+      if example_type == 'model':
         truth_starting_hand_position_cm = 100*truth_data_byType[example_type]['starting_hand_position_m'][trial_index]
-        ax_xy.plot(truth_starting_hand_position_cm[1], truth_starting_hand_position_cm[0], '.', markersize=20,
-                 color='y',
-                 label=('Target Hand: %s' % example_type) if trial_index == 0 else None)
-        starting_position_offsets_cm.append(np.array(truth_starting_hand_position_cm) - np.array(hand_position_cm[0, :]))
-      except:
-        if example_type == 'model':
-          raise
+        starting_hand_position_cm = hand_position_cm[model_timestep_index, :]
+        ax_xy.plot(truth_starting_hand_position_cm[1], truth_starting_hand_position_cm[0],
+                   '.', markersize=20, color='c',
+                   label=('Target Hand: %s' % example_type) if trial_index == 0 else None)
+        starting_position_offsets_cm.append(np.array(truth_starting_hand_position_cm) - np.array(starting_hand_position_cm))
+      else:
+        starting_hand_position_cm = [hand_position_cm[0, 0], hand_position_cm[0, 1]]
+      ax_xy.plot(starting_hand_position_cm[1], starting_hand_position_cm[0], '.',
+                 markersize=10, color=color,
+                 label=('Hand: %s' % example_type) if trial_index == 0 else None)
+      if example_type == 'model':
+        ax_xy.plot([truth_starting_hand_position_cm[1], starting_hand_position_cm[1]],
+                   [truth_starting_hand_position_cm[0], starting_hand_position_cm[0]],
+                   '-', color='k', label=None)
+      else:
+        ax_xy.plot([0, 0], [0, 0], '-', color='k', alpha=0, label=' ' if trial_index == 0 else None)
       ax_z.plot(trial_index, hand_position_cm[0, 2], '.', markersize=20, color=color,
                 label=('Hand: %s' % example_type) if trial_index == 0 else None)
-  ax_xy.legend()
   ax_xy.grid(True, color='lightgray')
   ax_xy.set_xlabel('Y [cm]')
   ax_xy.set_ylabel('X [cm]')
   ax_xy.set_title('Projections of Glass and Starting Hand Position')
   ax_xy.set_aspect('equal')
-  ax_z.legend()
   ax_z.grid(True, color='lightgray')
   ax_z.set_xlabel('Trial Index')
   ax_z.set_ylabel('Z [cm]')
+  ax_z.set_ylim([min(ax_z.get_ylim()[0], 10), max(ax_z.get_ylim()[1], 20)])
   ax_z.set_title('Starting Hand Height')
+  def add_legend_below(ax, legend_y):
+    box = ax.get_position()
+    ax.set_position([box.x0, box.y0 + box.height * 0.15,
+                     box.width, box.height * 0.85])
+    ax.legend(loc='upper center', bbox_to_anchor=(0.5, legend_y),
+              fancybox=True, shadow=True, ncol=len(feature_data_allTrials_byType))
+  add_legend_below(ax_xy, -0.2)
+  add_legend_below(ax_z, -0.1)
   
   if output_filepath is not None:
     os.makedirs(os.path.split(output_filepath)[0], exist_ok=True)

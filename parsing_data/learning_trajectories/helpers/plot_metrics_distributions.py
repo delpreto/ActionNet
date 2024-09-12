@@ -72,11 +72,11 @@ def plot_pour_relativePosition(feature_data_byTrial,
         pass
     else:
       matplotlib.use(default_matplotlib_backend)
-    fig = plt.figure()
+    fig = plt.figure(figsize=(13, 7))
     if not hide_figure_window:
       figManager = plt.get_current_fig_manager()
       figManager.window.showMaximized()
-      plt_wait_for_keyboard_press(0.5)
+      plt_wait_for_keyboard_press(0.3)
     plt.ion()
     fig.add_subplot(1, 1, 1)
     ax = fig.get_axes()[0]
@@ -230,11 +230,15 @@ def plot_distribution_hand_to_pitcher_angles(feature_data_byType,
                           squeeze=False, # if False, always return 2D array of axes
                           sharex=False, sharey=False,
                           subplot_kw={'frame_on': True},
+                          figsize=(13, 7),
                           )
+  if 'hand_to_pitcher_angles_rad' not in list(feature_data_byType.values())[0]:
+    return None
+  
   if not hide_figure_window:
     figManager = plt.get_current_fig_manager()
     figManager.window.showMaximized()
-    plt_wait_for_keyboard_press(0.5)
+    plt_wait_for_keyboard_press(0.3)
   # Plot box plots for each example type, for each angle axis.
   axis_names = ['X (left/right)', 'Y (down/up)', 'Z (inward/outward)']
   median_color = [0, 0, 0.75]
@@ -292,11 +296,12 @@ def plot_compare_distributions_spout_dynamics(feature_data_byType,
                                  squeeze=False, # if False, always return 2D array of axes
                                  sharex=False, sharey=False,
                                  subplot_kw={'frame_on': True},
+                                 figsize=(13, 7),
                                  )
       if not hide_figure_window:
         figManager = plt.get_current_fig_manager()
         figManager.window.showMaximized()
-        plt_wait_for_keyboard_press(0.5)
+        plt_wait_for_keyboard_press(0.3)
       plt.ion()
     else:
       (fig, axs) = fig
@@ -454,11 +459,12 @@ def plot_compare_distributions_body_dynamics(feature_data_byType,
                                  squeeze=False, # if False, always return 2D array of axes
                                  sharex=False, sharey=False,
                                  subplot_kw={'frame_on': True},
+                                 figsize=(13, 7),
                                  )
       if not hide_figure_window:
         figManager = plt.get_current_fig_manager()
         figManager.window.showMaximized()
-        plt_wait_for_keyboard_press(0.5)
+        plt_wait_for_keyboard_press(0.3)
       plt.ion()
     else:
       (fig, axs) = fig
@@ -624,11 +630,12 @@ def plot_compare_distributions_joint_angles(feature_data_byType,
                                  squeeze=False, # if False, always return 2D array of axes
                                  sharex=False, sharey=False,
                                  subplot_kw={'frame_on': True},
+                                 figsize=(13, 7),
                                  )
       if not hide_figure_window:
         figManager = plt.get_current_fig_manager()
         figManager.window.showMaximized()
-        plt_wait_for_keyboard_press(0.5)
+        plt_wait_for_keyboard_press(0.3)
       plt.ion()
     else:
       (fig, axs) = fig
@@ -760,11 +767,12 @@ def plot_compare_distributions_spout_relativeHeights(feature_data_byType,
                                  squeeze=False, # if False, always return 2D array of axes
                                  sharex=False, sharey=False,
                                  subplot_kw={'frame_on': True},
+                                 figsize=(13, 7),
                                  )
       if not hide_figure_window:
         figManager = plt.get_current_fig_manager()
         figManager.window.showMaximized()
-        plt_wait_for_keyboard_press(0.5)
+        plt_wait_for_keyboard_press(0.3)
       plt.ion()
     else:
       (fig, axs) = fig
@@ -890,11 +898,12 @@ def plot_compare_distributions_spout_tilts(feature_data_byType,
                                  squeeze=False, # if False, always return 2D array of axes
                                  sharex=False, sharey=False,
                                  subplot_kw={'frame_on': True},
+                                 figsize=(13, 7),
                                  )
       if not hide_figure_window:
         figManager = plt.get_current_fig_manager()
         figManager.window.showMaximized()
-        plt_wait_for_keyboard_press(0.5)
+        plt_wait_for_keyboard_press(0.3)
       plt.ion()
     else:
       (fig, axs) = fig

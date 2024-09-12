@@ -373,12 +373,12 @@ def plot_compare_distributions_spout_dynamics(feature_data_byType,
       ax_speed.hist(speeds_m_s, bins=num_histogram_bins,
                     histtype='stepfilled', # 'bar', 'barstacked', 'step', 'stepfilled'
                     log=False, density=True,
-                    range=(np.quantile(speeds_m_s, histogram_range_quantiles[0]), np.quantile(speeds_m_s, histogram_range_quantiles[1])),
+                    range=(np.nanquantile(speeds_m_s, histogram_range_quantiles[0]), np.nanquantile(speeds_m_s, histogram_range_quantiles[1])),
                     alpha=0.5, label=example_type.title())
       ax_jerk.hist(jerks_m_s_s_s, bins=num_histogram_bins,
                    histtype='stepfilled', # 'bar', 'barstacked', 'step', 'stepfilled'
                    log=False, density=True,
-                   range=(np.quantile(jerks_m_s_s_s, histogram_range_quantiles[0]), np.quantile(jerks_m_s_s_s, histogram_range_quantiles[1])),
+                   range=(np.nanquantile(jerks_m_s_s_s, histogram_range_quantiles[0]), np.nanquantile(jerks_m_s_s_s, histogram_range_quantiles[1])),
                    alpha=0.5, label=example_type.title())
     
     # Plot formatting.
@@ -543,12 +543,12 @@ def plot_compare_distributions_body_dynamics(feature_data_byType,
         ax_speed.hist(speeds_m_s, bins=num_histogram_bins,
                       histtype='stepfilled', # 'bar', 'barstacked', 'step', 'stepfilled'
                       log=False, density=True,
-                      range=(np.quantile(speeds_m_s, histogram_range_quantiles[0]), np.quantile(speeds_m_s, histogram_range_quantiles[1])),
+                      range=(np.nanquantile(speeds_m_s, histogram_range_quantiles[0]), np.nanquantile(speeds_m_s, histogram_range_quantiles[1])),
                       alpha=0.5, label=example_type.title())
         ax_jerk.hist(jerks_m_s_s_s, bins=num_histogram_bins,
                      histtype='stepfilled', # 'bar', 'barstacked', 'step', 'stepfilled'
                      log=False, density=True,
-                     range=(np.quantile(jerks_m_s_s_s, histogram_range_quantiles[0]), np.quantile(jerks_m_s_s_s, histogram_range_quantiles[1])),
+                     range=(np.nanquantile(jerks_m_s_s_s, histogram_range_quantiles[0]), np.nanquantile(jerks_m_s_s_s, histogram_range_quantiles[1])),
                      alpha=0.5, label=example_type.title())
       
       # Plot formatting.

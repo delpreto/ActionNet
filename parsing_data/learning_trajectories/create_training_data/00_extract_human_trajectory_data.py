@@ -68,7 +68,8 @@ subject_ids_toProcess = ['S00', 'S10', 'S11'] # S00, S10, S11, ted_S00
 subject_ids_filter = None # None to consider all subjects
 
 data_dir = os.path.realpath(os.path.join(actionsense_root_dir, 'data'))
-output_dir = os.path.realpath(os.path.join(actionsense_root_dir, 'results', 'learning_trajectories'))
+output_dir = os.path.realpath(os.path.join(actionsense_root_dir,
+                                           'results', 'learning_trajectories', 'humans'))
 os.makedirs(output_dir, exist_ok=True)
 
 experiments_dirs = []
@@ -151,9 +152,13 @@ def main_processing(subject_id_toProcess, experiments_dir):
       h5_file = h5py.File(hdf5_filepath, 'r')
       
       # Determine the start/end times of each hand path.
-      print('  Getting activity start/end times')
+      subject_id_str = 'S%02d' % subject_id
+      start_offset_s = start_offsets_s[subject_id_str]
+      end_offset_s = end_offsets_s[subject_id_str]
+      print('  Getting activity start/end times | start offset %g s | end offste %g s' % (start_offset_s, end_offset_s))
       (activities_labels, activities_start_times_s, activities_end_times_s) = \
         get_targetActivity_startEnd_times_s(h5_file, target_activity_label,
+                                            start_offset_s=start_offset_s, end_offset_s=end_offset_s,
                                             exclude_bad_labels=True)
       if activities_labels is None:
         continue

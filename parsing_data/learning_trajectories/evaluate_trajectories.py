@@ -1,11 +1,10 @@
 
 import h5py
 import numpy as np
+import json
+import sys
 import os
 script_dir = os.path.dirname(os.path.realpath(__file__))
-actionsense_root_dir = script_dir
-while os.path.split(actionsense_root_dir)[-1] != 'ActionSense':
-  actionsense_root_dir = os.path.realpath(os.path.join(actionsense_root_dir, '..'))
 
 import matplotlib
 default_matplotlib_backend = matplotlib.rcParams['backend']
@@ -21,53 +20,84 @@ from helpers.plot_metrics_distributions import *
 # Configuration.
 ##################################################################
 
-# Specify the directory with HDF5 files.
-data_dir = os.path.realpath(os.path.join(actionsense_root_dir, 'results', 'learning_trajectories'))
-data_dir_humans = data_dir
-data_dir_model = os.path.join(data_dir, 'models', 'state-space', '2024-09-10_17-10')
-
-# Specify the feature data to evaluate.
-# For example, may have entries for each subject
-#  and may have an entries for model outputs.
-feature_data_filepaths_byType = {
-  'S00': os.path.join(data_dir_humans, 'pouring_trainingData_S00.hdf5'),
-  # 'S10': os.path.join(data_dir_humans, 'pouring_trainingData_S10.hdf5'),
-  'S11': os.path.join(data_dir_humans, 'pouring_trainingData_S11.hdf5'),
-  'model': os.path.join(data_dir_model, 'pouring_modelData.hdf5'),
-}
-# Specify where outputs should be saved.
-# Can be None to not save any outputs.
-# output_dir = None
-output_dir = os.path.join(data_dir_model, 'with humans')
-# output_dir = os.path.join(data_dir_model, 'only model')
-
-# Specify which outputs to process.
-# Animations.
-interactively_animate_trajectories_exampleType = None # 'S00' # interactive - can move around scene and press enter to step through time # None to not animate
-save_trajectory_animations_eachType = False
-save_trajectory_animations_compositeTypes = False
-# Plots (mostly time series).
-plot_all_trajectories_singlePlot = True
-plot_all_startingConditions_singlePlot = True
-plot_spout_tilt = True
-plot_spout_pouring_projection = True
-plot_spout_height = True
-plot_spout_speedJerk = True
-plot_body_speedJerk = True
-plot_joint_angles = False
-# Plots and comparisons of distributions.
-plot_compare_distribution_body_speedJerk = True
-plot_compare_distribution_spout_speedJerk = True
-plot_compare_distribution_joint_angles = False
-plot_compare_distribution_spout_projection = True
-plot_compare_distribution_spout_height = True
-plot_compare_distribution_spout_tilt = True
-plot_distributions_hand_to_pitcher_angles = False
-
-# Specify whether to show figure windows or process them in the background.
-# Either way, plots will be saved as images if output_dir is specified below.
-keep_plots_open = False
-
+if len(sys.argv) == 1:
+  actionsense_root_dir = script_dir
+  while os.path.split(actionsense_root_dir)[-1] != 'ActionSense':
+    actionsense_root_dir = os.path.realpath(os.path.join(actionsense_root_dir, '..'))
+    
+  # Specify the directory with HDF5 files.
+  data_dir = os.path.realpath(os.path.join(actionsense_root_dir, 'results', 'learning_trajectories'))
+  data_dir_humans = os.path.realpath(os.path.join(data_dir, 'humans'))
+  data_dir_model = os.path.join(data_dir, 'models', 'state-space',
+                                # '2024-09-10_17-10'
+                                '2024-09-12_15-08'
+                                )
+  
+  # Specify the feature data to evaluate.
+  # For example, may have entries for each subject
+  #  and may have an entries for model outputs.
+  feature_data_filepaths_byType = {
+    'S00': os.path.join(data_dir_humans, 'pouring_trainingData_S00.hdf5'),
+    # 'S10': os.path.join(data_dir_humans, 'pouring_trainingData_S10.hdf5'),
+    'S11': os.path.join(data_dir_humans, 'pouring_trainingData_S11.hdf5'),
+    # 'model': os.path.join(data_dir_model, 'pouring_modelData.hdf5'),
+  }
+  # Specify where outputs should be saved.
+  # Can be None to not save any outputs.
+  # output_dir = None
+  output_dir = os.path.join(data_dir_humans, 'S00-S11')
+  # output_dir = os.path.join(data_dir_model, 'only model')
+  
+  # Specify which outputs to process.
+  # Animations.
+  interactively_animate_trajectories_exampleType = None # 'S00' # interactive - can move around scene and press enter to step through time # None to not animate
+  save_trajectory_animations_eachType = True
+  save_trajectory_animations_compositeTypes = False
+  # Plots (mostly time series).
+  plot_all_trajectories_singlePlot = True
+  plot_all_startingConditions_singlePlot = True
+  plot_spout_tilt = True
+  plot_spout_pouring_projection = True
+  plot_spout_height = True
+  plot_spout_speedJerk = True
+  plot_body_speedJerk = True
+  plot_joint_angles = True
+  # Plots and comparisons of distributions.
+  plot_compare_distribution_body_speedJerk = True
+  plot_compare_distribution_spout_speedJerk = True
+  plot_compare_distribution_joint_angles = True
+  plot_compare_distribution_spout_projection = True
+  plot_compare_distribution_spout_height = True
+  plot_compare_distribution_spout_tilt = True
+  plot_distributions_hand_to_pitcher_angles = True
+  
+  # Specify whether to show figure windows or process them in the background.
+  # Either way, plots will be saved as images if output_dir is specified below.
+  keep_plots_open = False
+else:
+  evaluation_config = json.loads(sys.argv[1])
+  feature_data_filepaths_byType = evaluation_config['feature_data_filepaths_byType']
+  output_dir = evaluation_config['output_dir']
+  interactively_animate_trajectories_exampleType = evaluation_config['interactively_animate_trajectories_exampleType']
+  save_trajectory_animations_eachType = evaluation_config['save_trajectory_animations_eachType']
+  save_trajectory_animations_compositeTypes = evaluation_config['save_trajectory_animations_compositeTypes']
+  plot_all_trajectories_singlePlot = evaluation_config['plot_all_trajectories_singlePlot']
+  plot_all_startingConditions_singlePlot = evaluation_config['plot_all_startingConditions_singlePlot']
+  plot_spout_tilt = evaluation_config['plot_spout_tilt']
+  plot_spout_pouring_projection = evaluation_config['plot_spout_pouring_projection']
+  plot_spout_height = evaluation_config['plot_spout_height']
+  plot_spout_speedJerk = evaluation_config['plot_spout_speedJerk']
+  plot_body_speedJerk = evaluation_config['plot_body_speedJerk']
+  plot_joint_angles = evaluation_config['plot_joint_angles']
+  plot_compare_distribution_body_speedJerk = evaluation_config['plot_compare_distribution_body_speedJerk']
+  plot_compare_distribution_spout_speedJerk = evaluation_config['plot_compare_distribution_spout_speedJerk']
+  plot_compare_distribution_joint_angles = evaluation_config['plot_compare_distribution_joint_angles']
+  plot_compare_distribution_spout_projection = evaluation_config['plot_compare_distribution_spout_projection']
+  plot_compare_distribution_spout_height = evaluation_config['plot_compare_distribution_spout_height']
+  plot_compare_distribution_spout_tilt = evaluation_config['plot_compare_distribution_spout_tilt']
+  plot_distributions_hand_to_pitcher_angles = evaluation_config['plot_distributions_hand_to_pitcher_angles']
+  keep_plots_open = evaluation_config['keep_plots_open']
+  
 print()
 
 ##################################################################

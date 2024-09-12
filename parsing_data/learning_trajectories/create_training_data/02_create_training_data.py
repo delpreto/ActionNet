@@ -50,7 +50,7 @@ subject_ids_toProcess = ['S00', 'S10', 'S11'] # S00, S10, S11, ted_S00
 
 # Specify the input files of trajectory data,
 # and the output file for feature matrices and labels.
-results_dir = os.path.realpath(os.path.join(actionsense_root_dir, 'results', 'learning_trajectories'))
+results_dir = os.path.realpath(os.path.join(actionsense_root_dir, 'results', 'learning_trajectories', 'humans'))
 trajectory_data_filepaths_humans = [os.path.join(results_dir, '%s_paths_humans_%s.hdf5' % (activity_mode, subject_id_toProcess)) for subject_id_toProcess in subject_ids_toProcess]
 trajectory_data_filepaths_robots = [os.path.join(results_dir, '%s_paths_robots_%s.hdf5' % (activity_mode, subject_id_toProcess)) for subject_id_toProcess in subject_ids_toProcess]
 training_data_filepaths = [os.path.join(results_dir, '%s_trainingData_%s.hdf5' % (activity_mode, subject_id_toProcess)) for subject_id_toProcess in subject_ids_toProcess]

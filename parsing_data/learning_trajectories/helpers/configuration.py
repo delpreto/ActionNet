@@ -29,6 +29,19 @@ from scipy.spatial.transform import Rotation
 
 resampled_fs_hz = 50
 
+# Adjust activity start/end times.
+# Will add the given offset to the original time.
+start_offsets_s = {
+  'S00': -0.5,
+  'S11': 0,
+  'S10': 0,
+}
+end_offsets_s = {
+  'S00': 0,
+  'S11': 0,
+  'S10': 0,
+}
+
 stationary_position_buffer_duration_s = 2
 stationary_position_min_ratio = 0.10
 stationary_position_max_ratio = 0.90

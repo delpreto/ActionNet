@@ -457,7 +457,7 @@ def infer_pitcher_holding_angle_rad_byTrial(bodyPath_data_byTrial,
 # Optionally exclude activities marked as bad.
 #   Some activities may have been marked as 'Bad' or 'Maybe' by the experimenter.
 #   Submitted notes with the activity typically give more information.
-def get_activity_startEnd_times_s(h5_file, exclude_bad_labels=True):
+def get_activity_startEnd_times_s(h5_file, start_offset_s=0, end_offset_s=0, exclude_bad_labels=True):
   device_name = 'experiment-activities'
   stream_name = 'activities'
   
@@ -498,13 +498,20 @@ def get_activity_startEnd_times_s(h5_file, exclude_bad_labels=True):
   activities_labels = np.array(activities_labels)
   activities_start_times_s = np.array(activities_start_times_s)
   activities_end_times_s = np.array(activities_end_times_s)
+  # Offset the times if desired.
+  activities_start_times_s = activities_start_times_s + start_offset_s
+  activities_end_times_s = activities_end_times_s + end_offset_s
   return (activities_labels, activities_start_times_s, activities_end_times_s)
 
 #===========================================================
 # Get start and end times of the target activity.
-def get_targetActivity_startEnd_times_s(h5_file, target_activity_label, exclude_bad_labels=True):
+def get_targetActivity_startEnd_times_s(h5_file, target_activity_label,
+                                        start_offset_s=0, end_offset_s=0,
+                                        exclude_bad_labels=True):
   # Get start/end times of every activity.
-  (activities_labels, activities_start_times_s, activities_end_times_s) = get_activity_startEnd_times_s(h5_file, exclude_bad_labels=exclude_bad_labels)
+  (activities_labels, activities_start_times_s, activities_end_times_s) = \
+    get_activity_startEnd_times_s(h5_file, start_offset_s=start_offset_s, end_offset_s=end_offset_s,
+                                  exclude_bad_labels=exclude_bad_labels)
   
   # Filter by the target activity label.
   targetActivity_indexes = [i for (i, label) in enumerate(activities_labels) if target_activity_label in label]

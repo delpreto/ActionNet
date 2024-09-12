@@ -353,7 +353,7 @@ def infer_spout_speed_m_s(feature_data, time_index=None):
   # Infer the speed.
   dxdydz = np.diff(spout_position_m, axis=0)
   dt_s = np.reshape(np.diff(times_s, axis=0), (-1, 1))
-  spout_speed_m_s = np.hstack([np.squeeze([0]), np.linalg.norm(dxdydz, axis=1)/np.squeeze(dt_s)])
+  spout_speed_m_s = np.hstack([np.squeeze([np.nan]), np.linalg.norm(dxdydz, axis=1)/np.squeeze(dt_s)])
   if time_index is None:
     return spout_speed_m_s
   else:
@@ -368,7 +368,7 @@ def infer_spout_acceleration_m_s_s(feature_data, time_index=None):
   # Infer the acceleration.
   dv = np.diff(spout_speed_m_s, axis=0)
   dt_s = np.reshape(np.diff(times_s, axis=0), (-1, 1))
-  spout_acceleration_m_s_s = np.hstack([np.squeeze([0]), dv/np.squeeze(dt_s)])
+  spout_acceleration_m_s_s = np.hstack([np.squeeze([np.nan]), dv/np.squeeze(dt_s)])
   if time_index is None:
     return spout_acceleration_m_s_s
   else:
@@ -383,7 +383,7 @@ def infer_spout_jerk_m_s_s_s(feature_data, time_index=None):
   # Infer the jerk.
   da = np.diff(spout_acceleration_m_s_s, axis=0)
   dt_s = np.reshape(np.diff(times_s, axis=0), (-1, 1))
-  spout_jerk_m_s_s_s = np.hstack([np.squeeze([0]), da/np.squeeze(dt_s)])
+  spout_jerk_m_s_s_s = np.hstack([np.squeeze([np.nan]), da/np.squeeze(dt_s)])
   if time_index is None:
     return spout_jerk_m_s_s_s
   else:

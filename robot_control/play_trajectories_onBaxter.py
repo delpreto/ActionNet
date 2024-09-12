@@ -19,12 +19,12 @@ input_data_dir = 'trajectory_data'
 trajectoryData_filepaths = {
   'S00': os.path.join(input_data_dir, 'pouring_trainingData_S00_forBaxter.npy'),
   'S11': os.path.join(input_data_dir, 'pouring_trainingData_S11_forBaxter.npy'),
-  'MODEL': os.path.join(input_data_dir, 'data_to_evaluate_forBaxter.npy'),
+  'model': os.path.join(input_data_dir, 'pouring_modelData_forBaxter.npy'),
 }
 referenceHandData_filepaths = {
   'S00': os.path.join(input_data_dir, 'pouring_trainingData_S00_forBaxter_referenceObject.npy'),
-  'S11': os.path.join(input_data_dir, 'pouring_trainingData_S11_forBaxter.npy'),
-  'MODEL': os.path.join(input_data_dir, 'data_to_evaluate_forBaxter_referenceObject.npy'),
+  'S11': os.path.join(input_data_dir, 'pouring_trainingData_S11_forBaxter_referenceObject.npy'),
+  'model': os.path.join(input_data_dir, 'pouring_modelData_forBaxter_referenceObject.npy'),
 }
 # trajectoryData_filepath = os.path.join(input_data_dir, 'pouring_trainingData_S00_forBaxter.npy')
 # referenceHandData_filepath = os.path.join(input_data_dir, 'pouring_trainingData_S00_forBaxter_referenceObject.npy')
@@ -35,13 +35,19 @@ referenceHandData_filepaths = {
 # trajectoryData_filepath = os.path.join(input_data_dir, 'data_to_evaluate_forBaxter.npy')
 # referenceHandData_filepath = os.path.join(input_data_dir, 'data_to_evaluate_forBaxter_referenceObject.npy')
 
-def get_animation_filepath(trajectory_index):
-  # return os.path.join('trajectory_animations_front',
-  #                     'trajectory_animation_S00_trial%02d.mp4' % trajectory_index)
-  # return os.path.join('trajectory_animations_front',
-  #                     'trajectory_animation_S11_trial%02d.mp4' % trajectory_index)
+def get_example_type(user_input):
+  if user_input.lower().strip() in ['model', 'm']:
+    return 'model'
+  try:
+    subject_index = int(user_input.lower().split('s')[1])
+    return 'S%02d' % subject_index
+  except:
+    pass
+  return None
+  
+def get_animation_filepath(example_type, trajectory_index):
   return os.path.join('trajectory_animations_front',
-                      'trajectory_animation_model_trial%02d.mp4' % trajectory_index)
+                      'trajectory_animation_%s_trial%02d.mp4' % (example_type, trajectory_index))
 
 # Specify columns in the data file.
 data_file_gripper_position_columns_xyz_m = [1,2,3]
@@ -49,15 +55,11 @@ data_file_gripper_quaternion_columns_wijk = [4,5,6,7]
 data_file_times_s_column = 0 # None to use the duration specified below
 
 # Specify an offset to add to positions.
-gripper_position_offset_m = np.array([0, 0, 0], dtype=float)/100
-referenceHand_position_offset_m = np.array([0, 0, 2], dtype=float)/100 # negative y towards center
+pitcher_position_offset_m = np.array([0, 0, 8], dtype=float) / 100
+glass_position_offset_m = np.array([-3, -6, 1], dtype=float) / 100 # negative y towards center
 
 # Specify default trajectory durations to use if no times_s column was provided.
 trajectory_duration_s = 10
-
-# Specify which trajectories to run.
-trajectory_indexes_toRun = None # None to run all
-# trajectory_indexes_toRun = [0] # None to run all
 
 # Specify the reference hand orientation.
 # referenceHand_quaternion_wijk = [-0.5, -0.5, -0.5, -0.5]
@@ -72,16 +74,15 @@ resting_joint_angles_rad = {
 
 ################################################
 
-# Create a Baxter controller.
+speed_factor = 1
+
+# Create Baxter controllers.
 controller_right = BaxterController(limb_name='right', print_debug=True)
 controller_right.set_resting_joint_angles_rad(resting_joint_angles_rad['right'])
 controller_right.open_gripper()
-if referenceHandData_filepath is not None:
-  controller_left = BaxterController(limb_name='left', print_debug=True)
-  controller_left.set_resting_joint_angles_rad(resting_joint_angles_rad['left'])
-  controller_left.open_gripper()
-else:
-  controller_left = None
+controller_left = BaxterController(limb_name='left', print_debug=True)
+controller_left.set_resting_joint_angles_rad(resting_joint_angles_rad['left'])
+controller_left.open_gripper()
 headController = BaxterHeadController()
 
 # # Move to the resting position.
@@ -90,46 +91,144 @@ headController = BaxterHeadController()
 #   controller_left.move_to_resting()
 # time.sleep(5)
 
-# Prompt user for trajectories to run.
+menu_descriptions_commands = [
+  ['Move to starting position', 's00/s11/model trial_index start [g/p]'],
+  ['Move to pouring position', 's00/s11/model trial_index pour [g/p]'],
+  ['Run a trajectory', 's00/s11/model trial_index run'],
+  ['', ''],
+  ['Open the left gripper', 'open/o'],
+  ['Close the left gripper', 'close/c'],
+  ['', ''],
+  ['Set the pitcher offset [cm]', '"offset-pitcher"/op # # #'],
+  ['Set the glass offset [cm]', '"offset-glass"/og # # #'],
+  ['Adjust the pitcher offset [cm]', '"offset pitcher"/op x/y/z'],
+  ['Adjust the glass offset [cm]', '"offset glass"/og x/y/z'],
+  ['', ''],
+  ['Set the speed factor', 'speed/s #'],
+  ['', ''],
+  ['Show the menu', 'menu/m'],
+  ['Quit', 'q/quit'],
+  ]
+max_description_length = max([len(x[0]) for x in menu_descriptions_commands])
+menu_str = '\n' + '='*50 + '\n'
+for (description, command) in menu_descriptions_commands:
+  menu_str += '  %s | %s\n' % (description.ljust(max_description_length), command)
+menu_str += '='*50 + '\n'
+print(menu_str)
+
+next_command = None
+previous_trajectory_command = None
+
+# Prompt user for commands or trajectories to run.
 while True:
-  command = raw_input('Enter a command of the form "S00/S11/model trial_index start/pour/run" or q to quit: ').strip().lower()
-  if command == 'q':
+  print()
+  print('='*50)
+  if next_command is None:
+    command = raw_input('>> Enter a command: ').strip().lower()
+  else:
+    print('Rerunning the previous trajectory command: %s' % next_command)
+    command = next_command
+    next_command = None
+  # Show the menu
+  if len(command) == 0:
+    continue
+  if command.lower() in ['m', 'menu']:
+    print(menu_str)
+    continue
+  # Quit
+  if command.lower() in ['q', 'quit']:
+    print('Quitting')
     break
+  # Control the left gripper.
   if command == 'open' or command == 'o':
+    print('Opening the left gripper')
     if controller_left is not None:
       controller_left.open_gripper()
     continue
   elif command == 'close' or command == 'c':
+    print('Closing the left gripper')
     if controller_left is not None:
       controller_left.close_gripper()
     continue
-  elif 'offset gripper' in command or 'og' == command.split()[0].strip():
+  # Set the gripper or pitcher offsets.
+  elif 'offset-pitcher' in command or 'op' == command.split()[0].strip() \
+      or 'offset-glass' in command or 'og' == command.split()[0].strip():
+    updating_pitcher = 'offset-pitcher' in command or 'op' == command.split()[0].strip()
+    updating_glass = 'offset-glass' in command or 'og' == command.split()[0].strip()
+    success = False
+    if updating_pitcher:
+      print('Current pitcher offset [cm]: ', 100*pitcher_position_offset_m)
+    if updating_glass:
+      print('Current glass offset [cm]: ', 100*glass_position_offset_m)
+    if len(command.split()) <= 1 or len(command.split()[1].strip()) == 0:
+      continue
+    # Set the absolute offsets.
     try:
-      offsets = [int(x) for x in command.split()[1:]]
-      gripper_position_offset_m = np.array(offsets, dtype=float)/100
-      print('Set gripper_position_offset_m to', gripper_position_offset_m)
+      offsets_m = np.array([int(x) for x in command.split()[1:]], dtype=float)/100
+      if updating_pitcher:
+        pitcher_position_offset_m = offsets_m
+        print('Set pitcher_position_offset_cm to', 100*pitcher_position_offset_m)
+      if updating_glass:
+        glass_position_offset_m = offsets_m
+        print('Set glass_position_offset_cm to', 100*glass_position_offset_m)
+      success = True
     except:
       pass
+    # Relatively adjust the offsets.
+    if not success:
+      try:
+        relative_offsets_str = command.split()[1]
+        x_count = sum([c == 'x' for c in relative_offsets_str])
+        y_count = sum([c == 'y' for c in relative_offsets_str])
+        z_count = sum([c == 'z' for c in relative_offsets_str])
+        relative_offsets_cm = np.array([x_count, y_count, z_count], dtype=float)
+        if '-' in relative_offsets_str:
+          relative_offsets_cm *= -1
+        if updating_pitcher:
+          pitcher_position_offset_m += relative_offsets_cm / 100
+          print('Set pitcher_position_offset_cm to', 100*pitcher_position_offset_m)
+        if updating_glass:
+          glass_position_offset_m += relative_offsets_cm / 100
+          print('Set glass_position_offset_cm to', 100*glass_position_offset_m)
+        success = True
+      except:
+        pass
+    if success and previous_trajectory_command is not None:
+      rerun_trajectory_command = raw_input('Press enter to rerun "%s" (or q to abort)' % previous_trajectory_command)
+      if rerun_trajectory_command.lower().strip() not in ['q', 'quit']:
+        next_command = previous_trajectory_command
+    if not success:
+      print('Invalid offset command')
     continue
-  elif 'offset reference' in command or 'or' == command.split()[0].strip():
+  # Adjust the speed factor.
+  if command.split()[0] in ['speed', 's']:
     try:
-      offsets = [int(x) for x in command.split()[1:]]
-      referenceHand_position_offset_m = np.array(offsets, dtype=float)/100
-      print('Set referenceHand_position_offset_m to', referenceHand_position_offset_m)
+      speed_factor = float(command.split()[1].strip())
+      print('Set the speed factor to %g' % speed_factor)
     except:
-      pass
+      print('Invalid speed command')
     continue
+  # Parse a trajectory-based command.
   try:
-    example_type = command.split(' ')[0].strip().upper()
-    trajectory_index = int(command.split(' ')[1].strip())
-    command = command.split(' ')[2:]
+    command_split = [x.strip() for x in command.split(' ')]
+    example_type = get_example_type(command_split[0])
+    trajectory_index = int(command_split[1])
+    trajectory_command = command_split[2].lower()
+    if len(command_split) >= 4:
+      trajectory_arm = command_split[3].lower()
+      trajectory_move_pitcher = trajectory_arm in ['pitcher', 'p']
+      trajectory_move_glass = trajectory_arm in ['glass', 'g']
+    else:
+      trajectory_move_pitcher = True
+      trajectory_move_glass = True
+    if controller_left is None:
+      trajectory_move_glass = False
+    previous_trajectory_command = command
   except:
+    print('Invalid trajectory command')
     continue
-  if trajectory_indexes_toRun is not None and trajectory_index not in trajectory_indexes_toRun:
-    continue
-  print('='*50)
-  print('TRAJECTORY INDEX %02d' % trajectory_index)
   
+  # Clear the screen and LEDs.
   headController.showColor('black')
   headController.setHaloLED(green_percent=0, red_percent=0)
 
@@ -143,6 +242,8 @@ while True:
   # Get the reference hand position.
   if referenceHand_positions_m is not None:
     referenceHand_position_m = referenceHand_positions_m[trajectory_index, :]
+  else:
+    referenceHand_position_m = None
   
   # Get the position and quaternion for each timestep.
   feature_matrix = np.squeeze(feature_matrices[trajectory_index, :, :])
@@ -150,23 +251,24 @@ while True:
   gripper_quaternions_wijk = feature_matrix[:, data_file_gripper_quaternion_columns_wijk]
   
   # Add an offset if desired.
-  gripper_positions_xyz_m = gripper_positions_xyz_m + gripper_position_offset_m
+  gripper_positions_xyz_m = gripper_positions_xyz_m + pitcher_position_offset_m
   if referenceHand_position_m is not None:
-    referenceHand_position_m = referenceHand_position_m + referenceHand_position_offset_m
+    referenceHand_position_m = referenceHand_position_m + glass_position_offset_m
   
   # Get a time vector.
   if data_file_times_s_column is not None:
     times_s = np.squeeze(feature_matrix[:, data_file_times_s_column])
   else:
     times_s = np.linspace(start=0, stop=trajectory_duration_s, num=feature_matrix.shape[0])
+  times_s = times_s/speed_factor
   Fs = (len(times_s)-1)/(times_s[-1] - times_s[0])
   Ts = 1/Fs
   
   # Build the trajectory.
   success = controller_right.build_trajectory_from_gripper_poses(
-    times_from_start_s=[times_s[i] for i in range(0,len(times_s))],
-    gripper_positions_m=[gripper_positions_xyz_m[i] for i in range(0,len(times_s))],
-    gripper_orientations_quaternion_wijk=[gripper_quaternions_wijk[i] for i in range(0,len(times_s))],
+    times_from_start_s=[times_s[i] for i in range(0, len(times_s))],
+    gripper_positions_m=[gripper_positions_xyz_m[i] for i in range(0, len(times_s))],
+    gripper_orientations_quaternion_wijk=[gripper_quaternions_wijk[i] for i in range(0, len(times_s))],
     goal_time_tolerance_s=0.1,
     initial_seed_joint_angles_rad=controller_right.get_resting_joint_angles_rad(should_print=False),
     should_print=False)
@@ -176,76 +278,78 @@ while True:
     continue
   
   # Move to the starting position.
-  if 'start' in command:
-    if 'ref' not in command or 'pitcher' in command:
+  if 'start' == trajectory_command:
+    print('Moving to starting position of %s index %d | pitcher %s glass %s' % (example_type, trajectory_index, trajectory_move_pitcher, trajectory_move_glass))
+    if trajectory_move_pitcher:
       controller_right.move_to_trajectory_start(wait_for_completion=True)
-    if 'ref' in command or 'pitcher' not in command:
-      if controller_left is not None:
-        controller_left.open_gripper()
-        controller_left.move_to_gripper_pose(gripper_position_m=referenceHand_position_m,
-                                             gripper_orientation_quaternion_wijk=referenceHand_quaternion_wijk,
-                                             wait_for_completion=True,
-                                             seed_joint_angles_rad=controller_left.get_resting_joint_angles_rad())
-  
-  # Move to the pouring position.
-  elif 'pour' in command:
-    if 'ref' not in command or 'pitcher' in command:
-      controller_right.move_to_trajectory_index(step_index=int(len(times_s)/2), wait_for_completion=True)
-    if 'ref' in command or 'pitcher' not in command:
-      if controller_left is not None:
-        controller_left.open_gripper()
-        controller_left.move_to_gripper_pose(gripper_position_m=referenceHand_position_m,
-                                             gripper_orientation_quaternion_wijk=referenceHand_quaternion_wijk,
-                                             wait_for_completion=True,
-                                             seed_joint_angles_rad=controller_left.get_resting_joint_angles_rad())
-  
-  # Run the trajectory
-  elif command == 'run':
-    headController.showColor('black')
-    headController.setHaloLED(green_percent=100, red_percent=100)
-    # Move to the starting position.
-    if controller_left is not None:
-      controller_left.open_gripper()
-    abort = raw_input('  Press enter to move to the starting position or q to quit: ').strip().lower() == 'q'
-    if abort:
-      break
-    controller_right.move_to_trajectory_start(wait_for_completion=True)
-    if controller_left is not None:
+    if trajectory_move_glass:
       controller_left.move_to_gripper_pose(gripper_position_m=referenceHand_position_m,
                                            gripper_orientation_quaternion_wijk=referenceHand_quaternion_wijk,
                                            wait_for_completion=True,
                                            seed_joint_angles_rad=controller_left.get_resting_joint_angles_rad())
-      abort = raw_input('  Press enter to close the left hand or q to quit: ').strip().lower() == 'q'
-      if abort:
-        break
-      controller_left.close_gripper()
-    # Wait for confirmation.
-    abort = raw_input('  Press enter to start the trajectory or q to quit: ').strip().lower() == 'q'
+  
+  # Move to the pouring position.
+  elif 'pour' == trajectory_command:
+    print('Moving to pouring position of %s index %d | pitcher %s glass %s' % (example_type, trajectory_index, trajectory_move_pitcher, trajectory_move_glass))
+    if trajectory_move_pitcher:
+      controller_right.move_to_trajectory_index(step_index=int(len(times_s)/2), wait_for_completion=True)
+    if trajectory_move_glass:
+      controller_left.move_to_gripper_pose(gripper_position_m=referenceHand_position_m,
+                                           gripper_orientation_quaternion_wijk=referenceHand_quaternion_wijk,
+                                           wait_for_completion=True,
+                                           seed_joint_angles_rad=controller_left.get_resting_joint_angles_rad())
+  
+  # Run the trajectory
+  elif 'run' == trajectory_command:
+    print('Running trajectory for %s index %d | pitcher %s glass %s' % (example_type, trajectory_index, trajectory_move_pitcher, trajectory_move_glass))
+    headController.showColor('black')
+    headController.setHaloLED(green_percent=100, red_percent=100)
+    # Move to the starting position.
+    if trajectory_move_glass:
+      controller_left.open_gripper()
+    abort = raw_input('  Press enter to move to the starting position or q to quit: ').strip().lower() in ['q', 'quit']
     if abort:
-      break
-    # Start the video animation if one exists.
-    animation_video_filepath = get_animation_filepath(trajectory_index)
-    if os.path.exists(animation_video_filepath):
-      done_playing_video = True
-      def showVideo_thread():
-        global done_playing_video
-        done_playing_video = False
-        headController.showVideo(videoFile=animation_video_filepath)
+      continue
+    if trajectory_move_pitcher:
+      controller_right.move_to_trajectory_start(wait_for_completion=True)
+    if trajectory_move_glass:
+      controller_left.move_to_gripper_pose(gripper_position_m=referenceHand_position_m,
+                                           gripper_orientation_quaternion_wijk=referenceHand_quaternion_wijk,
+                                           wait_for_completion=True,
+                                           seed_joint_angles_rad=controller_left.get_resting_joint_angles_rad())
+      abort = raw_input('  Press enter to close the left hand or q to quit: ').strip().lower() in ['q', 'quit']
+      if abort:
+        continue
+      controller_left.close_gripper()
+    video_thread = None
+    done_playing_video = True
+    if trajectory_move_pitcher:
+      # Wait for confirmation.
+      abort = raw_input('  Press enter to start the trajectory or q to quit: ').strip().lower() in ['q', 'quit']
+      if abort:
+        continue
+      # Start the video animation if one exists.
+      animation_video_filepath = get_animation_filepath(example_type, trajectory_index)
+      if os.path.exists(animation_video_filepath):
         done_playing_video = True
-      video_thread = Thread(target=showVideo_thread)
-      video_thread.start()
-    else:
-      video_thread = None
-      done_playing_video = True
-    # Run the trajectory.
-    controller_right.run_trajectory(wait_for_completion=True)
+        def showVideo_thread():
+          global done_playing_video
+          done_playing_video = False
+          headController.showVideo(videoFile=animation_video_filepath)
+          done_playing_video = True
+        video_thread = Thread(target=showVideo_thread)
+        video_thread.start()
+      else:
+        video_thread = None
+        done_playing_video = True
+      # Run the trajectory.
+      controller_right.run_trajectory(wait_for_completion=True)
     # Nod.
     headController.setHaloLED(green_percent=100, red_percent=0)
     headController.nod(times=2)
     # Wait for the video to finish.
     if video_thread is not None and not done_playing_video:
       video_thread.join()
-  
   
   # # Wait
   # time.sleep(3)

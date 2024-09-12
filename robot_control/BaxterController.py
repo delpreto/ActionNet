@@ -390,6 +390,9 @@ class BaxterController:
       self.move_to_joint_angles_rad(joint_angles_rad,
                                     timeout_s=timeout_s, wait_for_completion=wait_for_completion,
                                     tolerance_rad=tolerance_rad, should_print=should_print)
+      return True
+    else:
+      return False
     
   ##############################################
   # Inverse kinematics

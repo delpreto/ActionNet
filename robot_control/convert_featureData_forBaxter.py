@@ -8,14 +8,14 @@ import pyperclip
 ################################################
 
 # Specify the files with trajectory feature data.
-data_dir = os.path.join('C:/Users/jdelp/Desktop/ActionSense/results/learning_trajectories',
-                        'from_konstantin', '2024-09-07_09-58')
-input_data_filepath = os.path.join(data_dir, 'data_to_evaluate.hdf5')
-# data_dir = os.path.join('C:/Users/jdelp/Desktop/ActionSense/results/learning_trajectories')
+data_dir = os.path.join('C:/Users/jdelp/Desktop/ActionSense/results/learning_trajectories')
 # input_data_filepath = os.path.join(data_dir, 'pouring_trainingData_S00.hdf5')
+# input_data_filepath = os.path.join(data_dir, 'pouring_trainingData_S11.hdf5')
+input_data_filepath = os.path.join(data_dir, 'models', 'state-space', '2024-09-10_17-10', 'pouring_modelData.hdf5')
 
-output_featureMatrices_filepath = os.path.join(data_dir, '%s_forBaxter.npy' % os.path.splitext(input_data_filepath)[0])
-output_referenceObjects_filepath = os.path.join(data_dir, '%s_forBaxter_referenceObject.npy' % os.path.splitext(input_data_filepath)[0])
+output_dir = os.path.join(data_dir, 'trajectory_data_for_baxter')
+output_featureMatrices_filepath = os.path.join(output_dir, '%s_forBaxter.npy' % os.path.splitext(os.path.basename(input_data_filepath))[0])
+output_referenceObjects_filepath = os.path.join(output_dir, '%s_forBaxter_referenceObject.npy' % os.path.splitext(os.path.basename(input_data_filepath))[0])
 
 referenceObject_height_cm = 15.8
 
@@ -136,7 +136,6 @@ for example_index in range(num_examples):
   
   # Translate the reference object position to a Baxter hand position.
   referenceObject_position_m = referenceObject_positions_m[example_index, :]
-  print(referenceObject_position_m)
   referenceObject_position_m = convert_position_referenceHand(referenceObject_position_m)
   gripper_referenceObject_positions_m[example_index, :] = referenceObject_position_m
   

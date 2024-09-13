@@ -3,26 +3,32 @@ import h5py
 import numpy as np
 from scipy.spatial.transform import Rotation
 import os
+script_dir = os.path.dirname(os.path.realpath(__file__))
+actionsense_root_dir = script_dir
+while os.path.split(actionsense_root_dir)[-1] != 'ActionSense':
+  actionsense_root_dir = os.path.realpath(os.path.join(actionsense_root_dir, '..'))
 import pyperclip
 
 ################################################
 
 # Specify the files with trajectory feature data.
-data_dir = os.path.join('C:/Users/jdelp/Desktop/ActionSense/results/learning_trajectories')
-# input_data_filepath = os.path.join(data_dir, 'pouring_trainingData_S00.hdf5')
-# input_data_filepath = os.path.join(data_dir, 'pouring_trainingData_S11.hdf5')
-input_data_filepath = os.path.join(data_dir, 'models', 'state-space', '2024-09-10_17-10', 'pouring_modelData.hdf5')
+data_dir = os.path.join(actionsense_root_dir, 'results', 'learning_trajectories')
+data_dir_humans = os.path.realpath(os.path.join(data_dir, 'humans'))
+data_dir_model = os.path.join(data_dir, 'models', 'state-space',
+                              # '2024-09-10_17-10'
+                              '2024-09-12_15-08'
+                              )
+input_data_filepaths = [
+  os.path.join(data_dir_humans, 'pouring_trainingData_S00.hdf5'),
+  os.path.join(data_dir_humans, 'pouring_trainingData_S11.hdf5'),
+  os.path.join(data_dir_model, 'pouring_modelData.hdf5'),
+]
 
 output_dir = os.path.join(data_dir, 'trajectory_data_for_baxter')
-output_featureMatrices_filepath = os.path.join(output_dir, '%s_forBaxter.npy' % os.path.splitext(os.path.basename(input_data_filepath))[0])
-output_referenceObjects_filepath = os.path.join(output_dir, '%s_forBaxter_referenceObject.npy' % os.path.splitext(os.path.basename(input_data_filepath))[0])
+os.makedirs(output_dir, exist_ok=True)
 
-referenceObject_height_cm = 15.8
-
-data_file_times_s_column = slice(0,1)
-data_file_gripper_position_columns_xyz_m = slice(1,4)
-data_file_gripper_quaternion_columns_wijk = slice(4,8)
-num_gripper_features = 8
+################################################
+################################################
 
 def convert_quaternion(quat_xsens_wijk):
   # Do an initial rotation, to make the xsens quat match the example quat used during testing.
@@ -103,56 +109,79 @@ def convert_position_referenceHand(xyz_xsens_m):
 print()
 
 ################################################
+################################################
 
-# Extract the trajectory data.
-print('Loading feature matrices from %s' % input_data_filepath)
-h5_file = h5py.File(input_data_filepath, 'r')
-hand_position_m = np.array(h5_file['hand_position_m'])
-hand_quaternion_wijk = np.array(h5_file['hand_quaternion_wijk'])
-referenceObject_positions_m = np.squeeze(h5_file['referenceObject_position_m'])
-time_s = np.array(h5_file['time_s'])
-h5_file.close()
-
-num_examples = hand_position_m.shape[0]
-num_timesteps = hand_position_m.shape[1]
-
-# Adjust for the Baxter frame.
-print('Rotating quaternions and translating positions to the Baxter frame')
-gripper_feature_matrices = np.zeros(shape=(num_examples, num_timesteps, num_gripper_features), dtype=float)
-gripper_referenceObject_positions_m = np.zeros(shape=(num_examples, 3), dtype=float)
-for example_index in range(num_examples):
-  feature_matrix = np.zeros(shape=(num_timesteps, num_gripper_features), dtype=float)
-  # Rotate the quaternions.
-  gripper_quaternions_wijk = hand_quaternion_wijk[example_index, :, :]
-  gripper_quaternions_wijk = [convert_quaternion(quat_wijk) for quat_wijk in gripper_quaternions_wijk]
-  gripper_quaternions_wijk = np.array(gripper_quaternions_wijk)
-  gripper_feature_matrices[example_index, :, data_file_gripper_quaternion_columns_wijk] = gripper_quaternions_wijk
-  # Translate the positions.
-  gripper_positions_xyz_m = hand_position_m[example_index, :, :]
-  gripper_positions_xyz_m = [convert_position_trajectoryHand(xyz_m) for xyz_m in gripper_positions_xyz_m]
-  gripper_feature_matrices[example_index, :, data_file_gripper_position_columns_xyz_m] = gripper_positions_xyz_m
-  # Copy the time.
-  gripper_feature_matrices[example_index, :, data_file_times_s_column] = time_s[example_index]
+for (input_data_index, input_data_filepath) in enumerate(input_data_filepaths):
+  output_featureMatrices_filepath = os.path.join(output_dir, '%s_forBaxter.npy' % os.path.splitext(os.path.basename(input_data_filepath))[0])
+  output_referenceObjects_filepath = os.path.join(output_dir, '%s_forBaxter_referenceObject.npy' % os.path.splitext(os.path.basename(input_data_filepath))[0])
   
-  # Translate the reference object position to a Baxter hand position.
-  referenceObject_position_m = referenceObject_positions_m[example_index, :]
-  referenceObject_position_m = convert_position_referenceHand(referenceObject_position_m)
-  gripper_referenceObject_positions_m[example_index, :] = referenceObject_position_m
+  referenceObject_height_cm = 15.8
   
-# Save a matrix with only the time, position, and quaternion.
-print('Saving trajectory-hand data to %s' % output_featureMatrices_filepath)
-np.save(output_featureMatrices_filepath, gripper_feature_matrices, fix_imports=True)
-print('Saving reference-hand data to %s' % output_referenceObjects_filepath)
-np.save(output_referenceObjects_filepath, gripper_referenceObject_positions_m, fix_imports=True)
-
-# Print the initial hand positions.
-print()
-print('Initial hand positions [cm]:')
-initial_hand_positions_str = []
-for example_index in range(num_examples):
-  initial_hand_positions_str.append('\t'.join([str(a*100) for a in hand_position_m[example_index, 0, :]]))
-print('\n'.join(initial_hand_positions_str))
-pyperclip.copy('\n'.join(initial_hand_positions_str))
+  data_file_times_s_column = slice(0,1)
+  data_file_gripper_position_columns_xyz_m = slice(1,4)
+  data_file_gripper_quaternion_columns_wijk = slice(4,8)
+  num_gripper_features = 8
+  
+  # Extract the trajectory data.
+  print('Loading feature matrices from %s' % input_data_filepath)
+  h5_file = h5py.File(input_data_filepath, 'r')
+  hand_position_m = np.array(h5_file['hand_position_m'])
+  hand_quaternion_wijk = np.array(h5_file['hand_quaternion_wijk'])
+  referenceObject_positions_m = np.squeeze(h5_file['referenceObject_position_m'])
+  time_s = np.array(h5_file['time_s'])
+  h5_file.close()
+  
+  num_examples = hand_position_m.shape[0]
+  num_timesteps = hand_position_m.shape[1]
+  
+  # Adjust for the Baxter frame.
+  print('Rotating quaternions and translating positions to the Baxter frame')
+  gripper_feature_matrices = np.zeros(shape=(num_examples, num_timesteps, num_gripper_features), dtype=float)
+  gripper_referenceObject_positions_m = np.zeros(shape=(num_examples, 3), dtype=float)
+  for example_index in range(num_examples):
+    feature_matrix = np.zeros(shape=(num_timesteps, num_gripper_features), dtype=float)
+    # Rotate the quaternions.
+    gripper_quaternions_wijk = hand_quaternion_wijk[example_index, :, :]
+    gripper_quaternions_wijk = [convert_quaternion(quat_wijk) for quat_wijk in gripper_quaternions_wijk]
+    gripper_quaternions_wijk = np.array(gripper_quaternions_wijk)
+    gripper_feature_matrices[example_index, :, data_file_gripper_quaternion_columns_wijk] = gripper_quaternions_wijk
+    # Translate the positions.
+    gripper_positions_xyz_m = hand_position_m[example_index, :, :]
+    gripper_positions_xyz_m = [convert_position_trajectoryHand(xyz_m) for xyz_m in gripper_positions_xyz_m]
+    gripper_feature_matrices[example_index, :, data_file_gripper_position_columns_xyz_m] = gripper_positions_xyz_m
+    # Copy the time.
+    gripper_feature_matrices[example_index, :, data_file_times_s_column] = time_s[example_index]
+    
+    # Translate the reference object position to a Baxter hand position.
+    referenceObject_position_m = referenceObject_positions_m[example_index, :]
+    referenceObject_position_m = convert_position_referenceHand(referenceObject_position_m)
+    gripper_referenceObject_positions_m[example_index, :] = referenceObject_position_m
+    
+  # Save a matrix with only the time, position, and quaternion.
+  print('Saving trajectory-hand data to %s' % output_featureMatrices_filepath)
+  np.save(output_featureMatrices_filepath, gripper_feature_matrices, fix_imports=True)
+  print('Saving reference-hand data to %s' % output_referenceObjects_filepath)
+  np.save(output_referenceObjects_filepath, gripper_referenceObject_positions_m, fix_imports=True)
+  
+  # Print the initial hand positions.
+  print()
+  print('Initial glass positions [cm]:')
+  initial_glass_positions_str = []
+  for example_index in range(num_examples):
+    initial_glass_positions_str.append('\t'.join([str(round(a*100,6)) for a in referenceObject_positions_m[example_index, :]]))
+  print('\n'.join(initial_glass_positions_str))
+  pyperclip.copy('\n'.join(initial_glass_positions_str))
+  # print('Initial hand positions [cm]:')
+  # initial_hand_positions_str = []
+  # for example_index in range(num_examples):
+  #   initial_hand_positions_str.append('\t'.join([str(a*100) for a in hand_position_m[example_index, 0, :]]))
+  # print('\n'.join(initial_hand_positions_str))
+  # pyperclip.copy('\n'.join(initial_hand_positions_str))
+  print()
+  print('The initial glass positions from [%s] have been copied to the clipboard' % os.path.basename(input_data_filepath))
+  if input_data_index+1 < len(input_data_filepaths):
+    print('Press Enter to continue')
+    input()
 
 print()
 print('Done!')

@@ -55,8 +55,8 @@ data_file_gripper_quaternion_columns_wijk = [4,5,6,7]
 data_file_times_s_column = 0 # None to use the duration specified below
 
 # Specify an offset to add to positions.
-pitcher_position_offset_m = np.array([0, 0, 8], dtype=float) / 100
-glass_position_offset_m = np.array([-3, -6, 1], dtype=float) / 100 # negative y towards center
+pitcher_position_offset_m = np.array([0, -4, 8], dtype=float) / 100
+glass_position_offset_m = np.array([-3, -14, 6], dtype=float) / 100 # negative y towards center
 
 # Specify default trajectory durations to use if no times_s column was provided.
 trajectory_duration_s = 10
@@ -118,6 +118,7 @@ print(menu_str)
 
 next_command = None
 previous_trajectory_command = None
+previous_command = ''
 
 # Prompt user for commands or trajectories to run.
 while True:
@@ -125,6 +126,11 @@ while True:
   print('='*50)
   if next_command is None:
     command = raw_input('>> Enter a command: ').strip().lower()
+    if command == '.':
+      print('Rerunning the previous command: %s' % previous_command)
+      command = previous_command
+    else:
+      previous_command = command
   else:
     print('Rerunning the previous trajectory command: %s' % next_command)
     command = next_command
@@ -149,6 +155,35 @@ while True:
     print('Closing the left gripper')
     if controller_left is not None:
       controller_left.close_gripper()
+    continue
+  elif command.split()[0] == 'clear':
+    try:
+      if command.split()[1].strip() in ['p', 'pitcher']:
+        print('Clearing the pitcher arm')
+        controller_right.move_to_joint_angles_rad({
+          'right_s0': np.deg2rad(11.1181640625),
+          'right_s1': np.deg2rad(-39.7705078125),
+          'right_e0': np.deg2rad(3.251953125),
+          'right_e1': np.deg2rad(118.498535156),
+          'right_w0': np.deg2rad(-24.3017578125),
+          'right_w1': np.deg2rad(-79.9145507812),
+          'right_w2': np.deg2rad(-82.6611328125),
+        }, wait_for_completion=True)
+      if command.split()[1].strip() in ['g', 'glass']:
+        print('Clearing the glass arm')
+        if controller_left is not None:
+          # joint_angles_rad['right_s0'] = np.deg2rad(15)
+          controller_left.move_to_joint_angles_rad({
+            'left_s0': np.deg2rad(0),
+            'left_s1': np.deg2rad(3.58154296875),
+            'left_e0': np.deg2rad(-0.81298828125),
+            'left_e1': np.deg2rad(88.76953125),
+            'left_w0': np.deg2rad(30.8276367187),
+            'left_w1': np.deg2rad(-89.9560546875),
+            'left_w2': np.deg2rad(174.594726562),
+          }, wait_for_completion=True)
+    except:
+      print('Error parsing or executing the command')
     continue
   # Set the gripper or pitcher offsets.
   elif 'offset-pitcher' in command or 'op' == command.split()[0].strip() \
@@ -194,7 +229,7 @@ while True:
       except:
         pass
     if success and previous_trajectory_command is not None:
-      rerun_trajectory_command = raw_input('Press enter to rerun "%s" (or q to abort)' % previous_trajectory_command)
+      rerun_trajectory_command = raw_input('Press enter to rerun "%s" (or q to abort) ' % previous_trajectory_command)
       if rerun_trajectory_command.lower().strip() not in ['q', 'quit']:
         next_command = previous_trajectory_command
     if not success:
@@ -233,6 +268,9 @@ while True:
   headController.setHaloLED(green_percent=0, red_percent=0)
 
   # Extract the data.
+  if example_type not in trajectoryData_filepaths:
+    print('Unknown example type [%s]' % example_type)
+    continue
   feature_matrices = np.load(trajectoryData_filepaths[example_type])
   if referenceHandData_filepaths is not None:
     referenceHand_positions_m = np.load(referenceHandData_filepaths[example_type])

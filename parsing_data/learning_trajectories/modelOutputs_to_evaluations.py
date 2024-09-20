@@ -12,7 +12,8 @@ input_dir = os.path.realpath(os.path.join(actionsense_root_dir, 'results', 'lear
                                          # '2024-09-06_17-25'
                                          # '2024-09-06_19-02'
                                          # '2024-09-07_09-58'
-                                         '2024-09-10_17-10'
+                                         # '2024-09-10_17-10'
+                                         '2024-09-13_18-15_forSubmission'
                                            ))
 # Specify where to save the outputs.
 output_dir = input_dir
@@ -34,6 +35,7 @@ evaluation_config = {
     'model': os.path.realpath(modelData_output_filepath),
   },
   'output_dir': os.path.realpath(output_dir), # None to not save the plots
+  'plot_exports_extension': 'png',
   
   'plot_spout_speedJerk':  True,
   'plot_spout_tilt':  True,
@@ -50,7 +52,7 @@ evaluation_config = {
   'plot_body_speedJerk':  False,
   'plot_joint_angles':  False,
   'plot_compare_distribution_body_speedJerk':  False,
-  'plot_compare_distribution_spout_speedJerk':  False,
+  'plot_compare_distribution_spout_speedJerk':  True, # includes Wasserstein distances
   'plot_compare_distribution_joint_angles':  False,
   'plot_compare_distribution_spout_projection':  False,
   'plot_compare_distribution_spout_height':  False,

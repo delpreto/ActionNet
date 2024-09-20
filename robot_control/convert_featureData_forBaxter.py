@@ -159,29 +159,29 @@ for (input_data_index, input_data_filepath) in enumerate(input_data_filepaths):
     referenceObject_position_m = convert_position_referenceHand(referenceObject_position_m)
     gripper_referenceObject_positions_m[example_index, :] = referenceObject_position_m
     
-  # # Save a matrix with only the time, position, and quaternion.
-  # print('Saving trajectory-hand data to %s' % output_featureMatrices_filepath)
-  # np.save(output_featureMatrices_filepath, gripper_feature_matrices, fix_imports=True)
-  # print('Saving reference-hand data to %s' % output_referenceObjects_filepath)
-  # np.save(output_referenceObjects_filepath, gripper_referenceObject_positions_m, fix_imports=True)
+  # Save a matrix with only the time, position, and quaternion.
+  print('Saving trajectory-hand data to %s' % output_featureMatrices_filepath)
+  np.save(output_featureMatrices_filepath, gripper_feature_matrices, fix_imports=True)
+  print('Saving reference-hand data to %s' % output_referenceObjects_filepath)
+  np.save(output_referenceObjects_filepath, gripper_referenceObject_positions_m, fix_imports=True)
   
   # Print the initial hand positions.
   print()
-  # print('Glass positions [cm]:')
-  # initial_glass_positions_str = []
-  # for example_index in range(num_examples):
-  #   initial_glass_positions_str.append('\t'.join([str(round(a*100,6)) for a in referenceObject_positions_m[example_index, :]]))
-  # print('\n'.join(initial_glass_positions_str))
-  # pyperclip.copy('\n'.join(initial_glass_positions_str))
-  # print('The glass positions from [%s] have been copied to the clipboard' % os.path.basename(input_data_filepath))
-  print('Initial hand positions [cm]:')
-  initial_hand_positions_str = []
+  print('Glass positions [cm]:')
+  initial_glass_positions_str = []
   for example_index in range(num_examples):
-    initial_hand_positions_str.append('\t'.join([str(a*100) for a in hand_position_m[example_index, 0, :]]))
-  print('\n'.join(initial_hand_positions_str))
-  pyperclip.copy('\n'.join(initial_hand_positions_str))
-  print()
-  print('The initial hand positions from [%s] have been copied to the clipboard' % os.path.basename(input_data_filepath))
+    initial_glass_positions_str.append('\t'.join([str(round(a*100,6)) for a in referenceObject_positions_m[example_index, :]]))
+  print('\n'.join(initial_glass_positions_str))
+  pyperclip.copy('\n'.join(initial_glass_positions_str))
+  print('The glass positions from [%s] have been copied to the clipboard' % os.path.basename(input_data_filepath))
+  # print('Initial hand positions [cm]:')
+  # initial_hand_positions_str = []
+  # for example_index in range(num_examples):
+  #   initial_hand_positions_str.append('\t'.join([str(a*100) for a in hand_position_m[example_index, 0, :]]))
+  # print('\n'.join(initial_hand_positions_str))
+  # pyperclip.copy('\n'.join(initial_hand_positions_str))
+  # print()
+  # print('The initial hand positions from [%s] have been copied to the clipboard' % os.path.basename(input_data_filepath))
   if input_data_index+1 < len(input_data_filepaths):
     print('Press Enter to continue')
     input()

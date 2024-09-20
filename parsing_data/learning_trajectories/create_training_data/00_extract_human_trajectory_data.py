@@ -64,12 +64,12 @@ save_plot_pitcher_angle_distance_metrics = False
 infer_pitcher_holding_angle = False
 
 # Specify the subjects to consider.
-subject_ids_toProcess = ['S00', 'S11'] # S00, S10, S11, ted_S00
+subject_ids_toProcess = ['S00', 'S11', 'S10'] # S00, S10, S11, ted_S00
 subject_ids_filter = None # None to consider all subjects
 
 data_dir = os.path.realpath(os.path.join(actionsense_root_dir, 'data'))
 output_dir = os.path.realpath(os.path.join(actionsense_root_dir,
-                                           'results', 'learning_trajectories', 'humansTEMP'))
+                                           'results', 'learning_trajectories', 'humans'))
 os.makedirs(output_dir, exist_ok=True)
 
 experiments_dirs = []

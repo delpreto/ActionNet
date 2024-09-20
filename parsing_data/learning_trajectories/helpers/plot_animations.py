@@ -482,7 +482,6 @@ def plot_all_startingConditions(feature_data_allTrials_byType, truth_data_byType
     num_trials = feature_data_allTrials['time_s'].shape[0]
     for trial_index in range(num_trials):
       if example_type in trial_indexes_to_exclude_byType and trial_index in trial_indexes_to_exclude_byType[example_type]:
-        print('SKIPPING', example_type, trial_index)
         continue
       feature_data = get_feature_data_for_trial(feature_data_allTrials, trial_index)
       feature_data = parse_feature_data(feature_data)

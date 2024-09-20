@@ -36,9 +36,12 @@ import os
 import distinctipy
 
 import matplotlib
-matplotlib.rcParams['pdf.fonttype'] = 42 # avoid type 3 fonts (which are not accepted by PaperPlaza)
+# Avoid type 3 fonts (which are not accepted by PaperPlaza)
+matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
+# Store the default backend, for switching between visible/hidden plotting.
 default_matplotlib_backend = matplotlib.rcParams['backend']
+
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from matplotlib.patches import Ellipse
@@ -321,7 +324,6 @@ def plot_compare_distributions_spout_dynamics(feature_data_byType,
   distributions_jerk_m_s_s_s = dict.fromkeys(example_types, None)
   results_speed_m_s = dict([(example_type, dict.fromkeys(example_types, None)) for example_type in example_types])
   results_jerk_m_s_s_s = dict([(example_type, dict.fromkeys(example_types, None)) for example_type in example_types])
-  distributions_speed_m_s_pouring = dict.fromkeys(example_types, None)
   
   # Process each example type (each distribution category).
   for (example_type, feature_data_allTrials) in feature_data_byType.items():
@@ -335,7 +337,7 @@ def plot_compare_distributions_spout_dynamics(feature_data_byType,
       feature_data = get_feature_data_for_trial(feature_data_allTrials, trial_index)
       speeds_m_s[trial_index] = infer_spout_speed_m_s(feature_data)
       jerks_m_s_s_s[trial_index] = infer_spout_jerk_m_s_s_s(feature_data)
-  
+    
     # If desired, only extract a certain window of time relative to the inferred pouring time.
     for trial_index in range(num_trials):
       feature_data = get_feature_data_for_trial(feature_data_allTrials, trial_index)
@@ -351,14 +353,6 @@ def plot_compare_distributions_spout_dynamics(feature_data_byType,
       if region == 'post_pouring':
         speeds_m_s[trial_index] = speeds_m_s[trial_index][pour_end_index:-1]
         jerks_m_s_s_s[trial_index] = jerks_m_s_s_s[trial_index][pour_end_index:-1]
-    
-      
-      (_, stationary_pose) = infer_stationary_poses(feature_data['time_s'], parse_feature_data(feature_data),
-                                                use_variance=True, hand_segment_key='hand')
-      speeds_m_s_pouring[trial_index] = speeds_m_s[trial_index][stationary_pose['start_time_index']:stationary_pose['end_time_index']+1]
-      # speeds_m_s_pouring[trial_index] = speeds_m_s[trial_index][36:62]
-      # speeds_m_s_pouring[trial_index] = speeds_m_s[trial_index][40:60]
-      
       
     # Store results.
     distributions_speed_m_s[example_type] = np.abs(np.stack(np.concatenate(speeds_m_s)))
@@ -369,59 +363,57 @@ def plot_compare_distributions_spout_dynamics(feature_data_byType,
     distributions_speed_m_s['%s_half2' % example_type] = distributions_speed_m_s[example_type][distributions_speed_m_s[example_type].shape[0]//2:]
     distributions_jerk_m_s_s_s['%s_half1' % example_type] = distributions_jerk_m_s_s_s[example_type][0:distributions_jerk_m_s_s_s[example_type].shape[0]//2]
     distributions_jerk_m_s_s_s['%s_half2' % example_type] = distributions_jerk_m_s_s_s[example_type][distributions_jerk_m_s_s_s[example_type].shape[0]//2:]
-    
-    distributions_speed_m_s_pouring[example_type] = np.abs(np.stack(np.concatenate(speeds_m_s_pouring)))
   
+  # Create a category for all non-model example types.
   distributions_jerk_m_s_s_s_nonModel = []
   distributions_speed_m_s_nonModel = []
-  distributions_speed_m_s_pouring_nonModel = []
   combined_type = ''
   for example_type in example_types:
     if 'model' not in example_type:
       combined_type += example_type
       distributions_jerk_m_s_s_s_nonModel.append(distributions_jerk_m_s_s_s[example_type])
       distributions_speed_m_s_nonModel.append(distributions_speed_m_s[example_type])
-      distributions_speed_m_s_pouring_nonModel.append(distributions_speed_m_s_pouring[example_type])
   distributions_jerk_m_s_s_s[combined_type] = np.concatenate(distributions_jerk_m_s_s_s_nonModel)
   distributions_speed_m_s[combined_type] = np.concatenate(distributions_speed_m_s_nonModel)
-  distributions_speed_m_s_pouring[combined_type] = np.concatenate(distributions_speed_m_s_pouring_nonModel)
-  #
-  print('distributions_jerk_m_s_s_s')
+  
+  # # Print the speed and jerk for copying into Matlab.
+  # print('distributions_jerk_m_s_s_s')
+  # for k, v in distributions_jerk_m_s_s_s.items():
+  #   print('%s = %s\';' % (k, list(v)))
+  # print('distributions_speed_m_s')
+  # for k, v in distributions_speed_m_s.items():
+  #   print(k)
+  #   print(np.mean(v), np.std(v))
+  #   # print('%s = %s\';' % (k, list(v)))
+  # # print(distributions_jerk_m_s_s_s.keys())
+  
+  # Print summaries of the speed and jerk distributions.
+  print()
+  print('Jerk [cm/s/s/s]')
   for k, v in distributions_jerk_m_s_s_s.items():
-    print('%s = %s\';' % (k, list(v)))
-  print('distributions_speed_m_s_pouring')
-  for k, v in distributions_speed_m_s_pouring.items():
-    print(k)
-    print(np.mean(v), np.std(v))
-    # print('%s = %s\';' % (k, list(v)))
-  # print(distributions_jerk_m_s_s_s.keys())
+    print('  %s: mean %g stdev %g' % (k, np.mean(100*v), np.std(100*v)))
+  print()
+  print('Speed [cm/s]')
+  for k, v in distributions_speed_m_s.items():
+    print('  %s: mean %g stdev %g' % (k, np.mean(100*v), np.std(100*v)))
   
   # Statistical tests to compare the distributions.
-  print('Wasserstein Distances for Jerk')
+  print()
+  print('Wasserstein Distances for Jerk [using cm/s/s/s]')
   max_str_len = max([len(x) for x in distributions_jerk_m_s_s_s])
   for example_type_1 in distributions_jerk_m_s_s_s:
     for example_type_2 in distributions_jerk_m_s_s_s:
       jerks_m_s_s_s_1 = distributions_jerk_m_s_s_s[example_type_1]
       jerks_m_s_s_s_2 = distributions_jerk_m_s_s_s[example_type_2]
-      # results_jerk_m_s_s_s[example_type_1][example_type_2] = \
-      #   stats.kstest(jerks_m_s_s_s_1, jerks_m_s_s_s_2,
-      #                alternative='two-sided', # 'two-sided', 'less', 'greater'
-      #                method='auto', # ‘auto’, ‘exact’, ‘approx’, ‘asymp’
-      #                )
       emd = stats.wasserstein_distance(100*jerks_m_s_s_s_1, 100*jerks_m_s_s_s_2)
       print('  %s <> %s: %g' % (example_type_1.ljust(max_str_len), example_type_2.ljust(max_str_len), emd))
   print()
-  print('Wasserstein Distances for Speed')
+  print('Wasserstein Distances for Speed [using cm/s]')
   max_str_len = max([len(x) for x in distributions_speed_m_s])
   for example_type_1 in distributions_speed_m_s:
     for example_type_2 in distributions_speed_m_s:
       speeds_m_s_1 = distributions_speed_m_s[example_type_1]
       speeds_m_s_2 = distributions_speed_m_s[example_type_2]
-      # results_speed_m_s[example_type_1][example_type_2] = \
-      #   stats.kstest(speeds_m_s_1, speeds_m_s_2,
-      #                alternative='two-sided', # 'two-sided', 'less', 'greater'
-      #                method='auto', # ‘auto’, ‘exact’, ‘approx’, ‘asymp’
-      #                )
       emd = stats.wasserstein_distance(100*speeds_m_s_1, 100*speeds_m_s_2)
       print('  %s <> %s: %g' % (example_type_1.ljust(max_str_len), example_type_2.ljust(max_str_len), emd))
   print()

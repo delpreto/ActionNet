@@ -37,7 +37,6 @@ import matplotlib
 from matplotlib.ticker import MaxNLocator
 default_matplotlib_backend = matplotlib.rcParams['backend']
 import matplotlib.pyplot as plt
-# plt.rcParams['text.usetex'] = True
 import matplotlib.patches as mpatches
 from matplotlib.patches import Ellipse
 import matplotlib.transforms as transforms
@@ -133,14 +132,14 @@ def plot_pour_tilting(feature_data_allTrials, shade_pouring_region=False,
   title_fontsize = 24
   ax.tick_params(axis='x', labelsize=18)  # Set x-axis tick font size
   ax.tick_params(axis='y', labelsize=18)  # Set y-axis tick font size
-  
-  ax.set_ylim([-80, 25])
+  # ax.set_ylim([-80, 25])
+  ylim = ax.get_ylim()
+  ax.set_ylim([min(-80, min(ylim)), max(25, max(ylim))])
   ax.set_xlabel('Percent of Trial Duration', fontsize=axis_fontsize)
   ax.set_ylabel('Tilt Angle to XY Plane [degrees]', fontsize=axis_fontsize)
   ax.grid(True, color='lightgray')
   plt.title('Pitcher Tilt Angle%s' % ((': %s' % subtitle) if subtitle is not None else ''), fontsize=title_fontsize)
-  ax.grid(True, color='lightgray')
-  
+  # Add a legend below the plot.
   def shrink_axis(ax, shift, scale):
     box = ax.get_position()
     ax.set_position([box.x0, box.y0 + box.height * shift,
@@ -260,15 +259,14 @@ def plot_pour_relativeHeight(feature_data_allTrials,
   title_fontsize = 24
   ax.tick_params(axis='x', labelsize=18)  # Set x-axis tick font size
   ax.tick_params(axis='y', labelsize=18)  # Set y-axis tick font size
-  
   ylim = ax.get_ylim()
-  # ax.set_ylim([min(-2, min(ylim)), max(ylim)])
-  ax.set_ylim([-2, 18])
+  ax.set_ylim([min(-2, min(ylim)), max(18, max(ylim))])
+  # ax.set_ylim([-2, 18])
   ax.set_xlabel('Percent of Trial Duration', fontsize=axis_fontsize)
   ax.set_ylabel('Relative Height [cm]', fontsize=axis_fontsize)
   plt.title('Spout Height Above Glass%s' % ((': %s' % subtitle) if subtitle is not None else ''), fontsize=title_fontsize)
   ax.grid(True, color='lightgray')
-  
+  # Add a legend below the plot.
   def shrink_axis(ax, shift, scale):
     box = ax.get_position()
     ax.set_position([box.x0, box.y0 + box.height * shift,
@@ -403,16 +401,16 @@ def plot_spout_dynamics(feature_data_allTrials,
   ax_jerk.tick_params(axis='y', labelsize=18)  # Set y-axis tick font size
   ax_speed.tick_params(axis='x', labelsize=18)  # Set x-axis tick font size
   ax_speed.tick_params(axis='y', labelsize=18)  # Set y-axis tick font size
-  
-  ax_speed.set_ylabel(r'Speed [cm/s]', fontsize=axis_fontsize)
-  # ax_speed.set_ylabel('Speed [cm/s]')
-  ax_jerk.set_ylabel(r'Jerk [cm/s³]', fontsize=axis_fontsize)
   ax_speed.grid(True, color='lightgray')
   ax_jerk.grid(True, color='lightgray')
+  ax_speed.yaxis.set_major_locator(MaxNLocator(nbins=4))
+  ax_jerk.yaxis.set_major_locator(MaxNLocator(nbins=5))
+  ax_speed.set_ylabel('Speed [cm/s]', fontsize=axis_fontsize)
+  ax_jerk.set_ylabel('Jerk [cm/s³]', fontsize=axis_fontsize)
   ax_speed.set_title('Spout Speed%s' % ((': %s' % subtitle) if subtitle is not None else ''), fontsize=title_fontsize)
   ax_jerk.set_title('Spout Jerk%s' % ((': %s' % subtitle) if subtitle is not None else ''), fontsize=title_fontsize)
   ax_jerk.set_xlabel('Percent of Trial Duration', fontsize=axis_fontsize)
-  
+  # Add a legend below the plot.
   def shrink_axis(ax, shift, scale):
     box = ax.get_position()
     ax.set_position([box.x0, box.y0 + box.height * shift,
@@ -423,12 +421,6 @@ def plot_spout_dynamics(feature_data_allTrials,
   shrink_axis(ax_speed, shift=0.1, scale=0.95)
   shrink_axis(ax_jerk, shift=0.15, scale=0.95)
   add_legend_below(ax_jerk, -0.35)
-  ax_speed.yaxis.set_major_locator(MaxNLocator(nbins=4))
-  ax_jerk.yaxis.set_major_locator(MaxNLocator(nbins=5))
-  # # Adjust the layout to make room for the legend
-  # fig.tight_layout(rect=[0, 0.6, 1, 1])  # Leave space at the bottom
-  # # Add a common legend below the subplots
-  # ax_jerk.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1), ncol=3, fontsize=24)
   
   # Show the plot.
   plt.draw()

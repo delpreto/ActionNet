@@ -461,8 +461,11 @@ def plot_all_trajectories(feature_data_allTrials, subject_id=None, output_filepa
 # ================================================================
 # Plot all starting conditions.
 def plot_all_startingConditions(feature_data_allTrials_byType, truth_data_byType=None,
+                                trial_indexes_to_exclude_byType=None,
                                 model_timestep_index=0,
                                 output_filepath=None, hide_figure_window=False):
+  if trial_indexes_to_exclude_byType is None:
+    trial_indexes_to_exclude_byType = {}
   fig = plt.figure(figsize=(13, 7))
   fig.add_subplot(1, 2, 1)
   fig.add_subplot(1, 2, 2)
@@ -478,6 +481,9 @@ def plot_all_startingConditions(feature_data_allTrials_byType, truth_data_byType
     color = colors[example_index % len(colors)]
     num_trials = feature_data_allTrials['time_s'].shape[0]
     for trial_index in range(num_trials):
+      if example_type in trial_indexes_to_exclude_byType and trial_index in trial_indexes_to_exclude_byType[example_type]:
+        print('SKIPPING', example_type, trial_index)
+        continue
       feature_data = get_feature_data_for_trial(feature_data_allTrials, trial_index)
       feature_data = parse_feature_data(feature_data)
       referenceObject_position_cm = 100*feature_data['referenceObject_position_m']

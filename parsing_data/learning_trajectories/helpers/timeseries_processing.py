@@ -115,8 +115,8 @@ def infer_stationary_poses(time_s_byTrial, bodyPath_data_byTrial, use_variance, 
         body_position_buffers_m = dict([(name, position_m[buffer_start_index:buffer_end_index, :]) for (name, position_m) in body_position_m.items()])
         body_quaternion_wijk_buffers = dict([(name, quaternion_wijk[buffer_start_index:buffer_end_index, :]) for (name, quaternion_wijk) in body_quaternion_wijk.items()])
         median_hand_position_m = np.median(body_position_buffers_m[hand_segment_key], axis=0)
-        distances_cm = np.linalg.norm(body_position_buffers_m[hand_segment_key] - median_hand_position_m, axis=1)
-        average_distance_m = np.mean(distances_cm, axis=0)
+        distances_m = np.linalg.norm(body_position_buffers_m[hand_segment_key] - median_hand_position_m, axis=1)
+        average_distance_m = np.mean(distances_m, axis=0)
         if min_average_distance_m is None or average_distance_m < min_average_distance_m:
           min_average_distance_m = average_distance_m
           min_average_distance_buffer_start_index = buffer_start_index

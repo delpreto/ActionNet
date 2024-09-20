@@ -139,9 +139,7 @@ def transform_bodyPath_data_personFrame(time_s_byTrial, bodyPath_data_byTrial):
   else:
     return_single_trial = False
   
-  # Shift to a coordinate frame with the origin between the hips.
-  
-  # Translate vertically to have the origin at the table height.
+  # Shift to a coordinate frame with the origin between the hips and at the table height.
   starting_righthand_positions_m = []
   for trial_index in range(len(bodyPath_data_byTrial)):
     # Set the origin between the hips (very close to the pelvis but not exactly).

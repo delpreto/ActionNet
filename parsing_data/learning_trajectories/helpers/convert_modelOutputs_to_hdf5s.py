@@ -4,6 +4,7 @@ import h5py
 import os
 
 def convert_modelOutputs_to_hdf5_data(init_values, trajectories, output_filepath):
+  print()
   print('Parsing data')
   model_inputs = {
     'hand_position': init_values[:, 0:3],
@@ -21,7 +22,7 @@ def convert_modelOutputs_to_hdf5_data(init_values, trajectories, output_filepath
   #################################################
   # Prepend the initial conditions if needed.
   if num_timesteps == 99:
-    print('Prepending the initial pose')
+    print('*** Prepending the initial pose ***')
     new_model_outputs_hand_position = []
     new_model_outputs_hand_quaternion = []
     for trial_index in range(num_trials):
@@ -44,8 +45,9 @@ def convert_modelOutputs_to_hdf5_data(init_values, trajectories, output_filepath
   print('Denormalizing')
   # mins_byFrame = {'hand_location': np.array([-0.53807845, -0.3380863 ,  0.04596044]), 'object_location': np.array([-0.53807845, -0.3380863 ,  0.04596044]), 'hand_location_polar': np.array([ 0.24093589, -3.14143613,  0.75810699]), 'object_location_polar': np.array([ 0.24093589, -3.14143613,  0.75810699])}
   # maxs_byFrame = {'hand_location': np.array([-0.15750682,  0.37952101,  0.4150433 ]), 'object_location': np.array([-0.15750682,  0.37952101,  0.4150433 ]), 'hand_location_polar': np.array([0.63575751, 3.14148258, 1.46840939]), 'object_location_polar': np.array([0.63575751, 3.14148258, 1.46840939])}
-  mins_byFrame = {'hand_location': np.array([-0.58123652, -0.3375666 ,  0.14079341]), 'object_location': np.array([-0.58123652, -0.3375666 ,  0.14079341]), 'hand_location_polar': np.array([ 0.30370537, -3.14143613,  0.71982327]), 'object_location_polar': np.array([ 0.30370537, -3.14143613,  0.71982327])}
-  maxs_byFrame = {'hand_location': np.array([-0.15750682,  0.37952101,  0.39201931]), 'object_location': np.array([-0.15750682,  0.37952101,  0.39201931]), 'hand_location_polar': np.array([0.62828742, 3.14148258, 1.31659006]), 'object_location_polar': np.array([0.62828742, 3.14148258, 1.31659006])}
+  mins_byFrame = {'hand_location': np.array([-0.58123652, -0.3375666 ,  0.14079341]), 'object_location': np.array([-0.58123652, -0.3375666 ,  0.14079341]), 'hand_location_polar': np.array([ 0.30370537, -3.1415501 ,  0.71982327]), 'object_location_polar': np.array([ 0.30370537, -3.1415501 ,  0.71982327])}
+  maxs_byFrame = {'hand_location': np.array([-0.15750682,  0.37952101,  0.39201282]), 'object_location': np.array([-0.15750682,  0.37952101,  0.39201282]), 'hand_location_polar': np.array([0.62828742, 3.14153173, 1.31659006]), 'object_location_polar': np.array([0.62828742, 3.14153173, 1.31659006])}
+
   spatial_mins = mins_byFrame['hand_location'].reshape(1, 1, -1)
   spatial_maxs = maxs_byFrame['hand_location'].reshape(1, 1, -1)
   def denormalize(x, mins, maxs):
@@ -86,15 +88,18 @@ if __name__ == '__main__':
   
   #################################################
   # Specify the output folder.
-  output_dir = os.path.realpath(os.path.join(actionsense_root_dir, 'results', 'learning_trajectories',
+  data_dir = os.path.realpath(os.path.join(actionsense_root_dir, 'results', 'learning_trajectories',
                                            'models', 'state-space',
                                            # '2024-09-06_13-35'
                                            # '2024-09-06_17-25'
                                            # '2024-09-06_19-02'
                                            # '2024-09-07_09-58'
                                            # '2024-09-10_17-10'
-                                           '2024-09-12_15-08'
-                                             ))
+                                           # '2024-09-12_15-08'
+                                           # '2024-09-13_08-56'
+                                           '2024-09-13_18-15_forSubmission'
+                                           ))
+  output_dir = data_dir
   output_filepath = os.path.join(output_dir, 'pouring_modelData.hdf5')
   os.makedirs(output_dir, exist_ok=True)
   
@@ -102,8 +107,8 @@ if __name__ == '__main__':
   # Read and parse the data.
   # print(init_values.shape) ## shape: batch_size x dim, where dim dimension is set up as: [initial_hand_position,initial_hand_quaternion,glass_position,final_hand_position]
   # print(trajectories.shape) ## shape: batch_size x steps x dim, where dim dimension is set up as: [hand_positions,hand_quaternions]
-  init_values = np.load(os.path.join(output_dir, 'initial_vals_LOSS.npy'))
-  trajectories = np.load(os.path.join(output_dir, 'trajectories_LOSS.npy'))
+  init_values = np.load(os.path.join(data_dir, 'initial_vals_LOSS.npy'))
+  trajectories = np.load(os.path.join(data_dir, 'trajectories_LOSS.npy'))
 
   convert_modelOutputs_to_hdf5_data(init_values, trajectories, output_filepath)
   

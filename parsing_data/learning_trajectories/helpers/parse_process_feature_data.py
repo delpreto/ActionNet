@@ -198,7 +198,7 @@ def get_body_speed_m_s(feature_data):
       continue
     # Infer the speed.
     dxdydz = np.diff(position_m, axis=0)
-    speed_m_s = np.hstack([np.squeeze([0]), np.linalg.norm(dxdydz, axis=1)/np.squeeze(dt)])
+    speed_m_s = np.hstack([np.squeeze([np.nan]), np.linalg.norm(dxdydz, axis=1)/np.squeeze(dt)])
     speeds_m_s[body_key] = speed_m_s
   return speeds_m_s
   
@@ -217,7 +217,7 @@ def get_body_acceleration_m_s_s(feature_data):
     # Infer the acceleration.
     dv = np.diff(speed_m_s, axis=0)
     dt = np.reshape(np.diff(times_s, axis=0), (-1, 1))
-    acceleration_m_s_s = np.hstack([np.squeeze([0]), dv/np.squeeze(dt)])
+    acceleration_m_s_s = np.hstack([np.squeeze([np.nan]), dv/np.squeeze(dt)])
     accelerations_m_s_s[body_key] = acceleration_m_s_s
   return accelerations_m_s_s
 
@@ -236,7 +236,7 @@ def get_body_jerk_m_s_s_s(feature_data):
     # Infer the jerk.
     da = np.diff(acceleration_m_s_s, axis=0)
     dt = np.reshape(np.diff(times_s, axis=0), (-1, 1))
-    jerk_m_s_s_s = np.hstack([np.squeeze([0]), da/np.squeeze(dt)])
+    jerk_m_s_s_s = np.hstack([np.squeeze([np.nan]), da/np.squeeze(dt)])
     jerks_m_s_s_s[body_key] = jerk_m_s_s_s
   return jerks_m_s_s_s
 

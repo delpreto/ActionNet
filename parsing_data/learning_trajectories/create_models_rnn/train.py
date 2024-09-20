@@ -53,7 +53,7 @@ def add_args(_parser):
         # os.path.join(actionsense_root_dir, 'results', 'learning_trajectories', 'models', 'rnns'),
         #                  help="Folder to save the model checkpoint")
     _parser.add_argument("--data_dir", type=str, default=
-        os.path.join(actionsense_root_dir, 'results', 'learning_trajectories'),
+        os.path.join(actionsense_root_dir, 'results', 'learning_trajectories', 'humans'),
                          help="Folder with training data HDF5 files, default: ./Data")
     _parser.add_argument("--output_name", type=str, default='model_train-all',
                          help="Name of the output file, default: model")
@@ -417,6 +417,7 @@ if __name__ == "__main__":
 
     train_set, test_set, mins_byFrame, maxs_byFrame = prepare_torch_datasets(
         normalize=True, train_set=args.train_set, test_size=args.test_set_size, test_set=args.test_set, data_dir=args.data_dir)
+    input('Press enter to start training the model ')
     logs, best_model = train(model=model, datasets=(train_set, test_set),
                              dataset_mins_byFrame=mins_byFrame, dataset_maxs_byFrame=maxs_byFrame,
                              checkpoint_dir=os.path.join(args.output_dir, 'models'),

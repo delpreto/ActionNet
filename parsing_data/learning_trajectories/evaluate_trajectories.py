@@ -30,50 +30,81 @@ if len(sys.argv) == 1:
   data_dir_humans = os.path.realpath(os.path.join(data_dir, 'humans'))
   data_dir_model = os.path.join(data_dir, 'models', 'state-space',
                                 # '2024-09-10_17-10'
-                                '2024-09-12_15-08'
+                                # '2024-09-12_15-08'
+                                # '2024-09-13_08-56'
+                                '2024-09-13_18-15_forSubmission'
                                 )
   
   # Specify the feature data to evaluate.
   # For example, may have entries for each subject
   #  and may have an entries for model outputs.
   feature_data_filepaths_byType = {
-    'S00': os.path.join(data_dir_humans, 'pouring_trainingData_S00.hdf5'),
+    'Subject 0': os.path.join(data_dir_humans, 'pouring_trainingData_S00.hdf5'),
     # 'S10': os.path.join(data_dir_humans, 'pouring_trainingData_S10.hdf5'),
-    'S11': os.path.join(data_dir_humans, 'pouring_trainingData_S11.hdf5'),
-    # 'model': os.path.join(data_dir_model, 'pouring_modelData.hdf5'),
+    'Subject 1': os.path.join(data_dir_humans, 'pouring_trainingData_S11.hdf5'),
+    'Model': os.path.join(data_dir_model, 'pouring_modelData.hdf5'),
   }
   # Specify where outputs should be saved.
   # Can be None to not save any outputs.
   # output_dir = None
-  output_dir = os.path.join(data_dir_humans, 'S00-S11')
-  # output_dir = os.path.join(data_dir_model, 'only model')
+  # output_dir = os.path.join(data_dir_humans, 'S00-S11')
+  output_dir = os.path.join(data_dir_model, 'with humans - for paper')
   
   # Specify which outputs to process.
   # Animations.
   interactively_animate_trajectories_exampleType = None # 'S00' # interactive - can move around scene and press enter to step through time # None to not animate
-  save_trajectory_animations_eachType = True
+  save_trajectory_animations_eachType = False
   save_trajectory_animations_compositeTypes = False
   # Plots (mostly time series).
-  plot_all_trajectories_singlePlot = True
-  plot_all_startingConditions_singlePlot = True
+  plot_all_trajectories_singlePlot = False
+  plot_all_startingConditions_singlePlot = False
   plot_spout_tilt = True
   plot_spout_pouring_projection = True
   plot_spout_height = True
   plot_spout_speedJerk = True
-  plot_body_speedJerk = True
-  plot_joint_angles = True
+  plot_body_speedJerk = False
+  plot_joint_angles = False
   # Plots and comparisons of distributions.
-  plot_compare_distribution_body_speedJerk = True
-  plot_compare_distribution_spout_speedJerk = True
-  plot_compare_distribution_joint_angles = True
-  plot_compare_distribution_spout_projection = True
-  plot_compare_distribution_spout_height = True
-  plot_compare_distribution_spout_tilt = True
-  plot_distributions_hand_to_pitcher_angles = True
+  plot_compare_distribution_body_speedJerk = False
+  plot_compare_distribution_spout_speedJerk = False
+  plot_compare_distribution_joint_angles = False
+  plot_compare_distribution_spout_projection = False
+  plot_compare_distribution_spout_height = False
+  plot_compare_distribution_spout_tilt = False
+  plot_distributions_hand_to_pitcher_angles = False
   
   # Specify whether to show figure windows or process them in the background.
   # Either way, plots will be saved as images if output_dir is specified below.
-  keep_plots_open = False
+  keep_plots_open = True
+  
+  test_set_trials = [
+  'S11	47',
+  'S00	10',
+  'S00	4',
+  'S11	28',
+  'S11	44',
+  'S11	12',
+  'S00	30',
+  'S00	33',
+  'S11	40',
+  'S00	11',
+  'S00	47',
+  'S00	42',
+  'S00	0',
+  'S11	25',
+  'S00	18',
+  'S11	11',
+  'S11	14',
+  'S11	26',
+  'S11	2',
+  'S00	44',
+  'S00	12',
+  'S11	27',
+    ]
+  test_set_trials = {
+    'S00': [int(x.split()[1]) for x in test_set_trials if x.split()[0] == 'S00'],
+    'S11': [int(x.split()[1]) for x in test_set_trials if x.split()[0] == 'S11'],
+  }
 else:
   evaluation_config = json.loads(sys.argv[1])
   feature_data_filepaths_byType = evaluation_config['feature_data_filepaths_byType']
@@ -97,6 +128,7 @@ else:
   plot_compare_distribution_spout_tilt = evaluation_config['plot_compare_distribution_spout_tilt']
   plot_distributions_hand_to_pitcher_angles = evaluation_config['plot_distributions_hand_to_pitcher_angles']
   keep_plots_open = evaluation_config['keep_plots_open']
+  test_set_trials = None
   
 print()
 
@@ -223,6 +255,8 @@ if plot_all_startingConditions_singlePlot:
   print('Plotting all starting conditions on a single graph')
   plot_all_startingConditions(
     feature_data_byType, truth_data_byType=truth_data_byType,
+    # trial_indexes_to_exclude_byType=None,
+    trial_indexes_to_exclude_byType=test_set_trials,
     model_timestep_index=1,
     output_filepath=os.path.join(output_dir, 'all_startingConditions.jpg') if output_dir is not None else None,
     hide_figure_window=not keep_plots_open)
@@ -230,15 +264,15 @@ if plot_all_startingConditions_singlePlot:
 # Plot the spout tilt over time.
 if plot_spout_tilt:
   print('Plotting the spout tilt, relative to the table plane')
-  # Plot each trial as a trace on the plot, with a separate plot for each example type.
-  for example_type in example_types:
-    plot_pour_tilting(
-      feature_data_byType[example_type],
-      plot_mean=True, plot_std_shading=False, plot_all_trials=True,
-      subtitle=example_type.title(), label=None,
-      output_filepath=os.path.join(output_dir, 'spout_tilt_angle_%s.jpg' % (example_type)) if output_dir is not None else None,
-      shade_pouring_region=False,
-      fig=None, hide_figure_window=not keep_plots_open)
+  # # Plot each trial as a trace on the plot, with a separate plot for each example type.
+  # for example_type in example_types:
+  #   plot_pour_tilting(
+  #     feature_data_byType[example_type],
+  #     plot_mean=True, plot_std_shading=False, plot_all_trials=True,
+  #     subtitle=example_type.title(), label=None,
+  #     output_filepath=os.path.join(output_dir, 'spout_tilt_angle_%s.jpg' % (example_type)) if output_dir is not None else None,
+  #     shade_pouring_region=False,
+  #     fig=None, hide_figure_window=not keep_plots_open)
   # Plot mean and standard deviation shading for each example type, on the same plot.
   previous_plot_handles = None
   for example_type in example_types:
@@ -247,7 +281,7 @@ if plot_spout_tilt:
       feature_data_byType[example_type],
       plot_mean=True, plot_std_shading=True, plot_all_trials=False,
       subtitle=None, label=example_type.title(),
-      output_filepath=(os.path.join(output_dir, 'spout_tilt_angle_allTypes.jpg') if is_last_type else None) if output_dir is not None else None,
+      output_filepath=(os.path.join(output_dir, 'spout_tilt_angle_allTypes.pdf') if is_last_type else None) if output_dir is not None else None,
       shade_pouring_region=False,
       fig=previous_plot_handles, hide_figure_window=not keep_plots_open)
 
@@ -264,32 +298,32 @@ if plot_spout_pouring_projection:
       feature_data_byType[example_type],
       plot_mean=False, plot_std_shading=False, plot_all_trials=True,
       subtitle=example_type.title(), label=None,
-      output_filepath=os.path.join(output_dir, 'spout_projection_relativeToGlass_%s.jpg' % (example_type)) if output_dir is not None else None,
+      output_filepath=os.path.join(output_dir, 'spout_projection_relativeToGlass_%s.pdf' % (example_type)) if output_dir is not None else None,
       fig=None, hide_figure_window=not keep_plots_open)
-  # Plot mean and standard deviation shading for each example type, on the same plot.
-  previous_plot_handles = None
-  for (example_index, example_type) in enumerate(example_types):
-    is_last_type = example_type == example_types[-1]
-    previous_plot_handles = plot_pour_relativePosition(
-      feature_data_byType[example_type],
-      plot_mean=True, plot_std_shading=True, plot_all_trials=False,
-      subtitle=None, label=example_type.title(),
-      color=plt.rcParams['axes.prop_cycle'].by_key()['color'][example_index],
-      output_filepath=(os.path.join(output_dir, 'spout_projection_relativeToGlass_allTypes.jpg') if is_last_type else None) if output_dir is not None else None,
-      fig=previous_plot_handles, hide_figure_window=not keep_plots_open)
+  # # Plot mean and standard deviation shading for each example type, on the same plot.
+  # previous_plot_handles = None
+  # for (example_index, example_type) in enumerate(example_types):
+  #   is_last_type = example_type == example_types[-1]
+  #   previous_plot_handles = plot_pour_relativePosition(
+  #     feature_data_byType[example_type],
+  #     plot_mean=True, plot_std_shading=True, plot_all_trials=False,
+  #     subtitle=None, label=example_type.title(),
+  #     color=plt.rcParams['axes.prop_cycle'].by_key()['color'][example_index],
+  #     output_filepath=(os.path.join(output_dir, 'spout_projection_relativeToGlass_allTypes.jpg') if is_last_type else None) if output_dir is not None else None,
+  #     fig=previous_plot_handles, hide_figure_window=not keep_plots_open)
 
 if plot_spout_height:
   # Plot the spout height over time, relative to the glass height.
   print('Plotting the spout height relative to the glass')
-  # Plot each trial as a trace on the plot, with a separate plot for each example type.
-  for example_type in example_types:
-    plot_pour_relativeHeight(
-      feature_data_byType[example_type],
-      plot_mean=True, plot_std_shading=False, plot_all_trials=True,
-      subtitle=example_type.title(), label=None,
-      output_filepath=os.path.join(output_dir, 'spout_height_%s.jpg' % (example_type)) if output_dir is not None else None,
-      shade_pouring_region=False,
-      fig=None, hide_figure_window=not keep_plots_open)
+  # # Plot each trial as a trace on the plot, with a separate plot for each example type.
+  # for example_type in example_types:
+  #   plot_pour_relativeHeight(
+  #     feature_data_byType[example_type],
+  #     plot_mean=True, plot_std_shading=False, plot_all_trials=True,
+  #     subtitle=example_type.title(), label=None,
+  #     output_filepath=os.path.join(output_dir, 'spout_height_%s.jpg' % (example_type)) if output_dir is not None else None,
+  #     shade_pouring_region=False,
+  #     fig=None, hide_figure_window=not keep_plots_open)
   # Plot mean and standard deviation shading for each example type, on the same plot.
   previous_plot_handles = None
   for example_type in example_types:
@@ -298,7 +332,7 @@ if plot_spout_height:
       feature_data_byType[example_type],
       plot_mean=True, plot_std_shading=True, plot_all_trials=False,
       subtitle=None, label=example_type.title(),
-      output_filepath=(os.path.join(output_dir, 'spout_height_allTypes.jpg') if is_last_type else None) if output_dir is not None else None,
+      output_filepath=(os.path.join(output_dir, 'spout_height_allTypes.pdf') if is_last_type else None) if output_dir is not None else None,
       shade_pouring_region=False,
       fig=previous_plot_handles, hide_figure_window=not keep_plots_open)
 
@@ -329,15 +363,15 @@ if plot_body_speedJerk:
 if plot_spout_speedJerk:
   # Plot the spout speed and jerk over time.
   print('Plotting spout dynamics')
-  # Plot each trial as a trace on the plot, with a separate plot for each example type.
-  for example_type in example_types:
-    plot_spout_dynamics(
-      feature_data_byType[example_type],
-      plot_mean=True, plot_std_shading=False, plot_all_trials=True,
-      subtitle=example_type.title(), label=None,
-      output_filepath=os.path.join(output_dir, 'spout_dynamics_%s.jpg' % (example_type)) if output_dir is not None else None,
-      shade_pouring_region=False,
-      fig=None, hide_figure_window=not keep_plots_open)
+  # # Plot each trial as a trace on the plot, with a separate plot for each example type.
+  # for example_type in example_types:
+  #   plot_spout_dynamics(
+  #     feature_data_byType[example_type],
+  #     plot_mean=True, plot_std_shading=False, plot_all_trials=True,
+  #     subtitle=example_type.title(), label=None,
+  #     output_filepath=os.path.join(output_dir, 'spout_dynamics_%s.jpg' % (example_type)) if output_dir is not None else None,
+  #     shade_pouring_region=False,
+  #     fig=None, hide_figure_window=not keep_plots_open)
   # Plot mean and standard deviation shading for each example type, on the same plot.
   previous_plot_handles = None
   for example_type in example_types:
@@ -346,7 +380,7 @@ if plot_spout_speedJerk:
       feature_data_byType[example_type],
       plot_mean=True, plot_std_shading=True, plot_all_trials=False,
       subtitle=None, label=example_type.title(),
-      output_filepath=(os.path.join(output_dir, 'spout_dynamics_allTypes.jpg') if is_last_type else None) if output_dir is not None else None,
+      output_filepath=(os.path.join(output_dir, 'spout_dynamics_allTypes.pdf') if is_last_type else None) if output_dir is not None else None,
       shade_pouring_region=False,
       fig=previous_plot_handles, hide_figure_window=not keep_plots_open)
 

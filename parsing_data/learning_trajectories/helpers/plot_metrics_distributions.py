@@ -36,6 +36,8 @@ import os
 import distinctipy
 
 import matplotlib
+matplotlib.rcParams['pdf.fonttype'] = 42 # avoid type 3 fonts (which are not accepted by PaperPlaza)
+matplotlib.rcParams['ps.fonttype'] = 42
 default_matplotlib_backend = matplotlib.rcParams['backend']
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
@@ -72,11 +74,11 @@ def plot_pour_relativePosition(feature_data_byTrial,
         pass
     else:
       matplotlib.use(default_matplotlib_backend)
-    fig = plt.figure(figsize=(13, 7))
-    if not hide_figure_window:
-      figManager = plt.get_current_fig_manager()
-      figManager.window.showMaximized()
-      plt_wait_for_keyboard_press(0.3)
+    fig = plt.figure(figsize=(9, 7))
+    # if not hide_figure_window:
+    #   figManager = plt.get_current_fig_manager()
+    #   figManager.window.showMaximized()
+    #   plt_wait_for_keyboard_press(0.3)
     plt.ion()
     fig.add_subplot(1, 1, 1)
     ax = fig.get_axes()[0]
@@ -119,7 +121,7 @@ def plot_pour_relativePosition(feature_data_byTrial,
   # Plot all trial results if desired.
   if plot_all_trials:
     for trial_index in range(num_trials):
-      ax.scatter(*spout_relativeOffsets_cm[trial_index,:], c=color, s=25)
+      ax.scatter(*spout_relativeOffsets_cm[trial_index,:], c=color, s=125)
   
   # Plot the mean if desired.
   if plot_mean:
@@ -136,15 +138,22 @@ def plot_pour_relativePosition(feature_data_byTrial,
       radius=referenceObject_diameter_cm/2, ec=[0.4,1,1], facecolor='none',
       linewidth=3, alpha=1)
   ax.add_patch(referenceObject_circle)
-  ax.scatter(0, 0, s=10, c='k')
+  # ax.scatter(0, 0, s=10, c='k')
   
   # Plot formatting.
+  axis_fontsize = 24
+  title_fontsize = 24
+  ax.set_ylim([-5, 5])
+  ax.set_xlim([-5, 5])
+  ax.tick_params(axis='x', labelsize=18)  # Set x-axis tick font size
+  ax.tick_params(axis='y', labelsize=18)  # Set y-axis tick font size
   ax.set_aspect('equal')
-  ax.set_xlabel('Horizontal Relative to Pouring Direction [cm]')
-  ax.set_ylabel('Vertical Relative to Pouring Direction [cm]')
+  ax.set_xlabel('Perpendicular to Pouring Direction [cm]', fontsize=axis_fontsize)
+  ax.set_ylabel('Along Pouring Direction [cm]', fontsize=axis_fontsize)
+  # plt.title('Pouring Position and Direction%s' % ((': %s' % subtitle) if subtitle is not None else ''), fontsize=title_fontsize)
+  plt.title('Pouring Relative to Glass', fontsize=title_fontsize)
   ax.grid(True, color='lightgray')
   ax.set_axisbelow(True)
-  plt.title('Spout projected onto table, along pouring axis%s' % ((': %s' % subtitle) if subtitle is not None else ''))
   
   # Show the plot.
   plt.draw()
@@ -312,6 +321,7 @@ def plot_compare_distributions_spout_dynamics(feature_data_byType,
   distributions_jerk_m_s_s_s = dict.fromkeys(example_types, None)
   results_speed_m_s = dict([(example_type, dict.fromkeys(example_types, None)) for example_type in example_types])
   results_jerk_m_s_s_s = dict([(example_type, dict.fromkeys(example_types, None)) for example_type in example_types])
+  distributions_speed_m_s_pouring = dict.fromkeys(example_types, None)
   
   # Process each example type (each distribution category).
   for (example_type, feature_data_allTrials) in feature_data_byType.items():
@@ -319,6 +329,7 @@ def plot_compare_distributions_spout_dynamics(feature_data_byType,
     num_timesteps = feature_data_allTrials['time_s'].shape[1]
     # Get the spout dynamics for each timestep.
     speeds_m_s = [None]*num_trials
+    speeds_m_s_pouring = [None]*num_trials
     jerks_m_s_s_s = [None]*num_trials
     for trial_index in range(num_trials):
       feature_data = get_feature_data_for_trial(feature_data_allTrials, trial_index)
@@ -341,27 +352,79 @@ def plot_compare_distributions_spout_dynamics(feature_data_byType,
         speeds_m_s[trial_index] = speeds_m_s[trial_index][pour_end_index:-1]
         jerks_m_s_s_s[trial_index] = jerks_m_s_s_s[trial_index][pour_end_index:-1]
     
+      
+      (_, stationary_pose) = infer_stationary_poses(feature_data['time_s'], parse_feature_data(feature_data),
+                                                use_variance=True, hand_segment_key='hand')
+      speeds_m_s_pouring[trial_index] = speeds_m_s[trial_index][stationary_pose['start_time_index']:stationary_pose['end_time_index']+1]
+      # speeds_m_s_pouring[trial_index] = speeds_m_s[trial_index][36:62]
+      # speeds_m_s_pouring[trial_index] = speeds_m_s[trial_index][40:60]
+      
+      
     # Store results.
     distributions_speed_m_s[example_type] = np.abs(np.stack(np.concatenate(speeds_m_s)))
+    distributions_speed_m_s[example_type] = distributions_speed_m_s[example_type][~np.isnan(distributions_speed_m_s[example_type])]
     distributions_jerk_m_s_s_s[example_type] = np.abs(np.stack(np.concatenate(jerks_m_s_s_s)))
+    distributions_jerk_m_s_s_s[example_type] = distributions_jerk_m_s_s_s[example_type][~np.isnan(distributions_jerk_m_s_s_s[example_type])]
+    distributions_speed_m_s['%s_half1' % example_type] = distributions_speed_m_s[example_type][0:distributions_speed_m_s[example_type].shape[0]//2]
+    distributions_speed_m_s['%s_half2' % example_type] = distributions_speed_m_s[example_type][distributions_speed_m_s[example_type].shape[0]//2:]
+    distributions_jerk_m_s_s_s['%s_half1' % example_type] = distributions_jerk_m_s_s_s[example_type][0:distributions_jerk_m_s_s_s[example_type].shape[0]//2]
+    distributions_jerk_m_s_s_s['%s_half2' % example_type] = distributions_jerk_m_s_s_s[example_type][distributions_jerk_m_s_s_s[example_type].shape[0]//2:]
+    
+    distributions_speed_m_s_pouring[example_type] = np.abs(np.stack(np.concatenate(speeds_m_s_pouring)))
+  
+  distributions_jerk_m_s_s_s_nonModel = []
+  distributions_speed_m_s_nonModel = []
+  distributions_speed_m_s_pouring_nonModel = []
+  combined_type = ''
+  for example_type in example_types:
+    if 'model' not in example_type:
+      combined_type += example_type
+      distributions_jerk_m_s_s_s_nonModel.append(distributions_jerk_m_s_s_s[example_type])
+      distributions_speed_m_s_nonModel.append(distributions_speed_m_s[example_type])
+      distributions_speed_m_s_pouring_nonModel.append(distributions_speed_m_s_pouring[example_type])
+  distributions_jerk_m_s_s_s[combined_type] = np.concatenate(distributions_jerk_m_s_s_s_nonModel)
+  distributions_speed_m_s[combined_type] = np.concatenate(distributions_speed_m_s_nonModel)
+  distributions_speed_m_s_pouring[combined_type] = np.concatenate(distributions_speed_m_s_pouring_nonModel)
+  #
+  print('distributions_jerk_m_s_s_s')
+  for k, v in distributions_jerk_m_s_s_s.items():
+    print('%s = %s\';' % (k, list(v)))
+  print('distributions_speed_m_s_pouring')
+  for k, v in distributions_speed_m_s_pouring.items():
+    print(k)
+    print(np.mean(v), np.std(v))
+    # print('%s = %s\';' % (k, list(v)))
+  # print(distributions_jerk_m_s_s_s.keys())
   
   # Statistical tests to compare the distributions.
-  for example_type_1 in example_types:
-    for example_type_2 in example_types:
-      speeds_m_s_1 = distributions_speed_m_s[example_type_1]
-      speeds_m_s_2 = distributions_speed_m_s[example_type_2]
+  print('Wasserstein Distances for Jerk')
+  max_str_len = max([len(x) for x in distributions_jerk_m_s_s_s])
+  for example_type_1 in distributions_jerk_m_s_s_s:
+    for example_type_2 in distributions_jerk_m_s_s_s:
       jerks_m_s_s_s_1 = distributions_jerk_m_s_s_s[example_type_1]
       jerks_m_s_s_s_2 = distributions_jerk_m_s_s_s[example_type_2]
-      results_speed_m_s[example_type_1][example_type_2] = \
-        stats.kstest(speeds_m_s_1, speeds_m_s_2,
-                     alternative='two-sided', # 'two-sided', 'less', 'greater'
-                     method='auto', # ‘auto’, ‘exact’, ‘approx’, ‘asymp’
-                     )
-      results_jerk_m_s_s_s[example_type_1][example_type_2] = \
-        stats.kstest(jerks_m_s_s_s_1, jerks_m_s_s_s_2,
-                     alternative='two-sided', # 'two-sided', 'less', 'greater'
-                     method='auto', # ‘auto’, ‘exact’, ‘approx’, ‘asymp’
-                     )
+      # results_jerk_m_s_s_s[example_type_1][example_type_2] = \
+      #   stats.kstest(jerks_m_s_s_s_1, jerks_m_s_s_s_2,
+      #                alternative='two-sided', # 'two-sided', 'less', 'greater'
+      #                method='auto', # ‘auto’, ‘exact’, ‘approx’, ‘asymp’
+      #                )
+      emd = stats.wasserstein_distance(100*jerks_m_s_s_s_1, 100*jerks_m_s_s_s_2)
+      print('  %s <> %s: %g' % (example_type_1.ljust(max_str_len), example_type_2.ljust(max_str_len), emd))
+  print()
+  print('Wasserstein Distances for Speed')
+  max_str_len = max([len(x) for x in distributions_speed_m_s])
+  for example_type_1 in distributions_speed_m_s:
+    for example_type_2 in distributions_speed_m_s:
+      speeds_m_s_1 = distributions_speed_m_s[example_type_1]
+      speeds_m_s_2 = distributions_speed_m_s[example_type_2]
+      # results_speed_m_s[example_type_1][example_type_2] = \
+      #   stats.kstest(speeds_m_s_1, speeds_m_s_2,
+      #                alternative='two-sided', # 'two-sided', 'less', 'greater'
+      #                method='auto', # ‘auto’, ‘exact’, ‘approx’, ‘asymp’
+      #                )
+      emd = stats.wasserstein_distance(100*speeds_m_s_1, 100*speeds_m_s_2)
+      print('  %s <> %s: %g' % (example_type_1.ljust(max_str_len), example_type_2.ljust(max_str_len), emd))
+  print()
   
   # Plot distributions.
   if plot_distributions:
@@ -411,22 +474,22 @@ def plot_compare_distributions_spout_dynamics(feature_data_byType,
     if output_filepath is not None:
       fig.savefig(output_filepath, dpi=300)
 
-  # Print statistical test results.
-  if print_comparison_results:
-    print(' Statistical comparison results for spout speed:')
-    for example_type_1 in example_types:
-      for example_type_2 in example_types:
-        print('  Comparing [%s] to [%s]: ' % (example_type_1, example_type_2), end='')
-        results = results_speed_m_s[example_type_1][example_type_2]
-        p = results.pvalue
-        print('Different? %s (p = %0.4f)' % ('yes' if p < 0.05 else 'no', p))
-    print(' Statistical comparison results for spout jerk:')
-    for example_type_1 in example_types:
-      for example_type_2 in example_types:
-        print('  Comparing [%s] to [%s]: ' % (example_type_1, example_type_2), end='')
-        results = results_jerk_m_s_s_s[example_type_1][example_type_2]
-        p = results.pvalue
-        print('Different? %s (p = %0.4f)' % ('yes' if p < 0.05 else 'no', p))
+  # # Print statistical test results.
+  # if print_comparison_results:
+  #   print(' Statistical comparison results for spout speed:')
+  #   for example_type_1 in example_types:
+  #     for example_type_2 in example_types:
+  #       print('  Comparing [%s] to [%s]: ' % (example_type_1, example_type_2), end='')
+  #       results = results_speed_m_s[example_type_1][example_type_2]
+  #       p = results.pvalue
+  #       print('Different? %s (p = %0.4f)' % ('yes' if p < 0.05 else 'no', p))
+  #   print(' Statistical comparison results for spout jerk:')
+  #   for example_type_1 in example_types:
+  #     for example_type_2 in example_types:
+  #       print('  Comparing [%s] to [%s]: ' % (example_type_1, example_type_2), end='')
+  #       results = results_jerk_m_s_s_s[example_type_1][example_type_2]
+  #       p = results.pvalue
+  #       print('Different? %s (p = %0.4f)' % ('yes' if p < 0.05 else 'no', p))
   
   return (fig, axs)
 

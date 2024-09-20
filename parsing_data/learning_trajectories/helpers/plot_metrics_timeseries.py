@@ -34,8 +34,10 @@ import cv2
 import os
 
 import matplotlib
+from matplotlib.ticker import MaxNLocator
 default_matplotlib_backend = matplotlib.rcParams['backend']
 import matplotlib.pyplot as plt
+# plt.rcParams['text.usetex'] = True
 import matplotlib.patches as mpatches
 from matplotlib.patches import Ellipse
 import matplotlib.transforms as transforms
@@ -102,8 +104,8 @@ def plot_pour_tilting(feature_data_allTrials, shade_pouring_region=False,
     mean = np.mean(angles_toXY_rad, axis=0)
     std = np.std(angles_toXY_rad, axis=0)
     ax.fill_between(x, np.degrees(mean-std), np.degrees(mean+std), alpha=0.4,
-                    label=('%s: 1 StdDev' % label) if label is not None else '1 StdDev')
-    ax.legend()
+                    label=('%s' % label) if label is not None else '1 StdDev')
+    # ax.legend()
   
   # Plot all traces if desired.
   if plot_all_trials:
@@ -127,11 +129,28 @@ def plot_pour_tilting(feature_data_allTrials, shade_pouring_region=False,
       ax.axvspan(pour_start_indexes[trial_index], pour_end_indexes[trial_index], alpha=0.5, color='gray')
   
   # Plot formatting.
-  ax.set_ylim([-90, 15])
-  ax.set_xlabel('Time Index')
-  ax.set_ylabel('Tilt Angle to XY Plane [deg]')
+  axis_fontsize = 24
+  title_fontsize = 24
+  ax.tick_params(axis='x', labelsize=18)  # Set x-axis tick font size
+  ax.tick_params(axis='y', labelsize=18)  # Set y-axis tick font size
+  
+  ax.set_ylim([-80, 25])
+  ax.set_xlabel('Percent of Trial Duration', fontsize=axis_fontsize)
+  ax.set_ylabel('Tilt Angle to XY Plane [degrees]', fontsize=axis_fontsize)
   ax.grid(True, color='lightgray')
-  plt.title('Tilt angle of the pitcher%s' % ((': %s' % subtitle) if subtitle is not None else ''))
+  plt.title('Pitcher Tilt Angle%s' % ((': %s' % subtitle) if subtitle is not None else ''), fontsize=title_fontsize)
+  ax.grid(True, color='lightgray')
+  
+  def shrink_axis(ax, shift, scale):
+    box = ax.get_position()
+    ax.set_position([box.x0, box.y0 + box.height * shift,
+                     box.width, box.height * scale])
+  def add_legend_below(ax, legend_y):
+    ax.legend(loc='upper center', bbox_to_anchor=(0.5, legend_y),
+              fancybox=True, shadow=True, ncol=3, fontsize=24)
+  shrink_axis(ax, shift=0.045, scale=0.98)
+  add_legend_below(ax, -0.12)
+  # ax.yaxis.set_major_locator(MaxNLocator(nbins=4))
   
   # Show the plot.
   plt.draw()
@@ -209,8 +228,8 @@ def plot_pour_relativeHeight(feature_data_allTrials,
     mean = np.mean(spout_heights_cm, axis=0)
     std = np.std(spout_heights_cm, axis=0)
     ax.fill_between(x, mean-std, mean+std, alpha=0.4,
-                    label=('%s: 1 StdDev' % label) if label is not None else '1 StdDev')
-    ax.legend()
+                    label=('%s' % label) if label is not None else '1 StdDev')
+    # ax.legend()
   
   # Plot all traces if desired.
   if plot_all_trials:
@@ -234,15 +253,32 @@ def plot_pour_relativeHeight(feature_data_allTrials,
       ax.axvspan(pour_start_indexes[trial_index], pour_end_indexes[trial_index], alpha=0.5, color='gray')
   
   # Plot the glass height.
-  ax.axhline(y=0, color='k', linestyle='--')
+  ax.axhline(y=0, color='k', linestyle='--', linewidth=4)
   
   # Plot formatting.
+  axis_fontsize = 24
+  title_fontsize = 24
+  ax.tick_params(axis='x', labelsize=18)  # Set x-axis tick font size
+  ax.tick_params(axis='y', labelsize=18)  # Set y-axis tick font size
+  
   ylim = ax.get_ylim()
-  ax.set_ylim([min(-5, min(ylim)), max(ylim)])
-  ax.set_xlabel('Time Index')
-  ax.set_ylabel('Spout Height Above Glass [cm]')
+  # ax.set_ylim([min(-2, min(ylim)), max(ylim)])
+  ax.set_ylim([-2, 18])
+  ax.set_xlabel('Percent of Trial Duration', fontsize=axis_fontsize)
+  ax.set_ylabel('Relative Height [cm]', fontsize=axis_fontsize)
+  plt.title('Spout Height Above Glass%s' % ((': %s' % subtitle) if subtitle is not None else ''), fontsize=title_fontsize)
   ax.grid(True, color='lightgray')
-  plt.title('Spout height relative to glass%s' % ((': %s' % subtitle) if subtitle is not None else ''))
+  
+  def shrink_axis(ax, shift, scale):
+    box = ax.get_position()
+    ax.set_position([box.x0, box.y0 + box.height * shift,
+                     box.width, box.height * scale])
+  def add_legend_below(ax, legend_y):
+    ax.legend(loc='upper center', bbox_to_anchor=(0.5, legend_y),
+              fancybox=True, shadow=True, ncol=3, fontsize=24)
+  shrink_axis(ax, shift=0.045, scale=0.98)
+  add_legend_below(ax, -0.12)
+  # ax.yaxis.set_major_locator(MaxNLocator(nbins=4))
   
   # Show the plot.
   plt.draw()
@@ -280,12 +316,12 @@ def plot_spout_dynamics(feature_data_allTrials,
                                squeeze=False, # if False, always return 2D array of axes
                                sharex=True, sharey=False,
                                subplot_kw={'frame_on': True},
-                               figsize=(13, 7),
+                               figsize=(12, 7),
                                )
-    if not hide_figure_window:
-      figManager = plt.get_current_fig_manager()
-      figManager.window.showMaximized()
-      plt_wait_for_keyboard_press(0.3)
+    # if not hide_figure_window:
+    #   figManager = plt.get_current_fig_manager()
+    #   figManager.window.showMaximized()
+    #   plt_wait_for_keyboard_press(0.3)
     plt.ion()
   else:
     (fig, axs) = fig
@@ -314,46 +350,46 @@ def plot_spout_dynamics(feature_data_allTrials,
   # Plot.
   ax_speed = axs[0][0]
   ax_jerk = axs[1][0]
-  speeds_m_s_toPlot = np.array(speeds_m_s)
-  jerks_m_s_s_s_toPlot = np.array(jerks_m_s_s_s)
-  x = np.linspace(start=0, stop=speeds_m_s_toPlot.shape[1], num=speeds_m_s_toPlot.shape[1])
+  speeds_cm_s_toPlot = 100*np.array(speeds_m_s)
+  jerks_cm_s_s_s_toPlot = 100*np.array(jerks_m_s_s_s)
+  x = np.linspace(start=0, stop=speeds_cm_s_toPlot.shape[1], num=speeds_cm_s_toPlot.shape[1])
   # Plot shading if desired.
   if plot_std_shading:
     # Shading for speed
-    mean = np.mean(speeds_m_s_toPlot, axis=0)
-    std = np.std(speeds_m_s_toPlot, axis=0)
+    mean = np.mean(speeds_cm_s_toPlot, axis=0)
+    std = np.std(speeds_cm_s_toPlot, axis=0)
     ax_speed.fill_between(x, mean-std, mean+std, alpha=0.4,
-                          label=('%s: 1 StdDev' % label) if label is not None else '1 StdDev')
-    ax_speed.legend()
+                          label=('%s' % label) if label is not None else '1 StdDev')
+    # ax_speed.legend(fontsize=16)
     # Shading for jerk
-    mean = np.mean(jerks_m_s_s_s_toPlot, axis=0)
-    std = np.std(jerks_m_s_s_s_toPlot, axis=0)
+    mean = np.mean(jerks_cm_s_s_s_toPlot, axis=0)
+    std = np.std(jerks_cm_s_s_s_toPlot, axis=0)
     ax_jerk.fill_between(x, mean-std, mean+std, alpha=0.4,
-                         label=('%s: 1 StdDev' % label) if label is not None else '1 StdDev')
-    ax_jerk.legend()
+                         label=('%s' % label) if label is not None else '1 StdDev')
+    # ax_jerk.legend(fontsize=16)
   # Plot all traces if desired.
   if plot_all_trials:
     for trial_index in range(num_trials):
-      ax_speed.plot(speeds_m_s_toPlot[trial_index, :], linewidth=1)
-      ax_jerk.plot(jerks_m_s_s_s_toPlot[trial_index, :], linewidth=1)
+      ax_speed.plot(speeds_cm_s_toPlot[trial_index, :], linewidth=1)
+      ax_jerk.plot(jerks_cm_s_s_s_toPlot[trial_index, :], linewidth=1)
   # Plot the mean if desired.
   if plot_mean:
     mean_label = None
     if not plot_std_shading:
       mean_label=('%s: Mean' % label) if label is not None else 'Mean'
-    ax_speed.plot(np.mean(speeds_m_s_toPlot, axis=0),
+    ax_speed.plot(np.mean(speeds_cm_s_toPlot, axis=0),
                   color='k' if plot_all_trials else None, linewidth=3,
                   label=mean_label)
     if mean_label is not None:
-      ax_speed.legend()
+      ax_speed.legend(fontsize=16)
     mean_label = None
     if not plot_std_shading:
       mean_label=('%s: Mean' % label) if label is not None else 'Mean'
-    ax_jerk.plot(np.mean(jerks_m_s_s_s_toPlot, axis=0),
+    ax_jerk.plot(np.mean(jerks_cm_s_s_s_toPlot, axis=0),
                   color='k' if plot_all_trials else None, linewidth=3,
                   label=mean_label)
     if mean_label is not None:
-      ax_jerk.legend()
+      ax_jerk.legend(fontsize=16)
   # Shade the pouring regions if desired.
   if shade_pouring_region:
     for trial_index in range(num_trials):
@@ -361,13 +397,38 @@ def plot_spout_dynamics(feature_data_allTrials,
       ax_jerk.axvspan(pour_start_indexes[trial_index], pour_end_indexes[trial_index], alpha=0.5, color='gray')
   
   # Plot formatting.
-  ax_speed.set_ylabel('Speed [m/s]')
-  ax_jerk.set_ylabel('Jerk [m/s/s/s]')
+  axis_fontsize = 24
+  title_fontsize = 24
+  ax_jerk.tick_params(axis='x', labelsize=18)  # Set x-axis tick font size
+  ax_jerk.tick_params(axis='y', labelsize=18)  # Set y-axis tick font size
+  ax_speed.tick_params(axis='x', labelsize=18)  # Set x-axis tick font size
+  ax_speed.tick_params(axis='y', labelsize=18)  # Set y-axis tick font size
+  
+  ax_speed.set_ylabel(r'Speed [cm/s]', fontsize=axis_fontsize)
+  # ax_speed.set_ylabel('Speed [cm/s]')
+  ax_jerk.set_ylabel(r'Jerk [cm/s³]', fontsize=axis_fontsize)
   ax_speed.grid(True, color='lightgray')
   ax_jerk.grid(True, color='lightgray')
-  ax_speed.title.set_text('Spout Speed%s' % ((': %s' % subtitle) if subtitle is not None else ''))
-  ax_jerk.title.set_text('Spout Jerk%s' % ((': %s' % subtitle) if subtitle is not None else ''))
-  ax_jerk.set_xlabel('Time Index')
+  ax_speed.set_title('Spout Speed%s' % ((': %s' % subtitle) if subtitle is not None else ''), fontsize=title_fontsize)
+  ax_jerk.set_title('Spout Jerk%s' % ((': %s' % subtitle) if subtitle is not None else ''), fontsize=title_fontsize)
+  ax_jerk.set_xlabel('Percent of Trial Duration', fontsize=axis_fontsize)
+  
+  def shrink_axis(ax, shift, scale):
+    box = ax.get_position()
+    ax.set_position([box.x0, box.y0 + box.height * shift,
+                     box.width, box.height * scale])
+  def add_legend_below(ax, legend_y):
+    ax.legend(loc='upper center', bbox_to_anchor=(0.5, legend_y),
+              fancybox=True, shadow=True, ncol=3, fontsize=24)
+  shrink_axis(ax_speed, shift=0.1, scale=0.95)
+  shrink_axis(ax_jerk, shift=0.15, scale=0.95)
+  add_legend_below(ax_jerk, -0.35)
+  ax_speed.yaxis.set_major_locator(MaxNLocator(nbins=4))
+  ax_jerk.yaxis.set_major_locator(MaxNLocator(nbins=5))
+  # # Adjust the layout to make room for the legend
+  # fig.tight_layout(rect=[0, 0.6, 1, 1])  # Leave space at the bottom
+  # # Add a common legend below the subplots
+  # ax_jerk.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1), ncol=3, fontsize=24)
   
   # Show the plot.
   plt.draw()

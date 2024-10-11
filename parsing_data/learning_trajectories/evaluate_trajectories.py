@@ -39,23 +39,23 @@ if len(sys.argv) == 1:
   # For example, may have entries for each subject
   #  and may have an entries for model outputs.
   feature_data_filepaths_byType = {
-    'S00': os.path.join(data_dir_humans, 'pouring_trainingData_S00.hdf5'),
+    # 'S00': os.path.join(data_dir_humans, 'pouring_trainingData_S00.hdf5'),
     # 'S10': os.path.join(data_dir_humans, 'pouring_trainingData_S10.hdf5'),
-    'S11': os.path.join(data_dir_humans, 'pouring_trainingData_S11.hdf5'),
+    # 'S11': os.path.join(data_dir_humans, 'pouring_trainingData_S11.hdf5'),
     'Model': os.path.join(data_dir_model, 'pouring_modelData.hdf5'),
   }
   # Specify where outputs should be saved.
   # Can be None to not save any outputs.
-  output_dir = None
+  # output_dir = None
   # output_dir = os.path.join(data_dir_humans, 'S00-S11')
-  # output_dir = os.path.join(data_dir_model, 'with humans')
+  output_dir = os.path.join(data_dir_model, 'only model - new animation limits')
   
   plot_exports_extension = 'png' # jpg png pdf
   
   # Specify which outputs to process.
   # Animations.
   interactively_animate_trajectories_exampleType = None # 'S00' # interactive - can move around scene and press enter to step through time # None to not animate
-  save_trajectory_animations_eachType = False
+  save_trajectory_animations_eachType = True
   save_trajectory_animations_compositeTypes = False
   # Plots (mostly time series).
   plot_all_trajectories_singlePlot = True

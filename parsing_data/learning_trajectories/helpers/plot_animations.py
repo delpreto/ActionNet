@@ -277,6 +277,10 @@ def plot_timestep(time_s, time_index,
                               (spout_projection_z_cm+0.1)*np.array([1,1]),
                               color='r', linewidth=2))
   
+  # ax.set_xlim([-60, 0])
+  # ax.set_ylim([-40, 40])
+  # ax.set_zlim([0, 40])
+  
   x_lim = ax.get_xlim()
   y_lim = ax.get_ylim()
   z_lim = ax.get_zlim()

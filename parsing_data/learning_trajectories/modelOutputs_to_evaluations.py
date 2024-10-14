@@ -37,10 +37,10 @@ evaluation_config = {
   'output_dir': os.path.realpath(output_dir), # None to not save the plots
   'plot_exports_extension': 'png',
   
-  'plot_spout_speedJerk':  True,
-  'plot_spout_tilt':  True,
-  'plot_spout_height':  True,
-  'plot_spout_pouring_projection':  True,
+  'plot_motionObjectKeypoint_speedJerk':  True,
+  'plot_motionObject_tilt':  True,
+  'plot_motionObjectKeypoint_height':  True,
+  'plot_motionObjectKeypoint_pouring_projection':  True,
   
   'plot_all_trajectories_singlePlot':  False,
   'plot_all_startingConditions_singlePlot':  False,
@@ -52,11 +52,11 @@ evaluation_config = {
   'plot_body_speedJerk':  False,
   'plot_joint_angles':  False,
   'plot_compare_distribution_body_speedJerk':  False,
-  'plot_compare_distribution_spout_speedJerk':  True, # includes Wasserstein distances
+  'plot_compare_distribution_motionObjectKeypoint_speedJerk':  True, # includes Wasserstein distances
   'plot_compare_distribution_joint_angles':  False,
-  'plot_compare_distribution_spout_projection':  False,
-  'plot_compare_distribution_spout_height':  False,
-  'plot_compare_distribution_spout_tilt':  False,
+  'plot_compare_distribution_motionObjectKeypoint_projection':  False,
+  'plot_compare_distribution_motionObjectKeypoint_height':  False,
+  'plot_compare_distribution_motionObject_tilt':  False,
   'plot_distributions_hand_to_pitcher_angles':  False,
   
   'keep_plots_open':  False,

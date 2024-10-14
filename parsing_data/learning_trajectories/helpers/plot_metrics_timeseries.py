@@ -45,11 +45,11 @@ from mpl_toolkits.mplot3d import art3d
 
 
 # ================================================================
-# Plot the pitcher tilt angle over time.
-def plot_pour_tilting(feature_data_allTrials, shade_pouring_region=False,
-                      plot_all_trials=True, plot_std_shading=False, plot_mean=False,
-                      label=None, subtitle=None,
-                      fig=None, hide_figure_window=False, output_filepath=None):
+# Plot the motion object tilt angle over time.
+def plot_motionObject_tilting(feature_data_allTrials, activity_type, shade_stationary_region=False,
+                              plot_all_trials=True, plot_std_shading=False, plot_mean=False,
+                              label=None, subtitle=None,
+                              fig=None, hide_figure_window=False, output_filepath=None):
   if output_filepath is not None:
     os.makedirs(os.path.split(output_filepath)[0], exist_ok=True)
   if not isinstance(feature_data_allTrials, dict):
@@ -82,18 +82,18 @@ def plot_pour_tilting(feature_data_allTrials, shade_pouring_region=False,
     feature_data = get_feature_data_for_trial(feature_data_allTrials, trial_index)
     angle_toXY_rad = np.zeros(shape=(num_timesteps,))
     for time_index in range(num_timesteps):
-      angle_toXY_rad[time_index] = infer_spout_tilting(feature_data, time_index)
+      angle_toXY_rad[time_index] = infer_motionObject_tilting(feature_data, activity_type, time_index)
     angles_toXY_rad[trial_index, :] = angle_toXY_rad
   
-  # Get the pouring times.
-  if shade_pouring_region:
-    pour_start_indexes = np.zeros((num_trials, 1))
-    pour_end_indexes = np.zeros((num_trials, 1))
+  # Get the stationary times.
+  if shade_stationary_region:
+    stationary_start_indexes = np.zeros((num_trials, 1))
+    stationary_end_indexes = np.zeros((num_trials, 1))
     for trial_index in range(num_trials):
       feature_data = get_feature_data_for_trial(feature_data_allTrials, trial_index)
-      pouring_inference = infer_pour_pose(feature_data)
-      pour_start_indexes[trial_index] = pouring_inference['start_time_index']
-      pour_end_indexes[trial_index] = pouring_inference['end_time_index']
+      stationary_inference = infer_stationary_pose(feature_data)
+      stationary_start_indexes[trial_index] = stationary_inference['start_time_index']
+      stationary_end_indexes[trial_index] = stationary_inference['end_time_index']
   
   # Plot standard deviation shading if desired.
   if plot_std_shading:
@@ -122,10 +122,10 @@ def plot_pour_tilting(feature_data_allTrials, shade_pouring_region=False,
     if mean_label is not None:
       ax.legend()
     
-  # Shade the pouring regions if desired.
-  if shade_pouring_region:
+  # Shade the stationary regions if desired.
+  if shade_stationary_region:
     for trial_index in range(num_trials):
-      ax.axvspan(pour_start_indexes[trial_index], pour_end_indexes[trial_index], alpha=0.5, color='gray')
+      ax.axvspan(stationary_start_indexes[trial_index], stationary_end_indexes[trial_index], alpha=0.5, color='gray')
   
   # Plot formatting.
   axis_fontsize = 24
@@ -138,7 +138,7 @@ def plot_pour_tilting(feature_data_allTrials, shade_pouring_region=False,
   ax.set_xlabel('Percent of Trial Duration', fontsize=axis_fontsize)
   ax.set_ylabel('Tilt Angle to XY Plane [degrees]', fontsize=axis_fontsize)
   ax.grid(True, color='lightgray')
-  plt.title('Pitcher Tilt Angle%s' % ((': %s' % subtitle) if subtitle is not None else ''), fontsize=title_fontsize)
+  plt.title('%s Tilt Angle%s' % (motionObject_name[activity_type], (': %s' % subtitle) if subtitle is not None else ''), fontsize=title_fontsize)
   # Add a legend below the plot.
   def shrink_axis(ax, shift, scale):
     box = ax.get_position()
@@ -161,14 +161,14 @@ def plot_pour_tilting(feature_data_allTrials, shade_pouring_region=False,
   return fig
 
 # ================================================================
-# Plot the height of the spout relative to the top of the glass over time.
-def plot_pour_relativeHeight(feature_data_allTrials,
-                             shade_pouring_region=False,
-                             plot_all_trials=True, plot_std_shading=False, plot_mean=False,
-                             subtitle=None, label=None,
-                             fig=None, hide_figure_window=False,
-                             color=None,
-                             output_filepath=None):
+# Plot the height of the motion object keypoint relative to the top of the reference object over time.
+def plot_motionObjectKeypoint_relativeHeight(feature_data_allTrials, activity_type,
+                                             shade_stationary_region=False,
+                                             plot_all_trials=True, plot_std_shading=False, plot_mean=False,
+                                             subtitle=None, label=None,
+                                             fig=None, hide_figure_window=False,
+                                             color=None,
+                                             output_filepath=None):
   if output_filepath is not None:
     os.makedirs(os.path.split(output_filepath)[0], exist_ok=True)
   if not isinstance(feature_data_allTrials, dict):
@@ -197,35 +197,35 @@ def plot_pour_relativeHeight(feature_data_allTrials,
   num_trials = feature_data_allTrials['time_s'].shape[0]
   num_timesteps = feature_data_allTrials['time_s'].shape[1]
   
-  # Get the spout heights for each trial.
-  spout_heights_cm = np.zeros((num_trials, num_timesteps))
+  # Get the motion object keypoint heights for each trial.
+  motionObjectKeypoint_heights_cm = np.zeros((num_trials, num_timesteps))
   for trial_index in range(num_trials):
     feature_data = get_feature_data_for_trial(feature_data_allTrials, trial_index)
     referenceObject_position_m = np.squeeze(feature_data['referenceObject_position_m'])
-    # Get the spout height at each timestep.
-    spout_relativeHeight_cm = np.zeros(shape=(num_timesteps,))
+    # Get the motion object keypoint height at each timestep.
+    motionObjectKeypoint_relativeHeight_cm = np.zeros(shape=(num_timesteps,))
     for time_index in range(num_timesteps):
-      spout_position_cm = 100*infer_spout_position_m(feature_data, time_index)
-      spout_relativeHeight_cm[time_index] = spout_position_cm[2] - 100*referenceObject_position_m[2]
-    spout_heights_cm[trial_index, :] = spout_relativeHeight_cm
+      motionObjectKeypoint_position_cm = 100*eval(infer_motionObjectKeypoint_position_m_fn[activity_type])(feature_data, activity_type, time_index)
+      motionObjectKeypoint_relativeHeight_cm[time_index] = motionObjectKeypoint_position_cm[2] - 100*referenceObject_position_m[2]
+    motionObjectKeypoint_heights_cm[trial_index, :] = motionObjectKeypoint_relativeHeight_cm
   
-  # Get the pouring times.
-  if shade_pouring_region:
-    pour_start_indexes = np.zeros((num_trials, 1))
-    pour_end_indexes = np.zeros((num_trials, 1))
+  # Get the stationary times.
+  if shade_stationary_region:
+    stationary_start_indexes = np.zeros((num_trials, 1))
+    stationary_end_indexes = np.zeros((num_trials, 1))
     for trial_index in range(num_trials):
       feature_data = get_feature_data_for_trial(feature_data_allTrials, trial_index)
-      pouring_inference = infer_pour_pose(feature_data)
-      pour_start_indexes[trial_index] = pouring_inference['start_time_index']
-      pour_end_indexes[trial_index] = pouring_inference['end_time_index']
+      stationary_inference = infer_stationary_pose(feature_data, activity_type)
+      stationary_start_indexes[trial_index] = stationary_inference['start_time_index']
+      stationary_end_indexes[trial_index] = stationary_inference['end_time_index']
   
   # Plot shading if desired.
   if plot_std_shading:
     if label.lower() in example_types_to_offset:
-      spout_heights_cm += 2
-    x = np.linspace(start=0, stop=spout_heights_cm.shape[1], num=spout_heights_cm.shape[1])
-    mean = np.mean(spout_heights_cm, axis=0)
-    std = np.std(spout_heights_cm, axis=0)
+      motionObjectKeypoint_heights_cm += 2
+    x = np.linspace(start=0, stop=motionObjectKeypoint_heights_cm.shape[1], num=motionObjectKeypoint_heights_cm.shape[1])
+    mean = np.mean(motionObjectKeypoint_heights_cm, axis=0)
+    std = np.std(motionObjectKeypoint_heights_cm, axis=0)
     ax.fill_between(x, mean-std, mean+std, alpha=0.4,
                     label=('%s' % label) if label is not None else '1 StdDev')
     # ax.legend()
@@ -233,25 +233,25 @@ def plot_pour_relativeHeight(feature_data_allTrials,
   # Plot all traces if desired.
   if plot_all_trials:
     for trial_index in range(num_trials):
-      ax.plot(spout_heights_cm[trial_index, :], linewidth=1)
+      ax.plot(motionObjectKeypoint_heights_cm[trial_index, :], linewidth=1)
     
   # Plot the mean if desired.
   if plot_mean:
     mean_label = None
     if not plot_std_shading:
       mean_label = ('%s: Mean' % label) if label is not None else 'Mean'
-    ax.plot(np.mean(spout_heights_cm, axis=0),
+    ax.plot(np.mean(motionObjectKeypoint_heights_cm, axis=0),
             color='k' if plot_all_trials else None, linewidth=3,
             label=mean_label)
     if mean_label is not None:
       ax.legend()
     
-  # Shade the pouring regions if desired.
-  if shade_pouring_region:
+  # Shade the stationary regions if desired.
+  if shade_stationary_region:
     for trial_index in range(num_trials):
-      ax.axvspan(pour_start_indexes[trial_index], pour_end_indexes[trial_index], alpha=0.5, color='gray')
+      ax.axvspan(stationary_start_indexes[trial_index], stationary_end_indexes[trial_index], alpha=0.5, color='gray')
   
-  # Plot the glass height.
+  # Plot the reference object height.
   ax.axhline(y=0, color='k', linestyle='--', linewidth=4)
   
   # Plot formatting.
@@ -260,11 +260,16 @@ def plot_pour_relativeHeight(feature_data_allTrials,
   ax.tick_params(axis='x', labelsize=18)  # Set x-axis tick font size
   ax.tick_params(axis='y', labelsize=18)  # Set y-axis tick font size
   ylim = ax.get_ylim()
-  ax.set_ylim([min(-2, min(ylim)), max(18, max(ylim))])
+  if activity_type == 'pouring':
+    ax.set_ylim([min(-2, min(ylim)), max(18, max(ylim))])
+  else:
+    ax.set_ylim([min(-5, min(ylim)), max(20, max(ylim))])
   # ax.set_ylim([-2, 18])
   ax.set_xlabel('Percent of Trial Duration', fontsize=axis_fontsize)
   ax.set_ylabel('Relative Height [cm]', fontsize=axis_fontsize)
-  plt.title('Spout Height Above Glass%s' % ((': %s' % subtitle) if subtitle is not None else ''), fontsize=title_fontsize)
+  plt.title('%s Height Above %s%s' % (motionObjectKeypoint_name[activity_type],
+                                      referenceObject_name[activity_type],
+                                      (': %s' % subtitle) if subtitle is not None else ''), fontsize=title_fontsize)
   ax.grid(True, color='lightgray')
   # Add a legend below the plot.
   def shrink_axis(ax, shift, scale):
@@ -288,13 +293,13 @@ def plot_pour_relativeHeight(feature_data_allTrials,
   return fig
 
 # ================================================================
-# Plot the speed and jerk of the spout over time.
-def plot_spout_dynamics(feature_data_allTrials,
-                        plot_all_trials=True, plot_mean=False, plot_std_shading=False,
-                        subtitle=None, label=None,
-                        output_filepath=None,
-                        shade_pouring_region=False,
-                        fig=None, hide_figure_window=False):
+# Plot the speed and jerk of the motion object keypoint over time.
+def plot_motionObjectKeypoint_dynamics(feature_data_allTrials, activity_type,
+                                       plot_all_trials=True, plot_mean=False, plot_std_shading=False,
+                                       subtitle=None, label=None,
+                                       output_filepath=None,
+                                       shade_stationary_region=False,
+                                       fig=None, hide_figure_window=False):
     
   if output_filepath is not None:
     os.makedirs(os.path.split(output_filepath)[0], exist_ok=True)
@@ -327,23 +332,23 @@ def plot_spout_dynamics(feature_data_allTrials,
   num_trials = feature_data_allTrials['time_s'].shape[0]
   num_timesteps = feature_data_allTrials['time_s'].shape[1]
   
-  # Get the spout dynamics for each timestep.
+  # Get the motion object keypoint dynamics for each timestep.
   speeds_m_s = [None]*num_trials
   jerks_m_s_s_s = [None]*num_trials
   for trial_index in range(num_trials):
     feature_data = get_feature_data_for_trial(feature_data_allTrials, trial_index)
-    speeds_m_s[trial_index] = infer_spout_speed_m_s(feature_data)
-    jerks_m_s_s_s[trial_index] = infer_spout_jerk_m_s_s_s(feature_data)
+    speeds_m_s[trial_index] = infer_motionObjectKeypoint_speed_m_s(feature_data, activity_type)
+    jerks_m_s_s_s[trial_index] = infer_motionObjectKeypoint_jerk_m_s_s_s(feature_data, activity_type)
   
-  # Get the pouring times.
-  if shade_pouring_region:
-    pour_start_indexes = np.zeros((num_trials, 1))
-    pour_end_indexes = np.zeros((num_trials, 1))
+  # Get the stationary times.
+  if shade_stationary_region:
+    stationary_start_indexes = np.zeros((num_trials, 1))
+    stationary_end_indexes = np.zeros((num_trials, 1))
     for trial_index in range(num_trials):
       feature_data = get_feature_data_for_trial(feature_data_allTrials, trial_index)
-      pouring_inference = infer_pour_pose(feature_data)
-      pour_start_indexes[trial_index] = pouring_inference['start_time_index']
-      pour_end_indexes[trial_index] = pouring_inference['end_time_index']
+      stationary_inference = infer_stationary_pose(feature_data)
+      stationary_start_indexes[trial_index] = stationary_inference['start_time_index']
+      stationary_end_indexes[trial_index] = stationary_inference['end_time_index']
   
   # Plot.
   ax_speed = axs[0][0]
@@ -388,11 +393,11 @@ def plot_spout_dynamics(feature_data_allTrials,
                   label=mean_label)
     if mean_label is not None:
       ax_jerk.legend(fontsize=16)
-  # Shade the pouring regions if desired.
-  if shade_pouring_region:
+  # Shade the stationary regions if desired.
+  if shade_stationary_region:
     for trial_index in range(num_trials):
-      ax_speed.axvspan(pour_start_indexes[trial_index], pour_end_indexes[trial_index], alpha=0.5, color='gray')
-      ax_jerk.axvspan(pour_start_indexes[trial_index], pour_end_indexes[trial_index], alpha=0.5, color='gray')
+      ax_speed.axvspan(stationary_start_indexes[trial_index], stationary_end_indexes[trial_index], alpha=0.5, color='gray')
+      ax_jerk.axvspan(stationary_start_indexes[trial_index], stationary_end_indexes[trial_index], alpha=0.5, color='gray')
   
   # Plot formatting.
   axis_fontsize = 24
@@ -407,8 +412,8 @@ def plot_spout_dynamics(feature_data_allTrials,
   ax_jerk.yaxis.set_major_locator(MaxNLocator(nbins=5))
   ax_speed.set_ylabel('Speed [cm/s]', fontsize=axis_fontsize)
   ax_jerk.set_ylabel('Jerk [cm/s³]', fontsize=axis_fontsize)
-  ax_speed.set_title('Spout Speed%s' % ((': %s' % subtitle) if subtitle is not None else ''), fontsize=title_fontsize)
-  ax_jerk.set_title('Spout Jerk%s' % ((': %s' % subtitle) if subtitle is not None else ''), fontsize=title_fontsize)
+  ax_speed.set_title('%s Speed%s' % (motionObjectKeypoint_name[activity_type], (': %s' % subtitle) if subtitle is not None else ''), fontsize=title_fontsize)
+  ax_jerk.set_title('%s Jerk%s' % (motionObjectKeypoint_name[activity_type], (': %s' % subtitle) if subtitle is not None else ''), fontsize=title_fontsize)
   ax_jerk.set_xlabel('Percent of Trial Duration', fontsize=axis_fontsize)
   # Add a legend below the plot.
   def shrink_axis(ax, shift, scale):
@@ -437,7 +442,7 @@ def plot_body_dynamics(feature_data_allTrials,
                        plot_all_trials=True, plot_mean=False, plot_std_shading=False,
                        subtitle=None, label=None,
                        output_filepath=None,
-                       shade_pouring_region=False,
+                       shade_stationary_region=False,
                        fig=None, hide_figure_window=False):
     
   if output_filepath is not None:
@@ -479,15 +484,15 @@ def plot_body_dynamics(feature_data_allTrials,
     speeds_m_s[trial_index] = get_body_speed_m_s(feature_data)
     jerks_m_s_s_s[trial_index] = get_body_jerk_m_s_s_s(feature_data)
   
-  # Get the pouring times.
-  if shade_pouring_region:
-    pour_start_indexes = np.zeros((num_trials, 1))
-    pour_end_indexes = np.zeros((num_trials, 1))
+  # Get the stationary times.
+  if shade_stationary_region:
+    stationary_start_indexes = np.zeros((num_trials, 1))
+    stationary_end_indexes = np.zeros((num_trials, 1))
     for trial_index in range(num_trials):
       feature_data = get_feature_data_for_trial(feature_data_allTrials, trial_index)
-      pouring_inference = infer_pour_pose(feature_data)
-      pour_start_indexes[trial_index] = pouring_inference['start_time_index']
-      pour_end_indexes[trial_index] = pouring_inference['end_time_index']
+      stationary_inference = infer_stationary_pose(feature_data)
+      stationary_start_indexes[trial_index] = stationary_inference['start_time_index']
+      stationary_end_indexes[trial_index] = stationary_inference['end_time_index']
   
   # Plot.
   for (body_index, body_key) in enumerate(list(speeds_m_s[0].keys())):
@@ -540,11 +545,11 @@ def plot_body_dynamics(feature_data_allTrials,
       if mean_label is not None:
         ax_jerk.legend()
     
-    # Shade the pouring regions if desired.
-    if shade_pouring_region:
+    # Shade the stationary regions if desired.
+    if shade_stationary_region:
       for trial_index in range(num_trials):
-        ax_speed.axvspan(pour_start_indexes[trial_index], pour_end_indexes[trial_index], alpha=0.5, color='gray')
-        ax_jerk.axvspan(pour_start_indexes[trial_index], pour_end_indexes[trial_index], alpha=0.5, color='gray')
+        ax_speed.axvspan(stationary_start_indexes[trial_index], stationary_end_indexes[trial_index], alpha=0.5, color='gray')
+        ax_jerk.axvspan(stationary_start_indexes[trial_index], stationary_end_indexes[trial_index], alpha=0.5, color='gray')
     
     # Plot formatting.
     if body_index == 0:
@@ -571,7 +576,7 @@ def plot_body_joint_angles(feature_data_allTrials,
                            plot_all_trials=True, plot_mean=False, plot_std_shading=False,
                            subtitle=None, label=None,
                            output_filepath=None,
-                           shade_pouring_region=False,
+                           shade_stationary_region=False,
                            fig=None, hide_figure_window=False):
     
   if output_filepath is not None:
@@ -611,15 +616,15 @@ def plot_body_joint_angles(feature_data_allTrials,
     feature_data = get_feature_data_for_trial(feature_data_allTrials, trial_index)
     joint_angles_rad[trial_index] = get_body_joint_angles_rad(feature_data)
   
-  # Get the pouring times.
-  if shade_pouring_region:
-    pour_start_indexes = np.zeros((num_trials, 1))
-    pour_end_indexes = np.zeros((num_trials, 1))
+  # Get the stationary times.
+  if shade_stationary_region:
+    stationary_start_indexes = np.zeros((num_trials, 1))
+    stationary_end_indexes = np.zeros((num_trials, 1))
     for trial_index in range(num_trials):
       feature_data = get_feature_data_for_trial(feature_data_allTrials, trial_index)
-      pouring_inference = infer_pour_pose(feature_data)
-      pour_start_indexes[trial_index] = pouring_inference['start_time_index']
-      pour_end_indexes[trial_index] = pouring_inference['end_time_index']
+      stationary_inference = infer_stationary_pose(feature_data)
+      stationary_start_indexes[trial_index] = stationary_inference['start_time_index']
+      stationary_end_indexes[trial_index] = stationary_inference['end_time_index']
   
   # Plot.
   for (body_index, body_key) in enumerate(list(joint_angles_rad[0].keys())):
@@ -655,10 +660,10 @@ def plot_body_joint_angles(feature_data_allTrials,
         if mean_label is not None:
           ax_joint_angles.legend()
       
-      # Shade the pouring regions if desired.
-      if shade_pouring_region:
+      # Shade the stationary regions if desired.
+      if shade_stationary_region:
         for trial_index in range(num_trials):
-          ax_joint_angles.axvspan(pour_start_indexes[trial_index], pour_end_indexes[trial_index], alpha=0.5, color='gray')
+          ax_joint_angles.axvspan(stationary_start_indexes[trial_index], stationary_end_indexes[trial_index], alpha=0.5, color='gray')
       
       # Plot formatting.
       if body_index == 0:

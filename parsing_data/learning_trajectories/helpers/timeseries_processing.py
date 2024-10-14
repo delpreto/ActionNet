@@ -65,7 +65,7 @@ def resample_bodyPath_data(time_s_byTrial, bodyPath_data_byTrial):
 
 #===========================================================
 # Infer the hand position and orientation at a stationary point (such as when water is being poured)
-def infer_stationary_poses(time_s_byTrial, bodyPath_data_byTrial, use_variance, hand_segment_key):
+def infer_stationary_poses(time_s_byTrial, bodyPath_data_byTrial, use_variance, hand_segment_key, stationary_position_hardcoded_time_fraction):
   if not isinstance(bodyPath_data_byTrial, (list, tuple)):
     bodyPath_data_byTrial = [bodyPath_data_byTrial]
     time_s_byTrial = [time_s_byTrial]
@@ -78,7 +78,7 @@ def infer_stationary_poses(time_s_byTrial, bodyPath_data_byTrial, use_variance, 
   for (trial_index, bodyPath_data) in enumerate(bodyPath_data_byTrial):
     body_position_m = bodyPath_data['position_m']
     body_quaternion_wijk = bodyPath_data['quaternion_wijk']
-    time_s = time_s_byTrial[trial_index]
+    time_s = np.squeeze(time_s_byTrial[trial_index])
     num_timesteps = time_s.shape[0]
     stationary_position_minIndex = round(stationary_position_min_ratio*num_timesteps)
     stationary_position_maxIndex = round(stationary_position_max_ratio*num_timesteps)

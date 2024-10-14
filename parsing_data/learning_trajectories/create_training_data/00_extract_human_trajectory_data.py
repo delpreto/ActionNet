@@ -51,53 +51,54 @@ from learning_trajectories.helpers.printing import *
 # Configuration
 ###################################################################
 
+# Specify the task.
+activity_to_process = 'pouring'
+# activity_to_process = 'scooping'
+
 # Specify outputs.
 animate_trajectory_plots = False # show an animated plot of the skeleton for each trial
 plot_all_trajectories = False # make a subplot for each subject, which shows all paths from that subject
 save_plot_all_trajectories = False # make a subplot for each subject, which shows all paths from that subject
-save_eye_videos = False # save the eye-tracking video for each trial
-save_animation_videos = False
-save_composite_videos = False # save the eye-tracking video and animated plot for each trial
-save_results_data = True
+save_eye_videos = True # save the eye-tracking video for each trial
+save_animation_videos = True
+save_composite_videos = True # save the eye-tracking video and animated plot for each trial
+save_results_data = False
+infer_pitcher_holding_angle = False
 plot_pitcher_angle_distance_metrics = False
 save_plot_pitcher_angle_distance_metrics = False
-infer_pitcher_holding_angle = False
+
+# Specify the output folder.
+output_dir = os.path.realpath(os.path.join(actionsense_root_dir,
+                                           'results', 'learning_trajectories', 'humans_temp'))
+os.makedirs(output_dir, exist_ok=True)
 
 # Specify the subjects to consider.
 subject_ids_toProcess = ['S00', 'S11', 'S10'] # S00, S10, S11, ted_S00
 subject_ids_filter = None # None to consider all subjects
 
+# Specify the folder of experiments to parse.
 data_dir = os.path.realpath(os.path.join(actionsense_root_dir, 'data'))
-output_dir = os.path.realpath(os.path.join(actionsense_root_dir,
-                                           'results', 'learning_trajectories', 'humans'))
-os.makedirs(output_dir, exist_ok=True)
-
 experiments_dirs = []
 for subject_id_toProcess in subject_ids_toProcess:
-  # Specify the folder of experiments to parse.
-  if subject_id_toProcess == 'S00':
-    experiments_dirs.append(os.path.join(data_dir, 'experiments', '2023-09-10_experiment_%s' % subject_id_toProcess))
-  elif subject_id_toProcess == 'S10':
-    experiments_dirs.append(os.path.join(data_dir, 'experiments', '2023-08-18_experiment_%s' % subject_id_toProcess))
-  elif subject_id_toProcess == 'S11':
-    experiments_dirs.append(os.path.join(data_dir, 'experiments', '2023-09-10_experiment_%s' % subject_id_toProcess))
-  elif subject_id_toProcess == 'ted_S00':
-    experiments_dirs.append(os.path.join(data_dir, 'experiments', '2024-03-04_experiment_S00_selectedRun'))
+  if activity_to_process in ['pouring', 'scooping']:
+    if subject_id_toProcess == 'S00':
+      experiments_dirs.append(os.path.join(data_dir, 'experiments', '2023-09-10_experiment_%s' % subject_id_toProcess))
+    elif subject_id_toProcess == 'S10':
+      experiments_dirs.append(os.path.join(data_dir, 'experiments', '2023-08-18_experiment_%s' % subject_id_toProcess))
+    elif subject_id_toProcess == 'S11':
+      experiments_dirs.append(os.path.join(data_dir, 'experiments', '2023-09-10_experiment_%s' % subject_id_toProcess))
+    elif subject_id_toProcess == 'ted_S00':
+      experiments_dirs.append(os.path.join(data_dir, 'experiments', '2024-03-04_experiment_S00_selectedRun'))
 
-
-# Choose the activity to process.
-activity_mode = 'pouring' # 'pouring', 'scooping'
-
-if activity_mode == 'pouring':
+# Define the activity labels and other task-specific configuration.
+if activity_to_process == 'pouring':
   target_activity_label = 'Pour water from a pitcher into a glass'
-  target_activity_keyword = 'pouring'
-  stationary_position_use_variance = True # Use a rolling buffer and look at hand variance
-elif activity_mode == 'scooping':
+  target_activity_keyword_for_outputs = 'pouring'
+elif activity_to_process == 'scooping':
   target_activity_label = 'Scoop from a pan to a plate'
-  target_activity_keyword = 'scooping'
-  stationary_position_use_variance = False # Use a hard-coded fraction into the trial.
+  target_activity_keyword_for_outputs = 'scooping'
 else:
-  raise AssertionError('Unknown activity mode "%s"' % activity_mode)
+  raise AssertionError('Unknown activity mode "%s"' % activity_to_process)
 
 
 ###################################################################
@@ -134,7 +135,7 @@ def main_processing(subject_id_toProcess, experiments_dir):
   stationary_time_s_byTrial_bySubject = OrderedDict()
   stationary_pose_byTrial_bySubject = OrderedDict()
   referenceObject_position_m_byTrial_bySubject = OrderedDict()
-  hand_to_pitcher_angles_rad_byTrial_bySubject = OrderedDict()
+  hand_to_motionObject_angles_rad_byTrial_bySubject = OrderedDict()
   for subject_id, subject_hdf5_filepaths in hdf5_filepaths.items():
     print('='*75)
     print('Processing subject %02d' % subject_id)
@@ -143,7 +144,7 @@ def main_processing(subject_id_toProcess, experiments_dir):
     stationary_time_s_byTrial_bySubject.setdefault(subject_id, [])
     stationary_pose_byTrial_bySubject.setdefault(subject_id, [])
     referenceObject_position_m_byTrial_bySubject.setdefault(subject_id, [])
-    hand_to_pitcher_angles_rad_byTrial_bySubject.setdefault(subject_id, [])
+    hand_to_motionObject_angles_rad_byTrial_bySubject.setdefault(subject_id, [])
     targetActivity_trial_index_start = 0
     for (filepath_index, hdf5_filepath) in enumerate(subject_hdf5_filepaths):
       print(' ', hdf5_filepath)
@@ -153,8 +154,8 @@ def main_processing(subject_id_toProcess, experiments_dir):
       
       # Determine the start/end times of each hand path.
       subject_id_str = 'S%02d' % subject_id
-      start_offset_s = start_offsets_s[subject_id_str]
-      end_offset_s = end_offsets_s[subject_id_str]
+      start_offset_s = start_offsets_s[activity_to_process][subject_id_str]
+      end_offset_s = end_offsets_s[activity_to_process][subject_id_str]
       print('  Getting activity start/end times | start offset %g s | end offste %g s' % (start_offset_s, end_offset_s))
       (activities_labels, activities_start_times_s, activities_end_times_s) = \
         get_targetActivity_startEnd_times_s(h5_file, target_activity_label,
@@ -178,14 +179,15 @@ def main_processing(subject_id_toProcess, experiments_dir):
       print('    Getting body path data')
       (time_s_byTrial, bodyPath_data_byTrial) = get_bodyPath_data_byTrial(h5_file, activities_start_times_s, activities_end_times_s)
       print('    Transforming body path data')
-      (time_s_byTrial, bodyPath_data_byTrial) = transform_bodyPath_data_personFrame(time_s_byTrial, bodyPath_data_byTrial)
+      (time_s_byTrial, bodyPath_data_byTrial) = transform_bodyPath_data_personFrame(time_s_byTrial, bodyPath_data_byTrial, activity_to_process)
       print('    Resampling body path data')
       (time_s_byTrial, bodyPath_data_byTrial) = resample_bodyPath_data(time_s_byTrial, bodyPath_data_byTrial)
       # Infer the hand position while being relatively stationary
       print('    Inferring stationary poses')
       (stationary_time_s_byTrial, stationary_pose_byTrial) = infer_stationary_poses(
-        time_s_byTrial, bodyPath_data_byTrial, use_variance=stationary_position_use_variance,
-        hand_segment_key='RightHand')
+        time_s_byTrial, bodyPath_data_byTrial, use_variance=stationary_position_use_variance[activity_to_process],
+        hand_segment_key=motionObject_bodySegment_name[activity_to_process],
+      stationary_position_hardcoded_time_fraction=stationary_position_hardcoded_time_fraction[activity_to_process])
       # Infer the reference object position
       print('    Inferring reference object positions')
       referenceObject_start_time_s_byTrial = []
@@ -196,32 +198,36 @@ def main_processing(subject_id_toProcess, experiments_dir):
       referenceObject_position_m_byTrial = infer_referenceObject_position_m_byTrial(
         bodyPath_data_byTrial, time_s_byTrial,
         referenceObject_start_time_s_byTrial, referenceObject_end_time_s_byTrial,
-        referenceObject_bodySegment_name,
-        use_pouring_position_xy=True,
+        activity_type=activity_to_process,
+        use_motionObjectKeypoint_position_xy=referenceObject_use_motionObjectKeypoint_position_xy[activity_to_process],
         stationary_pose_byTrial=stationary_pose_byTrial)
       
-      # Correct the trajectory to be above the glass at pouring time if needed.
+      # Correct the trajectory to be above the reference object at stationary time if needed.
       print('    Correcting trajectory height to be above the reference object')
       bodyPath_data_byTrial = transform_bodyPath_data_referenceObjectHeight(
-        bodyPath_data_byTrial, stationary_pose_byTrial, referenceObject_position_m_byTrial)
+        bodyPath_data_byTrial, stationary_pose_byTrial, referenceObject_position_m_byTrial,
+        activity_to_process)
       # Infer the hand position while being relatively stationary
       print('    Inferring stationary poses again')
       (stationary_time_s_byTrial, stationary_pose_byTrial) = infer_stationary_poses(
-        time_s_byTrial, bodyPath_data_byTrial, use_variance=stationary_position_use_variance,
-        hand_segment_key='RightHand')
+        time_s_byTrial, bodyPath_data_byTrial, use_variance=stationary_position_use_variance[activity_to_process],
+        hand_segment_key=motionObject_bodySegment_name[activity_to_process],
+        stationary_position_hardcoded_time_fraction=stationary_position_hardcoded_time_fraction[activity_to_process])
       # Infer the reference object position
       print('    Inferring reference object positions again')
       referenceObject_position_m_byTrial = infer_referenceObject_position_m_byTrial(
         bodyPath_data_byTrial, time_s_byTrial,
         referenceObject_start_time_s_byTrial, referenceObject_end_time_s_byTrial,
-        referenceObject_bodySegment_name,
-        use_pouring_position_xy=True,
+        activity_type=activity_to_process,
+        use_motionObjectKeypoint_position_xy=referenceObject_use_motionObjectKeypoint_position_xy[activity_to_process],
         stationary_pose_byTrial=stationary_pose_byTrial)
       
       # Infer the angle of the pitcher in the person's hand if desired.
       if infer_pitcher_holding_angle:
+        if activity_to_process != 'pouring':
+          raise AssertionError('Trying to infer pitcher holding angle, but the activity is not pouring')
         print('    Inferring pitcher holding angles')
-        (hand_to_pitcher_angles_rad_byTrial, fig) = \
+        (hand_to_motionObject_angles_rad_byTrial, fig) = \
           infer_pitcher_holding_angle_rad_byTrial(bodyPath_data_byTrial,
                                                   stationary_pose_byTrial,
                                                   referenceObject_position_m_byTrial,
@@ -229,13 +235,13 @@ def main_processing(subject_id_toProcess, experiments_dir):
                                                   subject_id=subject_id)
         if save_plot_pitcher_angle_distance_metrics:
           print('    Saving the plot of pitcher angles')
-          plot_dir = os.path.join(output_dir, '%s_paths_human' % target_activity_keyword)
+          plot_dir = os.path.join(output_dir, '%s_paths_human' % target_activity_keyword_for_outputs)
           os.makedirs(plot_dir, exist_ok=True)
           fig.savefig(
-            os.path.join(plot_dir, '%s_subject-%s_testing_pitcher_holding_angles.jpg' % (target_activity_keyword, subject_id)),
+            os.path.join(plot_dir, '%s_subject-%s_testing_pitcher_holding_angles.jpg' % (target_activity_keyword_for_outputs, subject_id)),
             dpi=300)
       else:
-        hand_to_pitcher_angles_rad_byTrial = [hand_to_pitcher_angles_rad]*len(bodyPath_data_byTrial)
+        hand_to_motionObject_angles_rad_byTrial = [hand_to_motionObject_angles_rad[activity_to_process]]*len(bodyPath_data_byTrial)
   
       # Store the results
       time_s_byTrial_bySubject[subject_id].extend(time_s_byTrial)
@@ -243,7 +249,7 @@ def main_processing(subject_id_toProcess, experiments_dir):
       stationary_time_s_byTrial_bySubject[subject_id].extend(stationary_time_s_byTrial)
       stationary_pose_byTrial_bySubject[subject_id].extend(stationary_pose_byTrial)
       referenceObject_position_m_byTrial_bySubject[subject_id].extend(referenceObject_position_m_byTrial)
-      hand_to_pitcher_angles_rad_byTrial_bySubject[subject_id].extend(hand_to_pitcher_angles_rad_byTrial)
+      hand_to_motionObject_angles_rad_byTrial_bySubject[subject_id].extend(hand_to_motionObject_angles_rad_byTrial)
       
       # Plot the paths.
       if animate_trajectory_plots:
@@ -251,6 +257,7 @@ def main_processing(subject_id_toProcess, experiments_dir):
         for trial_index in range(len(bodyPath_data_byTrial)):
           fig_animatePath = animate_trajectory(
             bodyPath_data=bodyPath_data_byTrial[trial_index], time_s=time_s_byTrial[trial_index],
+            activity_type=activity_to_process,
             referenceObject_position_m=referenceObject_position_m_byTrial[trial_index],
             subject_id=subject_id, num_total_subjects=1, subplot_index=0,
             trial_index=trial_index, trial_start_index_offset_forTitle=targetActivity_trial_index_start,
@@ -263,15 +270,15 @@ def main_processing(subject_id_toProcess, experiments_dir):
         print('    Plotting the trajectories')
         for trial_index in range(len(bodyPath_data_byTrial)):
           handles_allPaths = plot_timestep(
-            time_s_byTrial[trial_index], time_index=0,
+            time_s_byTrial[trial_index], time_index=0, activity_type=activity_to_process,
             bodyPath_data=bodyPath_data_byTrial[trial_index],
             referenceObject_position_m=referenceObject_position_m_byTrial[trial_index],
             subject_id=subject_id, num_total_subjects=num_subjects, subplot_index=allPaths_subplot_index,
             trial_index=trial_index, trial_start_index_offset_forTitle=targetActivity_trial_index_start,
             previous_handles=handles_allPaths, clear_previous_timestep=False,
             redraw_trajectory_each_timestep=True,
-            include_skeleton=False, include_pitcher=False, include_hand=False,
-            include_spout_projection=False, include_referenceObject=False,
+            include_skeleton=False, include_motionObject=False, include_hand=False,
+            include_motionObjectKeypoint_projection=False, include_referenceObject=False,
             wait_for_user_after_plotting=False, hide_figure_window=False)
         
       if save_eye_videos:
@@ -285,7 +292,7 @@ def main_processing(subject_id_toProcess, experiments_dir):
                                        subject_id, trial_indexes_filter=None,
                                        trial_start_index_offset=targetActivity_trial_index_start)
       if save_animation_videos:
-        save_activity_animation_videos(time_s_byTrial, bodyPath_data_byTrial,
+        save_activity_animation_videos(time_s_byTrial, bodyPath_data_byTrial, activity_to_process,
                                        referenceObject_position_m_byTrial,
                                        subject_id, trial_indexes_filter=None,
                                        trial_start_index_offset=targetActivity_trial_index_start)
@@ -302,10 +309,10 @@ def main_processing(subject_id_toProcess, experiments_dir):
   # Save the all-trajectories plot if desired.
   if save_plot_all_trajectories:
     print('    Saving the plot of all trajectories')
-    plot_dir = os.path.join(output_dir, '%s_paths_human' % target_activity_keyword)
+    plot_dir = os.path.join(output_dir, '%s_paths_human' % target_activity_keyword_for_outputs)
     os.makedirs(plot_dir, exist_ok=True)
     handles_allPaths[0].savefig(
-      os.path.join(plot_dir, '%s_paths_human_allPaths.jpg' % (target_activity_keyword)),
+      os.path.join(plot_dir, '%s_paths_human_allPaths.jpg' % (target_activity_keyword_for_outputs)),
       dpi=300)
     
   # Export the results if desired
@@ -315,7 +322,7 @@ def main_processing(subject_id_toProcess, experiments_dir):
                      time_s_byTrial_bySubject, bodyPath_data_byTrial_bySubject,
                      stationary_time_s_byTrial_bySubject, stationary_pose_byTrial_bySubject,
                      referenceObject_position_m_byTrial_bySubject,
-                     hand_to_pitcher_angles_rad_byTrial_bySubject)
+                     hand_to_motionObject_angles_rad_byTrial_bySubject)
     
   # Show the final plot
   if animate_trajectory_plots or plot_all_trajectories or plot_pitcher_angle_distance_metrics:
@@ -346,9 +353,9 @@ def save_trial_eyeVideos(h5_file, eyeVideo_filepath, times_s, subject_id, trial_
     start_frame_index = min(frame_indexes)
     num_frames = len(frame_indexes)
     video_reader = cv2.VideoCapture(eyeVideo_filepath)
-    eyeVideo_output_dir = os.path.join(output_dir, '%s_eyeVideos' % target_activity_keyword)
+    eyeVideo_output_dir = os.path.join(output_dir, '%s_eyeVideos' % target_activity_keyword_for_outputs)
     os.makedirs(eyeVideo_output_dir, exist_ok=True)
-    video_writer = cv2.VideoWriter(os.path.join(eyeVideo_output_dir, '%s_eyeVideo_S%02d_%02d.mp4' % (target_activity_keyword, subject_id, trial_index_withOffset)),
+    video_writer = cv2.VideoWriter(os.path.join(eyeVideo_output_dir, '%s_eyeVideo_S%02d_%02d.mp4' % (target_activity_keyword_for_outputs, subject_id, trial_index_withOffset)),
                                    cv2.VideoWriter_fourcc(*'MP4V'),  # for AVI: cv2.VideoWriter_fourcc(*'MJPG'),
                                    video_reader.get(cv2.CAP_PROP_FPS),
                                    (int(video_reader.get(cv2.CAP_PROP_FRAME_WIDTH)), int(video_reader.get(cv2.CAP_PROP_FRAME_HEIGHT)))
@@ -393,7 +400,7 @@ def save_activity_composite_videos(h5_file, eyeVideo_filepath,
       target_time_s = frames_time_s[start_frame_index + frame_index]
       plot_time_index = time_s.searchsorted(target_time_s)[0]
       previous_handles = plot_timestep(
-                          time_s, plot_time_index,
+                          time_s, plot_time_index, activity_to_process,
                           bodyPath_data=bodyPath_data_byTrial[trial_index],
                           referenceObject_position_m=referenceObject_position_m_byTrial[trial_index],
                           subject_id=subject_id,
@@ -412,10 +419,10 @@ def save_activity_composite_videos(h5_file, eyeVideo_filepath,
       
       # Write to the output video
       if video_writer is None:
-        composite_output_dir = os.path.join(output_dir, '%s_composites' % target_activity_keyword)
+        composite_output_dir = os.path.join(output_dir, '%s_composites' % target_activity_keyword_for_outputs)
         os.makedirs(composite_output_dir, exist_ok=True)
-        video_writer = cv2.VideoWriter(os.path.join(composite_output_dir, '%s_composite_S%02d_%02d.mp4' % (target_activity_keyword, subject_id, trial_index_withOffset)),
-                                       cv2.VideoWriter_fourcc(*'MP4V'), # for AVI: cv2.VideoWriter_fourcc(*'MJPG'),
+        video_writer = cv2.VideoWriter(os.path.join(composite_output_dir, '%s_composite_S%02d_%02d.mp4' % (target_activity_keyword_for_outputs, subject_id, trial_index_withOffset)),
+                                       cv2.VideoWriter_fourcc(*'MP4V'),  # for AVI: cv2.VideoWriter_fourcc(*'MJPG'),
                                        video_reader.get(cv2.CAP_PROP_FPS),
                                        (composite_frame.shape[1], composite_frame.shape[0])
                                        )
@@ -423,7 +430,7 @@ def save_activity_composite_videos(h5_file, eyeVideo_filepath,
     video_reader.release()
 
 # Save the body animation.
-def save_activity_animation_videos(time_s_byTrial, bodyPath_data_byTrial,
+def save_activity_animation_videos(time_s_byTrial, bodyPath_data_byTrial, activity_type,
                                    referenceObject_position_m_byTrial,
                                    subject_id, trial_indexes_filter=None,
                                    trial_start_index_offset=0):
@@ -444,7 +451,7 @@ def save_activity_animation_videos(time_s_byTrial, bodyPath_data_byTrial,
         print('      Completed %d/%d frames (%0.1f%%)' % (frame_index, num_frames, 100*frame_index/num_frames))
       # Plot the scene
       previous_handles = plot_timestep(
-                          time_s, frame_index,
+                          time_s, frame_index, activity_type,
                           bodyPath_data=bodyPath_data_byTrial[trial_index],
                           referenceObject_position_m=referenceObject_position_m_byTrial[trial_index],
                           subject_id=subject_id,
@@ -460,10 +467,10 @@ def save_activity_animation_videos(time_s_byTrial, bodyPath_data_byTrial,
       
       # Write to the output video
       if video_writer is None:
-        animation_output_dir = os.path.join(output_dir, '%s_animations' % target_activity_keyword)
+        animation_output_dir = os.path.join(output_dir, '%s_animations' % target_activity_keyword_for_outputs)
         os.makedirs(animation_output_dir, exist_ok=True)
-        video_writer = cv2.VideoWriter(os.path.join(animation_output_dir, '%s_animation_S%02d_%02d.mp4' % (target_activity_keyword, subject_id, trial_index_withOffset)),
-                                       cv2.VideoWriter_fourcc(*'MP4V'), # for AVI: cv2.VideoWriter_fourcc(*'MJPG'),
+        video_writer = cv2.VideoWriter(os.path.join(animation_output_dir, '%s_animation_S%02d_%02d.mp4' % (target_activity_keyword_for_outputs, subject_id, trial_index_withOffset)),
+                                       cv2.VideoWriter_fourcc(*'MP4V'),  # for AVI: cv2.VideoWriter_fourcc(*'MJPG'),
                                        fps,
                                        (plot_img.shape[1], plot_img.shape[0])
                                        )
@@ -476,9 +483,9 @@ def save_activity_animation_videos(time_s_byTrial, bodyPath_data_byTrial,
 def export_path_data(subject_id_for_filename, time_s_byTrial_bySubject, bodyPath_data_byTrial_bySubject,
                      stationary_time_s_byTrial_bySubject, stationary_pose_byTrial_bySubject,
                      referenceObject_position_m_byTrial_bySubject,
-                     hand_to_pitcher_angles_rad_byTrial_bySubject):
+                     hand_to_motionObject_angles_rad_byTrial_bySubject):
   # Open the output HDF5 file
-  hdf5_output_filepath = os.path.join(output_dir, '%s_paths_humans_%s.hdf5' % (target_activity_keyword, subject_id_for_filename))
+  hdf5_output_filepath = os.path.join(output_dir, '%s_paths_humans_%s.hdf5' % (target_activity_keyword_for_outputs, subject_id_for_filename))
   if os.path.exists(hdf5_output_filepath):
     print()
     print('Output file exists at [%s]' % hdf5_output_filepath)
@@ -553,8 +560,8 @@ def export_path_data(subject_id_for_filename, time_s_byTrial_bySubject, bodyPath
       trial_group.create_dataset('reference_object_position_m', data=data)
       
       # Add estimated pitcher holding angles.
-      data = hand_to_pitcher_angles_rad_byTrial_bySubject[subject_id][trial_index]
-      trial_group.create_dataset('hand_to_pitcher_angles_rad', data=data)
+      data = hand_to_motionObject_angles_rad_byTrial_bySubject[subject_id][trial_index]
+      trial_group.create_dataset('hand_to_motionObject_angles_rad', data=data)
       
       # Store body segment and joint names.
       # This should be the same for every subject/trial.

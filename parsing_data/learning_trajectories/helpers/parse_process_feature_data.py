@@ -60,7 +60,7 @@ def parse_feature_data(feature_data):
       },
       'time_s': feature_data['time_s'],
       'referenceObject_position_m': np.squeeze(feature_data['referenceObject_position_m']),
-      # 'hand_to_pitcher_angles_rad': np.squeeze(feature_data['hand_to_pitcher_angles_rad']),
+      # 'hand_to_motionObject_angles_rad': np.squeeze(feature_data['hand_to_motionObject_angles_rad']),
     }
   except:
     pass
@@ -132,7 +132,7 @@ def parse_feature_data(feature_data):
 
 def bodyPath_data_to_parsed_feature_data(bodyPath_data, time_s=None,
                                          referenceObject_position_m=None,
-                                         hand_to_pitcher_angles_rad=None):
+                                         hand_to_motionObject_angles_rad=None):
   feature_data = {
     'position_m' : {
       'hand': bodyPath_data['position_m']['RightHand'],
@@ -154,8 +154,8 @@ def bodyPath_data_to_parsed_feature_data(bodyPath_data, time_s=None,
     feature_data['time_s'] = time_s
   if referenceObject_position_m is not None:
     feature_data['referenceObject_position_m'] = referenceObject_position_m
-  if hand_to_pitcher_angles_rad is not None:
-    feature_data['hand_to_pitcher_angles_rad'] = hand_to_pitcher_angles_rad
+  if hand_to_motionObject_angles_rad is not None:
+    feature_data['hand_to_motionObject_angles_rad'] = hand_to_motionObject_angles_rad
   return feature_data
   
 # ================================================================
@@ -267,214 +267,224 @@ def get_trajectory_Fs_hz(feature_data):
 ##################################################################
 
 # ================================================================
-# Get the body position and orientation during an inferred pouring window.
-# Will infer the pouring window by finding a region that is the most stationary.
-def infer_pour_pose(feature_data):
+# Get the body position and orientation during an inferred stationary window.
+# Will find a region that is the most stationary.
+def infer_stationary_pose(feature_data, activity_type):
   # Parse the feature data if needed.
   parsed_data = parse_feature_data(feature_data)
   # Infer the stationary segment and pose.
   (stationary_time_s, stationary_pose) = infer_stationary_poses(
     parsed_data['time_s'], parsed_data,
-    use_variance=True, hand_segment_key='hand')
+    use_variance=True, hand_segment_key='hand',
+    stationary_position_hardcoded_time_fraction=stationary_position_hardcoded_time_fraction[activity_type])
   # Return the pose.
   return stationary_pose
 
 # ================================================================
-# Get the tilt angle of the spout at a specific time index or during the entire trial.
-def infer_spout_tilting(feature_data, time_index=None, hand_to_pitcher_rotation_toUse=None):
+# Get the tilt angle of the motion object at a specific time index or during the entire trial.
+def infer_motionObject_tilting(feature_data, activity_type, time_index=None, hand_to_motionObject_rotation_toUse=None):
   # Parse the feature data if needed.
   parsed_data = parse_feature_data(feature_data)
-  if hand_to_pitcher_rotation_toUse is None and 'hand_to_pitcher_angles_rad' in parsed_data:
-    hand_to_pitcher_angles_rad = np.squeeze(parsed_data['hand_to_pitcher_angles_rad'])
-    hand_to_pitcher_rotation_toUse = Rotation.from_rotvec(hand_to_pitcher_angles_rad)
-  if hand_to_pitcher_rotation_toUse is None:
-    hand_to_pitcher_rotation_toUse = hand_to_pitcher_rotation
+  if hand_to_motionObject_rotation_toUse is None and 'hand_to_motionObject_angles_rad' in parsed_data:
+    hand_to_motionObject_angles_rad = np.squeeze(parsed_data['hand_to_motionObject_angles_rad'])
+    hand_to_motionObject_rotation_toUse = Rotation.from_rotvec(hand_to_motionObject_angles_rad)
+  if hand_to_motionObject_rotation_toUse is None:
+    hand_to_motionObject_rotation_toUse = hand_to_motionObject_rotation[activity_type]
     
   # Get tilt for all time if desired
   if time_index is None:
-    spout_tilts = []
+    motionObject_tilts = []
     for time_index in range(parsed_data['time_s'].shape[0]):
-      spout_tilts.append(infer_spout_tilting(feature_data, time_index=time_index))
-    return np.array(spout_tilts)
+      motionObject_tilts.append(infer_motionObject_tilting(feature_data, activity_type, time_index=time_index))
+    return np.array(motionObject_tilts)
   
-  # Rotate a box for the pitcher according to the hand quaternion.
+  # Rotate a box for the motion object according to the hand quaternion.
   hand_center_cm = 100*parsed_data['position_m']['hand'][time_index, :]
   hand_quaternion_localToGlobal_wijk = parsed_data['quaternion_wijk']['hand'][time_index, :]
   hand_rotation = Rotation.from_quat(hand_quaternion_localToGlobal_wijk[[1,2,3,0]])
-  pitcher_rotation = hand_rotation * hand_to_pitcher_rotation_toUse
-  pitcher_quaternion_localToGlobal_ijkw = pitcher_rotation.as_quat()
-  (corners, faces) = rotate_3d_box(pitcher_quaternion_localToGlobal_ijkw[[3,0,1,2]], hand_to_pitcher_offset_cm, pitcher_box_dimensions_cm)
-  # Get a line segment along the long axis of the top of the pitcher, and move it to the origin.
-  pitcher_topFace_line = corners[4,:] - corners[6,:]
-  # Compute the angle between the pitcher top and the xy plane.
-  angle_toZ_rad = np.arccos(np.dot(pitcher_topFace_line, [0, 0, 1]) / (np.linalg.norm(pitcher_topFace_line)*1))
+  motionObject_rotation = hand_rotation * hand_to_motionObject_rotation_toUse
+  motionObject_quaternion_localToGlobal_ijkw = motionObject_rotation.as_quat()
+  (corners, faces) = rotate_3d_box(motionObject_quaternion_localToGlobal_ijkw[[3,0,1,2]],
+                                   hand_to_motionObject_offset_cm[activity_type],
+                                   motionObject_shape_dimensions_cm[activity_type])
+  # Get a line segment along the long axis of the top of the motion object, and move it to the origin.
+  motionObject_topFace_line = corners[corner_indexes_forTilt[activity_type][0],:] - corners[corner_indexes_forTilt[activity_type][1],:]
+  # Compute the angle between the motion object top and the xy plane.
+  angle_toZ_rad = np.arccos(np.dot(motionObject_topFace_line, [0, 0, 1]) / (np.linalg.norm(motionObject_topFace_line)*1))
   angle_toXY_rad = (np.pi/2) - angle_toZ_rad
   return angle_toXY_rad
 
 # ================================================================
-# Get the 3D spout position at a specific time index or during the entire trial.
-def infer_spout_position_m(feature_data, time_index=None, hand_to_pitcher_rotation_toUse=None):
+# Get the 3D motion object keypoint position at a specific time index or during the entire trial.
+def infer_motionObjectKeypoint_position_m(feature_data, activity_type, time_index=None, hand_to_motionObject_rotation_toUse=None):
   # Parse the feature data if needed.
   feature_data = parse_feature_data(feature_data)
-  if hand_to_pitcher_rotation_toUse is None and 'hand_to_pitcher_angles_rad' in feature_data:
-    hand_to_pitcher_angles_rad = np.squeeze(feature_data['hand_to_pitcher_angles_rad'])
-    hand_to_pitcher_rotation_toUse = Rotation.from_rotvec(hand_to_pitcher_angles_rad)
-  if hand_to_pitcher_rotation_toUse is None:
-    hand_to_pitcher_rotation_toUse = hand_to_pitcher_rotation
+  if hand_to_motionObject_rotation_toUse is None and 'hand_to_motionObject_angles_rad' in feature_data:
+    hand_to_motionObject_angles_rad = np.squeeze(feature_data['hand_to_motionObject_angles_rad'])
+    hand_to_motionObject_rotation_toUse = Rotation.from_rotvec(hand_to_motionObject_angles_rad)
+  if hand_to_motionObject_rotation_toUse is None:
+    hand_to_motionObject_rotation_toUse = hand_to_motionObject_rotation[activity_type]
   
   # Get position for all time if desired
   if time_index is None:
-    spout_position_m = []
+    motionObjectKeypoint_position_m = []
     for time_index in range(feature_data['time_s'].shape[0]):
-      spout_position_m.append(infer_spout_position_m(feature_data, time_index=time_index))
-    return np.array(spout_position_m)
+      motionObjectKeypoint_position_m.append(infer_motionObjectKeypoint_position_m(feature_data, activity_type, time_index=time_index))
+    return np.array(motionObjectKeypoint_position_m)
   
-  # Rotate a box for the pitcher according to the hand quaternion.
+  # Rotate a box for the motion object according to the hand quaternion.
   hand_center_cm = 100*feature_data['position_m']['hand'][time_index, :]
   hand_quaternion_localToGlobal_wijk = feature_data['quaternion_wijk']['hand'][time_index, :]
   hand_rotation = Rotation.from_quat(hand_quaternion_localToGlobal_wijk[[1,2,3,0]])
-  pitcher_rotation = hand_rotation * hand_to_pitcher_rotation_toUse
-  pitcher_quaternion_localToGlobal_ijkw = pitcher_rotation.as_quat()
-  (corners, faces) = rotate_3d_box(pitcher_quaternion_localToGlobal_ijkw[[3,0,1,2]],
-                                   hand_to_pitcher_offset_cm, pitcher_box_dimensions_cm)
+  motionObject_rotation = hand_rotation * hand_to_motionObject_rotation_toUse
+  motionObject_quaternion_localToGlobal_ijkw = motionObject_rotation.as_quat()
+  (corners, faces) = rotate_3d_box(motionObject_quaternion_localToGlobal_ijkw[[3,0,1,2]],
+                                   hand_to_motionObject_offset_cm[activity_type],
+                                   motionObject_shape_dimensions_cm[activity_type])
   corners = corners + hand_center_cm
   corners = corners/100
   faces = faces/100
   
-  # Average two points at the front of the pitcher to get the spout position.
-  return np.mean(corners[[4,5],:], axis=0)
+  # Average two points at the front of the motion object to get the keypoint position.
+  return np.mean(corners[corner_indexes_forKeypoint[activity_type],:], axis=0)
+  # return corners[corner_indexes_forKeypoint[activity_type][0],:]
+
 
 # ================================================================
-# Get the spout speed at a specific time index or during the entire trial.
-def infer_spout_speed_m_s(feature_data, time_index=None):
-  # Get the spout position for all time indexes.
-  spout_position_m = infer_spout_position_m(feature_data, time_index=None)
+# Get the motion object keypoint speed at a specific time index or during the entire trial.
+def infer_motionObjectKeypoint_speed_m_s(feature_data, activity_type, time_index=None):
+  # Get the position for all time indexes.
+  position_m = eval(infer_motionObjectKeypoint_position_m_fn[activity_type])(feature_data, activity_type, time_index=None)
   times_s = get_trajectory_time_s(feature_data)
   # Infer the speed.
-  dxdydz = np.diff(spout_position_m, axis=0)
+  dxdydz = np.diff(position_m, axis=0)
   dt_s = np.reshape(np.diff(times_s, axis=0), (-1, 1))
-  spout_speed_m_s = np.hstack([np.squeeze([np.nan]), np.linalg.norm(dxdydz, axis=1)/np.squeeze(dt_s)])
+  speed_m_s = np.hstack([np.squeeze([np.nan]), np.linalg.norm(dxdydz, axis=1)/np.squeeze(dt_s)])
   if time_index is None:
-    return spout_speed_m_s
+    return speed_m_s
   else:
-    return spout_speed_m_s[time_index]
+    return speed_m_s[time_index]
 
 # ================================================================
-# Get the spout acceleration at a specific time index or during the entire trial.
-def infer_spout_acceleration_m_s_s(feature_data, time_index=None):
-  # Get the spout speed for all time indexes.
-  spout_speed_m_s = infer_spout_speed_m_s(feature_data, time_index=None)
+# Get the motion object keypoint acceleration at a specific time index or during the entire trial.
+def infer_motionObjectKeypoint_acceleration_m_s_s(feature_data, activity_type, time_index=None):
+  # Get the speed for all time indexes.
+  speed_m_s = infer_motionObjectKeypoint_speed_m_s(feature_data, activity_type, time_index=None)
   times_s = get_trajectory_time_s(feature_data)
   # Infer the acceleration.
-  dv = np.diff(spout_speed_m_s, axis=0)
+  dv = np.diff(speed_m_s, axis=0)
   dt_s = np.reshape(np.diff(times_s, axis=0), (-1, 1))
-  spout_acceleration_m_s_s = np.hstack([np.squeeze([np.nan]), dv/np.squeeze(dt_s)])
+  acceleration_m_s_s = np.hstack([np.squeeze([np.nan]), dv/np.squeeze(dt_s)])
   if time_index is None:
-    return spout_acceleration_m_s_s
+    return acceleration_m_s_s
   else:
-    return spout_acceleration_m_s_s[time_index]
+    return acceleration_m_s_s[time_index]
 
 # ================================================================
-# Get the spout jerk at a specific time index or during the entire trial.
-def infer_spout_jerk_m_s_s_s(feature_data, time_index=None):
-  # Get the spout speed.
-  spout_acceleration_m_s_s = infer_spout_acceleration_m_s_s(feature_data, time_index=None)
+# Get the motion object keypoint jerk at a specific time index or during the entire trial.
+def infer_motionObjectKeypoint_jerk_m_s_s_s(feature_data, activity_type, time_index=None):
+  # Get the acceleration.
+  acceleration_m_s_s = infer_motionObjectKeypoint_acceleration_m_s_s(feature_data, activity_type, time_index=None)
   times_s = get_trajectory_time_s(feature_data)
   # Infer the jerk.
-  da = np.diff(spout_acceleration_m_s_s, axis=0)
+  da = np.diff(acceleration_m_s_s, axis=0)
   dt_s = np.reshape(np.diff(times_s, axis=0), (-1, 1))
-  spout_jerk_m_s_s_s = np.hstack([np.squeeze([np.nan]), da/np.squeeze(dt_s)])
+  jerk_m_s_s_s = np.hstack([np.squeeze([np.nan]), da/np.squeeze(dt_s)])
   if time_index is None:
-    return spout_jerk_m_s_s_s
+    return jerk_m_s_s_s
   else:
-    return spout_jerk_m_s_s_s[time_index]
+    return jerk_m_s_s_s[time_index]
 
 # ================================================================
-# Get the spout yaw vector at a specific time index or during the entire trial.
-def infer_spout_yawvector(feature_data, time_index=None, hand_to_pitcher_rotation_toUse=None):
+# Get the motion object keypoint yaw vector at a specific time index or during the entire trial.
+def infer_motionObject_yawvector(feature_data, activity_type, time_index=None, hand_to_motionObject_rotation_toUse=None):
   # Parse the feature data if needed.
   feature_data = parse_feature_data(feature_data)
-  if hand_to_pitcher_rotation_toUse is None and 'hand_to_pitcher_angles_rad' in feature_data:
-    hand_to_pitcher_angles_rad = np.squeeze(feature_data['hand_to_pitcher_angles_rad'])
-    hand_to_pitcher_rotation_toUse = Rotation.from_rotvec(hand_to_pitcher_angles_rad)
-  if hand_to_pitcher_rotation_toUse is None:
-    hand_to_pitcher_rotation_toUse = hand_to_pitcher_rotation
+  if hand_to_motionObject_rotation_toUse is None and 'hand_to_motionObject_angles_rad' in feature_data:
+    hand_to_motionObject_angles_rad = np.squeeze(feature_data['hand_to_motionObject_angles_rad'])
+    hand_to_motionObject_rotation_toUse = Rotation.from_rotvec(hand_to_motionObject_angles_rad)
+  if hand_to_motionObject_rotation_toUse is None:
+    hand_to_motionObject_rotation_toUse = hand_to_motionObject_rotation[activity_type]
   
   # Get vector for all time indexes if desired.
   if time_index is None:
-    spout_yawvectors = []
+    motionObject_yawvectors = []
     for time_index in range(feature_data['time_s'].shape[0]):
-      spout_yawvectors.append(infer_spout_yawvector(feature_data, time_index=time_index))
-    return np.array(spout_yawvectors)
+      motionObject_yawvectors.append(infer_motionObject_yawvector(feature_data, activity_type, time_index=time_index))
+    return np.array(motionObject_yawvectors)
   
-  # Rotate a box for the pitcher according to the hand quaternion.
+  # Rotate a box for the object according to the hand quaternion.
   hand_center_cm = 100*feature_data['position_m']['hand'][time_index, :]
   hand_quaternion_localToGlobal_wijk = feature_data['quaternion_wijk']['hand'][time_index, :]
   hand_rotation = Rotation.from_quat(hand_quaternion_localToGlobal_wijk[[1,2,3,0]])
-  pitcher_rotation = hand_rotation * hand_to_pitcher_rotation_toUse
-  pitcher_quaternion_localToGlobal_ijkw = pitcher_rotation.as_quat()
-  (corners, faces) = rotate_3d_box(pitcher_quaternion_localToGlobal_ijkw[[3,0,1,2]],
-                                   hand_to_pitcher_offset_cm, pitcher_box_dimensions_cm)
+  motionObject_rotation = hand_rotation * hand_to_motionObject_rotation_toUse
+  motionObject_quaternion_localToGlobal_ijkw = motionObject_rotation.as_quat()
+  (corners, faces) = rotate_3d_box(motionObject_quaternion_localToGlobal_ijkw[[3,0,1,2]],
+                                   hand_to_motionObject_offset_cm[activity_type],
+                                   motionObject_shape_dimensions_cm[activity_type])
   corners = corners + hand_center_cm
   corners = corners/100
   faces = faces/100
   
-  # Get a line segment along the long axis of the top of the pitcher.
-  handside_point = corners[6,:]
-  spoutside_point = corners[4,:]
+  # Get a line segment along the long axis of the top of the motion object.
+  handside_point = corners[corner_indexes_forTilt[activity_type][1],:]
+  keypointside_point = corners[corner_indexes_forTilt[activity_type][0],:]
   # Project it, move it to the origin, and normalize.
   handside_point[2] = 0
-  spoutside_point[2] = 0
-  yawvector = spoutside_point - handside_point
+  keypointside_point[2] = 0
+  yawvector = keypointside_point - handside_point
   return yawvector/np.linalg.norm(yawvector)
 
 # ================================================================
-# Get the pouring relative offset at a specific time index or during the entire trial.
-# Will rotate such that positive y is the direction of water pouring.
-def infer_spout_relativeOffset_cm(feature_data, referenceObject_position_m=None,
-                                  time_index=None, hand_to_pitcher_rotation_toUse=None):
+# Get the relative offset at a specific time index or during the entire trial.
+# Will optionally rotate such that positive y is the direction of the motion object yaw.
+def infer_motionObject_referenceObject_relativeOffset_cm(
+    feature_data, activity_type, referenceObject_position_m=None,
+    time_index=None, hand_to_motionObject_rotation_toUse=None):
   # Parse the feature data if needed.
   feature_data = parse_feature_data(feature_data)
   if referenceObject_position_m is None and 'referenceObject_position_m' in feature_data:
     referenceObject_position_m = np.squeeze(feature_data['referenceObject_position_m'])
-  if hand_to_pitcher_rotation_toUse is None and 'hand_to_pitcher_angles_rad' in feature_data:
-    hand_to_pitcher_angles_rad = np.squeeze(feature_data['hand_to_pitcher_angles_rad'])
-    hand_to_pitcher_rotation_toUse = Rotation.from_rotvec(hand_to_pitcher_angles_rad)
-  if hand_to_pitcher_rotation_toUse is None:
-    hand_to_pitcher_rotation_toUse = hand_to_pitcher_rotation
+  if hand_to_motionObject_rotation_toUse is None and 'hand_to_motionObject_angles_rad' in feature_data:
+    hand_to_motionObject_angles_rad = np.squeeze(feature_data['hand_to_motionObject_angles_rad'])
+    hand_to_motionObject_rotation_toUse = Rotation.from_rotvec(hand_to_motionObject_angles_rad)
+  if hand_to_motionObject_rotation_toUse is None:
+    hand_to_motionObject_rotation_toUse = hand_to_motionObject_rotation[activity_type]
     
   # Get vector for all time indexes if desired.
   if time_index is None:
-    spout_relativeOffsets_cm = []
+    relativeOffsets_cm = []
     for time_index in range(feature_data['time_s'].shape[0]):
-      spout_relativeOffsets_cm.append(infer_spout_relativeOffset_cm(
-        feature_data, referenceObject_position_m, time_index=time_index,
-        hand_to_pitcher_rotation_toUse=hand_to_pitcher_rotation_toUse))
-    return np.array(spout_relativeOffsets_cm)
+      relativeOffsets_cm.append(infer_motionObject_referenceObject_relativeOffset_cm(
+        feature_data, activity_type, referenceObject_position_m, time_index=time_index,
+        hand_to_motionObject_rotation_toUse=hand_to_motionObject_rotation_toUse))
+    return np.array(relativeOffsets_cm)
   
-  # Infer the spout position and yaw.
-  spout_position_cm = 100*infer_spout_position_m(
-      feature_data=feature_data,
+  # Infer the position.
+  motionObjectKeypoint_position_cm = 100*eval(infer_motionObjectKeypoint_position_m_fn[activity_type])(
+      feature_data=feature_data, activity_type=activity_type,
       time_index=time_index,
-      hand_to_pitcher_rotation_toUse=hand_to_pitcher_rotation_toUse)
-  spout_yawvector = infer_spout_yawvector(feature_data=feature_data,
-                                          time_index=time_index,
-                                          hand_to_pitcher_rotation_toUse=hand_to_pitcher_rotation_toUse)
+      hand_to_motionObject_rotation_toUse=hand_to_motionObject_rotation_toUse)
+  
   # Project everything to the XY plane.
-  spout_position_cm = spout_position_cm[0:2]
-  spout_yawvector = spout_yawvector[0:2]
+  motionObjectKeypoint_position_cm = motionObjectKeypoint_position_cm[0:2]
   referenceObject_position_cm = 100*referenceObject_position_m[0:2]
-  # Use the spout projection as the origin.
-  referenceObject_position_cm = referenceObject_position_cm - spout_position_cm
+  # Use the motion object keypoint projection as the origin.
+  referenceObject_position_cm = referenceObject_position_cm - motionObjectKeypoint_position_cm
   # Rotate so the yaw vector is the new y-axis.
-  yaw_rotation_matrix = rotation_matrix_from_vectors([spout_yawvector[0], spout_yawvector[1], 0],
-                                                     [0, 1, 0])
-  referenceObject_position_cm = yaw_rotation_matrix.dot(np.array([referenceObject_position_cm[0], referenceObject_position_cm[1], 0]))
-  referenceObject_position_cm = referenceObject_position_cm[0:2]
+  if activity_type == 'pouring':
+    spout_yawvector = infer_motionObject_yawvector(feature_data=feature_data, activity_type=activity_type,
+                                                   time_index=time_index,
+                                                   hand_to_motionObject_rotation_toUse=hand_to_motionObject_rotation_toUse)
+    spout_yawvector = spout_yawvector[0:2]
+    yaw_rotation_matrix = rotation_matrix_from_vectors([spout_yawvector[0], spout_yawvector[1], 0],
+                                                       [0, 1, 0])
+    referenceObject_position_cm = yaw_rotation_matrix.dot(np.array([referenceObject_position_cm[0], referenceObject_position_cm[1], 0]))
+    referenceObject_position_cm = referenceObject_position_cm[0:2]
   # Move the origin to the reference object.
-  spout_relativeOffset_cm = -referenceObject_position_cm
+  motionObjectKeypoint_relativeOffset_cm = -referenceObject_position_cm
   # Return the result.
-  return spout_relativeOffset_cm
+  return motionObjectKeypoint_relativeOffset_cm
 
 
   

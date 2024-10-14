@@ -87,16 +87,16 @@ def plot_hand_box(ax, hand_quaternion_localToGlobal_wijk, hand_center_cm):
                      hand_box_dimensions_cm, hand_box_color)
 
 # ================================================================
-# Plot a box representing the pitcher pose.
-def plot_pitcher_box(ax, hand_quaternion_localToGlobal_wijk, hand_center_cm, hand_to_pitcher_rotation_toUse=None):
-  if hand_to_pitcher_rotation_toUse is None:
-    hand_to_pitcher_rotation_toUse = hand_to_pitcher_rotation
+# Plot a box representing the motion object pose.
+def plot_motionObject_box(ax, hand_quaternion_localToGlobal_wijk, hand_center_cm, activity_type, hand_to_motionObject_rotation_toUse=None):
+  if hand_to_motionObject_rotation_toUse is None:
+    hand_to_motionObject_rotation_toUse = hand_to_motionObject_rotation[activity_type]
   hand_rotation = Rotation.from_quat(hand_quaternion_localToGlobal_wijk[[1,2,3,0]])
-  pitcher_rotation = hand_rotation * hand_to_pitcher_rotation_toUse
-  pitcher_quaternion_localToGlobal_ijkw = pitcher_rotation.as_quat()
-  return plot_3d_box(ax, pitcher_quaternion_localToGlobal_ijkw[[3,0,1,2]],
-                     hand_center_cm, hand_to_pitcher_offset_cm,
-                     pitcher_box_dimensions_cm, pitcher_box_color)
+  motionObject_rotation = hand_rotation * hand_to_motionObject_rotation_toUse
+  motionObject_quaternion_localToGlobal_ijkw = motionObject_rotation.as_quat()
+  return plot_3d_box(ax, motionObject_quaternion_localToGlobal_ijkw[[3,0,1,2]],
+                     hand_center_cm, hand_to_motionObject_offset_cm[activity_type],
+                     motionObject_shape_dimensions_cm[activity_type], motionObject_box_color)
 
 
 
@@ -106,14 +106,14 @@ def plot_pitcher_box(ax, hand_quaternion_localToGlobal_wijk, hand_center_cm, han
 
 # ================================================================
 # Plot the scene for a single timestep.
-def plot_timestep(time_s, time_index,
+def plot_timestep(time_s, time_index, activity_type,
                   feature_data=None, bodyPath_data=None,  # supply one of these
-                  referenceObject_position_m=None, # if using bodyPath_data or not in feature_data
+                  referenceObject_position_m=None,  # if using bodyPath_data or not in feature_data
                   subject_id=-1, num_total_subjects=1, subplot_index=0,
                   trial_index=-1, trial_start_index_offset_forTitle=0,
                   previous_handles=None, clear_previous_timestep=True, redraw_trajectory_each_timestep=False,
-                  include_skeleton=True, include_pitcher=True, include_hand=True,
-                  include_spout_projection=True, include_referenceObject=True,
+                  include_skeleton=True, include_motionObject=True, include_hand=True,
+                  include_motionObjectKeypoint_projection=True, include_referenceObject=True,
                   animation_view_angle_toUse=None,
                   wait_for_user_after_plotting=False, hide_figure_window=False):
   # Parse the feature data if needed.
@@ -134,9 +134,11 @@ def plot_timestep(time_s, time_index,
       feature_data[data_type]['shoulder'] = bodyPath_data[data_type]['RightUpperArm']
       feature_data[data_type]['pelvis'] = bodyPath_data[data_type]['Pelvis']
   
-  # Infer the pouring position.
+  # Infer the stationary position.
   (_, stationary_pose) = infer_stationary_poses(time_s, feature_data,
-                                                use_variance=True, hand_segment_key='hand')
+                                                use_variance=stationary_position_use_variance[activity_type],
+                                                hand_segment_key='hand',
+                                                stationary_position_hardcoded_time_fraction=stationary_position_hardcoded_time_fraction[activity_type])
   
   # Initialize figure state.
   if previous_handles is None:
@@ -144,9 +146,9 @@ def plot_timestep(time_s, time_index,
     h_chains = []
     h_scatters = []
     h_hand = None
-    h_pitcher = None
+    h_motionObject = None
   else:
-    (fig, h_chains, h_scatters, h_hand, h_pitcher) = previous_handles
+    (fig, h_chains, h_scatters, h_hand, h_motionObject) = previous_handles
     
   # Create a figure if needed.
   if fig is None:
@@ -168,7 +170,7 @@ def plot_timestep(time_s, time_index,
   
   # Get the table height.
   if referenceObject_position_m is not None:
-    table_z_cm = 100*referenceObject_position_m[2] - referenceObject_height_cm
+    table_z_cm = 100*referenceObject_position_m[2] - referenceObject_height_cm[activity_type]
   else:
     table_z_cm = None
   
@@ -215,7 +217,7 @@ def plot_timestep(time_s, time_index,
                  table_z_cm,
                  s=25, color=h_hand_path[0].get_color(), edgecolor='c')
       referenceObject_circle = mpatches.Circle((100*referenceObject_position_m[0], 100*referenceObject_position_m[1]),
-        radius=referenceObject_diameter_cm/2, ec=[0.4,1,1], color=[0.8,1,1])
+        radius=referenceObject_diameter_cm[activity_type]/2, ec=[0.4,1,1], color=[0.8,1,1])
       ax.add_patch(referenceObject_circle)
       art3d.patch_2d_to_3d(referenceObject_circle, z=table_z_cm, zdir='z')
     
@@ -223,8 +225,8 @@ def plot_timestep(time_s, time_index,
       color_hex = h_hand_path[0].get_color().strip('#')
       color_rgb = tuple(int(color_hex[i:i+2], 16) for i in (0, 2, 4))
       color_rgb = np.array(color_rgb)/255
-      plot_3d_box(ax, [1, 0, 0, 0], 100*referenceObject_position_m, [0, 0, -referenceObject_height_cm/2],
-                  [referenceObject_diameter_cm, referenceObject_diameter_cm, referenceObject_height_cm],
+      plot_3d_box(ax, [1, 0, 0, 0], 100*referenceObject_position_m, [0, 0, -referenceObject_height_cm[activity_type]/2],
+                  [referenceObject_diameter_cm[activity_type], referenceObject_diameter_cm[activity_type], referenceObject_height_cm[activity_type]],
                   color_rgb, alpha=0.2)
   
   # Clear plots from the previous timestep.
@@ -235,12 +237,12 @@ def plot_timestep(time_s, time_index,
       h_scatters[i].remove()
     if h_hand is not None:
       h_hand.remove()
-    if h_pitcher is not None:
-      h_pitcher.remove()
+    if h_motionObject is not None:
+      h_motionObject.remove()
     h_chains = []
     h_scatters = []
     h_hand = None
-    h_pitcher = None
+    h_motionObject = None
 
   # Animate the whole skeleton.
   if include_skeleton:
@@ -258,23 +260,25 @@ def plot_timestep(time_s, time_index,
     h_chains.append(ax.plot3D(x, y, z, color='k'))
     h_scatters.append(ax.scatter(x, y, z, s=25, color=[0.5, 0.5, 0.5]))
     
-  if include_spout_projection:
+  if include_motionObjectKeypoint_projection:
     if table_z_cm is not None:
-      spout_projection_z_cm = table_z_cm
+      motionObjectKeypoint_projection_z_cm = table_z_cm
     else:
-      spout_projection_z_cm = 0
-    # Draw the pitcher tip projection onto the table.
-    position_cm = 100*infer_spout_position_m(feature_data=feature_data, time_index=time_index)
+      motionObjectKeypoint_projection_z_cm = 0
+    # Draw the motion object keypoint projection onto the table.
+    position_cm = 100*eval(infer_motionObjectKeypoint_position_m_fn[activity_type])(
+      feature_data=feature_data, activity_type=activity_type, time_index=time_index)
+    
     h_scatters.append(ax.scatter(position_cm[0], position_cm[1],
-                                 spout_projection_z_cm,
+                                 motionObjectKeypoint_projection_z_cm,
                                  s=30, color='m'))
-    # Draw an indicator of the spout direction on the table.
-    spout_yawvector = infer_spout_yawvector(feature_data=feature_data, time_index=time_index)
-    spout_yawvector = spout_yawvector * referenceObject_diameter_cm/2
-    spout_yawsegment = np.array([[0,0,0], list(spout_yawvector)])
-    spout_yawsegment = spout_yawsegment + position_cm
-    h_chains.append(ax.plot3D(spout_yawsegment[:,0], spout_yawsegment[:,1],
-                              (spout_projection_z_cm+0.1)*np.array([1,1]),
+    # Draw an indicator of the keypoint direction on the table.
+    motionObject_yawvector = infer_motionObject_yawvector(feature_data=feature_data, activity_type=activity_type, time_index=time_index)
+    motionObject_yawvector = motionObject_yawvector * referenceObject_diameter_cm[activity_type]/2
+    motionObject_yawsegment = np.array([[0,0,0], list(motionObject_yawvector)])
+    motionObject_yawsegment = motionObject_yawsegment + position_cm
+    h_chains.append(ax.plot3D(motionObject_yawsegment[:,0], motionObject_yawsegment[:,1],
+                              (motionObjectKeypoint_projection_z_cm+0.1)*np.array([1,1]),
                               color='r', linewidth=2))
   
   # ax.set_xlim([-60, 0])
@@ -296,15 +300,16 @@ def plot_timestep(time_s, time_index,
     # h_hand = ax.voxels(hand_box_data, facecolors=hand_colors)
     h_hand = plot_hand_box(ax, hand_center_cm=100*feature_data['position_m']['hand'][time_index, :],
                                hand_quaternion_localToGlobal_wijk=feature_data['quaternion_wijk']['hand'][time_index, :])
-  if include_pitcher:
-    if 'hand_to_pitcher_angles_rad' in feature_data:
-      hand_to_pitcher_angles_rad = np.squeeze(feature_data['hand_to_pitcher_angles_rad'])
-      hand_to_pitcher_rotation_toUse = Rotation.from_rotvec(hand_to_pitcher_angles_rad)
+  if include_motionObject:
+    if 'hand_to_motionObject_angles_rad' in feature_data:
+      hand_to_motionObject_angles_rad = np.squeeze(feature_data['hand_to_motionObject_angles_rad'])
+      hand_to_motionObject_rotation_toUse = Rotation.from_rotvec(hand_to_motionObject_angles_rad)
     else:
-      hand_to_pitcher_rotation_toUse = None
-    h_pitcher = plot_pitcher_box(ax, hand_center_cm=100*feature_data['position_m']['hand'][time_index, :],
-                                     hand_quaternion_localToGlobal_wijk=feature_data['quaternion_wijk']['hand'][time_index, :],
-                                     hand_to_pitcher_rotation_toUse=hand_to_pitcher_rotation_toUse)
+      hand_to_motionObject_rotation_toUse = None
+    h_motionObject = plot_motionObject_box(ax, hand_center_cm=100*feature_data['position_m']['hand'][time_index, :],
+                                      hand_quaternion_localToGlobal_wijk=feature_data['quaternion_wijk']['hand'][time_index, :],
+                                      hand_to_motionObject_rotation_toUse=hand_to_motionObject_rotation_toUse,
+                                      activity_type=activity_type)
   
   # Set the aspect ratio
   ax.set_xlim(x_lim)
@@ -326,7 +331,7 @@ def plot_timestep(time_s, time_index,
   plt.draw()
   
   # Save the previous handles.
-  previous_handles = (fig, h_chains, h_scatters, h_hand, h_pitcher)
+  previous_handles = (fig, h_chains, h_scatters, h_hand, h_motionObject)
   
   # plt_wait_for_keyboard_press()
   # print('view elev/azim:', ax.elev, ax.azim)
@@ -339,7 +344,7 @@ def plot_timestep(time_s, time_index,
 # ================================================================
 # Animate a whole trajectory.
 # Supply a feature_matrix and duration_s OR a bodyPath_data and time_s
-def animate_trajectory(feature_data=None, duration_s=None,
+def animate_trajectory(activity_type, feature_data=None, duration_s=None,
                        bodyPath_data=None, time_s=None,
                        referenceObject_position_m=None,
                        subject_id=-1, num_total_subjects=1, subplot_index=0,
@@ -355,7 +360,7 @@ def animate_trajectory(feature_data=None, duration_s=None,
   for time_index in range(0, len(time_s), timestep_interval):
     start_plotting_s = time.time()
     previous_handles = plot_timestep(
-      time_s, time_index,
+      time_s, time_index, activity_type,
       feature_data=feature_data, bodyPath_data=bodyPath_data,
       referenceObject_position_m=referenceObject_position_m,
       subject_id=subject_id, num_total_subjects=num_total_subjects, subplot_index=subplot_index,
@@ -375,7 +380,7 @@ def animate_trajectory(feature_data=None, duration_s=None,
 # ================================================================
 # Animate a whole trajectory, and save it as a video.
 # feature_data_byType is a dictionary mapping example type to feature data.
-def save_trajectory_animation(feature_data_byType,
+def save_trajectory_animation(activity_type, feature_data_byType,
                               output_filepath,
                               referenceObject_position_m_byType=None,
                               subject_id='', trial_index=-1):
@@ -409,7 +414,7 @@ def save_trajectory_animation(feature_data_byType,
         referenceObject_position_m = None
       if time_s >= times_s_forExample[0] and time_s <= times_s_forExample[-1]:
         time_index = times_s_forExample.searchsorted(time_s)
-        previous_handles_byExampleType[example_type] = plot_timestep(time_s=times_s_forExample, time_index=time_index,
+        previous_handles_byExampleType[example_type] = plot_timestep(time_s=times_s_forExample, time_index=time_index, activity_type=activity_type,
                                                                      feature_data=feature_data,
                                                                      referenceObject_position_m=referenceObject_position_m,
                                                                      subject_id='%s%s' % ((str(example_type) if len(str(example_type).strip()) > 0 else ''),
@@ -443,20 +448,20 @@ def save_trajectory_animation(feature_data_byType,
 
 # ================================================================
 # Plot all trajectories.
-def plot_all_trajectories(feature_data_allTrials, subject_id=None, output_filepath=None, hide_figure_window=False):
+def plot_all_trajectories(feature_data_allTrials, activity_type, subject_id=None, output_filepath=None, hide_figure_window=False):
   num_trials = feature_data_allTrials['time_s'].shape[0]
   handles_allPaths = None
   for trial_index in range(num_trials):
     feature_data = get_feature_data_for_trial(feature_data_allTrials, trial_index)
-    handles_allPaths = plot_timestep(feature_data['time_s'], time_index=0,
-                  feature_data=feature_data, bodyPath_data=None,  # supply one of these
-                  subject_id=subject_id,
-                  previous_handles=handles_allPaths, clear_previous_timestep=False,
-                  redraw_trajectory_each_timestep=True,
-                  include_skeleton=False, include_pitcher=False, include_hand=False,
-                  include_spout_projection=False, include_referenceObject=False,
-                  animation_view_angle_toUse=animation_view_angle_forAllTrajectories,
-                  wait_for_user_after_plotting=False, hide_figure_window=hide_figure_window)
+    handles_allPaths = plot_timestep(feature_data['time_s'], time_index=0, activity_type=activity_type,
+                                     feature_data=feature_data, bodyPath_data=None,  # supply one of these
+                                     subject_id=subject_id,
+                                     previous_handles=handles_allPaths, clear_previous_timestep=False,
+                                     redraw_trajectory_each_timestep=True,
+                                     include_skeleton=False, include_motionObject=False, include_hand=False,
+                                     include_motionObjectKeypoint_projection=False, include_referenceObject=False,
+                                     animation_view_angle_toUse=animation_view_angle_forAllTrajectories,
+                                     wait_for_user_after_plotting=False, hide_figure_window=hide_figure_window)
   if output_filepath is not None:
     os.makedirs(os.path.split(output_filepath)[0], exist_ok=True)
     plt.savefig(output_filepath, dpi=300)
@@ -464,7 +469,7 @@ def plot_all_trajectories(feature_data_allTrials, subject_id=None, output_filepa
 
 # ================================================================
 # Plot all starting conditions.
-def plot_all_startingConditions(feature_data_allTrials_byType, truth_data_byType=None,
+def plot_all_startingConditions(feature_data_allTrials_byType, activity_type, truth_data_byType=None,
                                 trial_indexes_to_exclude_byType=None,
                                 model_timestep_index=0,
                                 output_filepath=None, hide_figure_window=False):
@@ -493,7 +498,7 @@ def plot_all_startingConditions(feature_data_allTrials_byType, truth_data_byType
       hand_position_cm = 100*feature_data['position_m']['hand']
       ax_xy.plot(referenceObject_position_cm[1], referenceObject_position_cm[0], 'd',
                  markersize=10, color=color,
-                 label=('Glass: %s' % example_type) if trial_index == 0 else None)
+                 label=('%s: %s' % (referenceObject_name[activity_type], example_type)) if trial_index == 0 else None)
       if example_type == 'model':
         truth_starting_hand_position_cm = 100*truth_data_byType[example_type]['starting_hand_position_m'][trial_index]
         starting_hand_position_cm = hand_position_cm[model_timestep_index, :]
@@ -517,7 +522,7 @@ def plot_all_startingConditions(feature_data_allTrials_byType, truth_data_byType
   ax_xy.grid(True, color='lightgray')
   ax_xy.set_xlabel('Y [cm]')
   ax_xy.set_ylabel('X [cm]')
-  ax_xy.set_title('Projections of Glass and Starting Hand Position')
+  ax_xy.set_title('Projections of %s and Starting Hand Position' % referenceObject_name[activity_type])
   ax_xy.set_aspect('equal')
   ax_z.grid(True, color='lightgray')
   ax_z.set_xlabel('Trial Index')

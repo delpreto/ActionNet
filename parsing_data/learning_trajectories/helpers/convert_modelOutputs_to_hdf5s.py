@@ -9,7 +9,7 @@ def convert_modelOutputs_to_hdf5_data(init_values, trajectories, output_filepath
   model_inputs = {
     'hand_position': init_values[:, 0:3],
     'hand_quaternion': init_values[:, 3:7],
-    'glass_position': init_values[:, 7:10],
+    'referenceObject_position_m': init_values[:, 7:10],
     'final_hand_position': init_values[:, 10:13],
   }
   model_outputs = {
@@ -53,7 +53,7 @@ def convert_modelOutputs_to_hdf5_data(init_values, trajectories, output_filepath
   def denormalize(x, mins, maxs):
     return np.squeeze(x * (maxs - mins) + mins)
   model_inputs['hand_position'] = denormalize(model_inputs['hand_position'], spatial_mins, spatial_maxs)
-  model_inputs['glass_position'] = denormalize(model_inputs['glass_position'], spatial_mins, spatial_maxs)
+  model_inputs['referenceObject_position_m'] = denormalize(model_inputs['referenceObject_position_m'], spatial_mins, spatial_maxs)
   model_inputs['final_hand_position'] = denormalize(model_inputs['final_hand_position'], spatial_mins, spatial_maxs)
   model_outputs['hand_position'] = denormalize(model_outputs['hand_position'], spatial_mins, spatial_maxs)
   
@@ -68,10 +68,10 @@ def convert_modelOutputs_to_hdf5_data(init_values, trajectories, output_filepath
   h5file = h5py.File(output_filepath, 'w')
   h5file.create_dataset('hand_position_m', data=model_outputs['hand_position'])
   h5file.create_dataset('hand_quaternion_wijk', data=model_outputs['hand_quaternion'])
-  h5file.create_dataset('referenceObject_position_m', data=model_inputs['glass_position'])
+  h5file.create_dataset('referenceObject_position_m', data=model_inputs['referenceObject_position_m'])
   h5file.create_dataset('time_s', data=time_s_pred)
   truth_group = h5file.create_group('truth')
-  truth_group.create_dataset('referenceObject_position_m', data=model_inputs['glass_position'])
+  truth_group.create_dataset('referenceObject_position_m', data=model_inputs['referenceObject_position_m'])
   truth_group.create_dataset('starting_hand_position_m', data=model_inputs['hand_position'])
   # truth_group.create_dataset('hand_quaternion_wijk', data=)
   h5file.close()
@@ -105,7 +105,7 @@ if __name__ == '__main__':
   
   #################################################
   # Read and parse the data.
-  # print(init_values.shape) ## shape: batch_size x dim, where dim dimension is set up as: [initial_hand_position,initial_hand_quaternion,glass_position,final_hand_position]
+  # print(init_values.shape) ## shape: batch_size x dim, where dim dimension is set up as: [initial_hand_position,initial_hand_quaternion,referenceObject_position_m,final_hand_position]
   # print(trajectories.shape) ## shape: batch_size x steps x dim, where dim dimension is set up as: [hand_positions,hand_quaternions]
   init_values = np.load(os.path.join(data_dir, 'initial_vals_LOSS.npy'))
   trajectories = np.load(os.path.join(data_dir, 'trajectories_LOSS.npy'))

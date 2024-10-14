@@ -131,7 +131,7 @@ def get_bodyPath_data_byTrial(h5_file, start_times_s, end_times_s):
 
 #===========================================================
 # Shift and rotate body path data to a person-centric coordinate frame.
-def transform_bodyPath_data_personFrame(time_s_byTrial, bodyPath_data_byTrial):
+def transform_bodyPath_data_personFrame(time_s_byTrial, bodyPath_data_byTrial, activity_type=None):
   if not isinstance(bodyPath_data_byTrial, (list, tuple)):
     bodyPath_data_byTrial = [bodyPath_data_byTrial]
     time_s_byTrial = [time_s_byTrial]
@@ -140,7 +140,7 @@ def transform_bodyPath_data_personFrame(time_s_byTrial, bodyPath_data_byTrial):
     return_single_trial = False
   
   # Shift to a coordinate frame with the origin between the hips and at the table height.
-  starting_righthand_positions_m = []
+  starting_positions_m = {}
   for trial_index in range(len(bodyPath_data_byTrial)):
     # Set the origin between the hips (very close to the pelvis but not exactly).
     # pelvis_position_m = bodySegment_datas[trial_index]['position_m']['Pelvis']
@@ -155,25 +155,38 @@ def transform_bodyPath_data_personFrame(time_s_byTrial, bodyPath_data_byTrial):
       position_m = bodyPath_data_byTrial[trial_index]['position_m'][body_segment]
       position_m = position_m - origin_m
       bodyPath_data_byTrial[trial_index]['position_m'][body_segment] = position_m
-    starting_righthand_positions_m.append(bodyPath_data_byTrial[trial_index]['position_m']['RightHand'][0,:])
+      starting_positions_m.setdefault(body_segment, [])
+      starting_positions_m[body_segment].append(bodyPath_data_byTrial[trial_index]['position_m'][body_segment][0,:])
   print('      Right hand starting positions [cm]:')
-  print('        medn', 100*np.median(starting_righthand_positions_m, axis=0))
-  print('        std ', 100*np.std(starting_righthand_positions_m, axis=0))
-  print('        min ', 100*np.min(starting_righthand_positions_m, axis=0))
-  print('        max ', 100*np.max(starting_righthand_positions_m, axis=0))
+  print('        medn', 100*np.median(starting_positions_m['RightHand'], axis=0))
+  print('        std ', 100*np.std(starting_positions_m['RightHand'], axis=0))
+  print('        min ', 100*np.min(starting_positions_m['RightHand'], axis=0))
+  print('        max ', 100*np.max(starting_positions_m['RightHand'], axis=0))
+  print('      Left hand starting positions [cm]:')
+  print('        medn', 100*np.median(starting_positions_m['LeftHand'], axis=0))
+  print('        std ', 100*np.std(starting_positions_m['LeftHand'], axis=0))
+  print('        min ', 100*np.min(starting_positions_m['LeftHand'], axis=0))
+  print('        max ', 100*np.max(starting_positions_m['LeftHand'], axis=0))
   # Correct for what seems to be sensor error for this subject,
-  #  given that we expect the pitcher hand to be at a known height at the start.
-  starting_righthand_height_m = np.median(starting_righthand_positions_m, axis=0)[2]
-  z_offset_m = starting_righthand_height_m - target_starting_righthand_height_cm/100
-  for trial_index in range(len(bodyPath_data_byTrial)):
-    for body_segment in bodyPath_data_byTrial[trial_index]['position_m'].keys():
-      position_m = bodyPath_data_byTrial[trial_index]['position_m'][body_segment]
-      position_m[:, 2] = position_m[:, 2] - z_offset_m
-      bodyPath_data_byTrial[trial_index]['position_m'][body_segment] = position_m
+  #  given that we expect the motion hand to be at a known height at the start.
+  z_offsets_m = []
+  if activity_type in target_starting_height_cm and isinstance(target_starting_height_cm[activity_type], dict):
+    for (body_segment, target_height_cm) in target_starting_height_cm[activity_type].items():
+      starting_height_m = np.median(starting_positions_m[body_segment], axis=0)[2]
+      z_offsets_m.append(starting_height_m - target_height_cm/100)
+  if len(z_offsets_m) > 0:
+    z_offset_m = np.median(z_offsets_m)
+    for trial_index in range(len(bodyPath_data_byTrial)):
+      for body_segment in bodyPath_data_byTrial[trial_index]['position_m'].keys():
+        position_m = bodyPath_data_byTrial[trial_index]['position_m'][body_segment]
+        position_m[:, 2] = position_m[:, 2] - z_offset_m
+        bodyPath_data_byTrial[trial_index]['position_m'][body_segment] = position_m
+  else:
+    z_offset_m = 0 # for printing purposes
   
   # Rotate to a coordinate frame based on the body, such that
   #  the y axis is aligned with the shoulders/hips.
-  starting_righthand_positions_m = []
+  starting_positions_m = {}
   for trial_index in range(len(bodyPath_data_byTrial)):
     # Use the hip orientation to create the y axis.
     y_axis_right = np.append(bodyPath_data_byTrial[trial_index]['position_m']['RightUpperLeg'][0, 0:2], 0)
@@ -204,14 +217,19 @@ def transform_bodyPath_data_personFrame(time_s_byTrial, bodyPath_data_byTrial):
         aligned_quaternion_rotation = alignment_rotation * quaternion_rotation # note that multiplication is overloaded for scipy Rotation objects
         aligned_quaternion_ijkw = aligned_quaternion_rotation.as_quat()
         quaternion_wijk[time_index,:] = aligned_quaternion_ijkw[[3,0,1,2]]
-    
-    starting_righthand_positions_m.append(bodyPath_data_byTrial[trial_index]['position_m']['RightHand'][0,:])
+      starting_positions_m.setdefault(body_segment, [])
+      starting_positions_m[body_segment].append(bodyPath_data_byTrial[trial_index]['position_m'][body_segment][0,:])
     
   print('      Right hand starting positions after correcting for a z offset of %0.3f cm and rotating for the hip axis:' % (100*z_offset_m))
-  print('        mean', 100*np.mean(starting_righthand_positions_m, axis=0))
-  print('        std ', 100*np.std(starting_righthand_positions_m, axis=0))
-  print('        min ', 100*np.min(starting_righthand_positions_m, axis=0))
-  print('        max ', 100*np.max(starting_righthand_positions_m, axis=0))
+  print('        medn', 100*np.median(starting_positions_m['RightHand'], axis=0))
+  print('        std ', 100*np.std(starting_positions_m['RightHand'], axis=0))
+  print('        min ', 100*np.min(starting_positions_m['RightHand'], axis=0))
+  print('        max ', 100*np.max(starting_positions_m['RightHand'], axis=0))
+  print('      Left hand starting positions after correcting for a z offset of %0.3f cm and rotating for the hip axis:' % (100*z_offset_m))
+  print('        medn', 100*np.median(starting_positions_m['LeftHand'], axis=0))
+  print('        std ', 100*np.std(starting_positions_m['LeftHand'], axis=0))
+  print('        min ', 100*np.min(starting_positions_m['LeftHand'], axis=0))
+  print('        max ', 100*np.max(starting_positions_m['LeftHand'], axis=0))
   
   # Return the transformed body path data.
   if return_single_trial:
@@ -220,29 +238,30 @@ def transform_bodyPath_data_personFrame(time_s_byTrial, bodyPath_data_byTrial):
     return (time_s_byTrial, bodyPath_data_byTrial)
 
 #===========================================================
-# Shift the trials upwards if they are too low for the glass during pouring.
+# Shift the trials upwards if they are too low for the reference object during the stationary window.
 def transform_bodyPath_data_referenceObjectHeight(
-        bodyPath_data_byTrial, stationary_pose_byTrial, referenceObject_position_m_byTrial):
+        bodyPath_data_byTrial, stationary_pose_byTrial, referenceObject_position_m_byTrial,
+        activity_type):
   if not isinstance(bodyPath_data_byTrial, (list, tuple)):
     bodyPath_data_byTrial = [bodyPath_data_byTrial]
     return_single_trial = True
   else:
     return_single_trial = False
   
-  # Translate vertically to have the pouring pitcher above the glass.
-  offsets_to_glass_m = []
-  offsets_to_glass_adjusted_m = []
+  # Translate vertically to have the object keypoint above the reference object.
+  offsets_to_referenceObject_m = []
+  offsets_to_referenceObject_adjusted_m = []
   for trial_index in range(len(bodyPath_data_byTrial)):
-    # Infer the average pouring position.
+    # Infer the average stationary position.
     stationary_start_time_index = stationary_pose_byTrial[trial_index]['start_time_index']
     stationary_end_time_index = stationary_pose_byTrial[trial_index]['end_time_index']
-    spout_positions_m = []
+    motionObjectKeypoint_positions_m = []
     for time_index in range(stationary_start_time_index, stationary_end_time_index+1):
-      spout_positions_m.append(infer_spout_position_m(bodyPath_data_to_parsed_feature_data(bodyPath_data_byTrial[trial_index]),
-                                                      time_index))
-    spout_position_m = np.median(spout_positions_m, axis=0)
-    offset_m = spout_position_m[2] - referenceObject_position_m_byTrial[trial_index][2]
-    offsets_to_glass_m.append(offset_m)
+      motionObjectKeypoint_positions_m.append(eval(infer_motionObjectKeypoint_position_m_fn[activity_type])(
+        bodyPath_data_to_parsed_feature_data(bodyPath_data_byTrial[trial_index]), activity_type, time_index))
+    motionObjectKeypoint_position_m = np.median(motionObjectKeypoint_positions_m, axis=0)
+    offset_m = motionObjectKeypoint_position_m[2] - referenceObject_position_m_byTrial[trial_index][2]
+    offsets_to_referenceObject_m.append(offset_m)
     # Raise the trajectory if needed.
     if offset_m < 0/100:
       amount_to_raise_m = abs(offset_m)-0/100
@@ -251,27 +270,27 @@ def transform_bodyPath_data_referenceObjectHeight(
         position_m = bodyPath_data_byTrial[trial_index]['position_m'][body_segment]
         position_m[:, 2] = position_m[:, 2] + amount_to_raise_m
         bodyPath_data_byTrial[trial_index]['position_m'][body_segment] = position_m
-    # Infer the average pouring position again to check the result.
+    # Infer the average stationary position again to check the result.
     stationary_start_time_index = stationary_pose_byTrial[trial_index]['start_time_index']
     stationary_end_time_index = stationary_pose_byTrial[trial_index]['end_time_index']
-    spout_positions_m = []
+    motionObjectKeypoint_positions_m = []
     for time_index in range(stationary_start_time_index, stationary_end_time_index+1):
-      spout_positions_m.append(infer_spout_position_m(bodyPath_data_to_parsed_feature_data(bodyPath_data_byTrial[trial_index]),
-                                                      time_index))
-    spout_position_m = np.median(spout_positions_m, axis=0)
-    offset_m = spout_position_m[2] - referenceObject_position_m_byTrial[trial_index][2]
-    offsets_to_glass_adjusted_m.append(offset_m)
+      motionObjectKeypoint_positions_m.append(eval(infer_motionObjectKeypoint_position_m_fn[activity_type])(
+        bodyPath_data_to_parsed_feature_data(bodyPath_data_byTrial[trial_index]), activity_type, time_index))
+    motionObjectKeypoint_position_m = np.median(motionObjectKeypoint_positions_m, axis=0)
+    offset_m = motionObjectKeypoint_position_m[2] - referenceObject_position_m_byTrial[trial_index][2]
+    offsets_to_referenceObject_adjusted_m.append(offset_m)
     
-  print('      Spout pouring height above glass height')
-  print('        mean', 100*np.mean(offsets_to_glass_m, axis=0))
-  print('        std ', 100*np.std(offsets_to_glass_m, axis=0))
-  print('        min ', 100*np.min(offsets_to_glass_m, axis=0))
-  print('        max ', 100*np.max(offsets_to_glass_m, axis=0))
-  print('      Spout pouring height above glass height after raising trajectories when needed')
-  print('        mean', 100*np.mean(offsets_to_glass_adjusted_m, axis=0))
-  print('        std ', 100*np.std(offsets_to_glass_adjusted_m, axis=0))
-  print('        min ', 100*np.min(offsets_to_glass_adjusted_m, axis=0))
-  print('        max ', 100*np.max(offsets_to_glass_adjusted_m, axis=0))
+  print('      Motion object keypoint height above reference object height')
+  print('        mean', 100*np.mean(offsets_to_referenceObject_m, axis=0))
+  print('        std ', 100*np.std(offsets_to_referenceObject_m, axis=0))
+  print('        min ', 100*np.min(offsets_to_referenceObject_m, axis=0))
+  print('        max ', 100*np.max(offsets_to_referenceObject_m, axis=0))
+  print('      Motion object keypoint height above reference object height after raising trajectories when needed')
+  print('        mean', 100*np.mean(offsets_to_referenceObject_adjusted_m, axis=0))
+  print('        std ', 100*np.std(offsets_to_referenceObject_adjusted_m, axis=0))
+  print('        min ', 100*np.min(offsets_to_referenceObject_adjusted_m, axis=0))
+  print('        max ', 100*np.max(offsets_to_referenceObject_adjusted_m, axis=0))
   
   # Return the transformed body path data.
   if return_single_trial:
@@ -284,11 +303,11 @@ def transform_bodyPath_data_referenceObjectHeight(
 def infer_referenceObject_position_m_byTrial(bodyPath_data_byTrial, time_s_byTrial,
                                              referenceObject_start_time_s_byTrial,
                                              referenceObject_end_time_s_byTrial,
-                                             referenceObject_bodySegment_name,
-                                             use_pouring_position_xy=False,
+                                             activity_type,
+                                             use_motionObjectKeypoint_position_xy=False,
                                              stationary_pose_byTrial=None):
   referenceObject_position_m_byTrial = []
-  handsegment_to_pouring_diffs_m = []
+  handsegment_to_motionObjectKeypoint_diffs_m = []
   for (trial_index, bodyPath_data) in enumerate(bodyPath_data_byTrial):
     # Infer the location using the specified body segment.
     time_s = time_s_byTrial[trial_index]
@@ -299,41 +318,41 @@ def infer_referenceObject_position_m_byTrial(bodyPath_data_byTrial, time_s_byTri
     referenceObject_start_index = time_s.searchsorted(referenceObject_start_time_s)
     referenceObject_end_index = time_s.searchsorted(referenceObject_end_time_s)
     referenceObject_segment_position_m = np.median(
-      body_position_m[referenceObject_bodySegment_name][referenceObject_start_index:referenceObject_end_index,:],
+      body_position_m[referenceObject_bodySegment_name[activity_type]][referenceObject_start_index:referenceObject_end_index,:],
       axis=0)
-    referenceObject_segment_quaternion_wijk = body_quaternion_wijk[referenceObject_bodySegment_name][int(np.mean([referenceObject_start_index, referenceObject_end_index])), :]
+    referenceObject_segment_quaternion_wijk = body_quaternion_wijk[referenceObject_bodySegment_name[activity_type]][int(np.mean([referenceObject_start_index, referenceObject_end_index])), :]
     quat_ijkw = referenceObject_segment_quaternion_wijk[[1,2,3,0]]
     quat_ijkw = [-quat_ijkw[0], -quat_ijkw[1], -quat_ijkw[2], quat_ijkw[3]]
     referenceObject_segment_rot = Rotation.from_quat(quat_ijkw).as_matrix()
-    referenceObject_offset_rotated_cm = np.dot(referenceObject_offset_cm, referenceObject_segment_rot)
+    referenceObject_offset_rotated_cm = np.dot(referenceObject_offset_cm[activity_type], referenceObject_segment_rot)
     referenceObject_position_m_fromSegment = referenceObject_segment_position_m + referenceObject_offset_rotated_cm/100.0
     referenceObject_position_m = referenceObject_position_m_fromSegment.copy()
     
     # Use a known height for the reference object.
     # Assume z=0 is at the table height.
-    referenceObject_position_m[2] = referenceObject_height_cm/100
+    referenceObject_position_m[2] = referenceObject_height_cm[activity_type]/100
     
-    # Move the xy position to the pouring position if desired.
-    if use_pouring_position_xy:
+    # Move the xy position to the stationary position if desired.
+    if use_motionObjectKeypoint_position_xy:
       stationary_start_time_index = stationary_pose_byTrial[trial_index]['start_time_index']
       stationary_end_time_index = stationary_pose_byTrial[trial_index]['end_time_index']
-      spout_positions_m = []
+      motionObjectKeypoint_positions_m = []
       for time_index in range(stationary_start_time_index, stationary_end_time_index+1):
-        spout_positions_m.append(infer_spout_position_m(bodyPath_data_to_parsed_feature_data(bodyPath_data),
-                                                        time_index))
-      spout_position_m = np.median(spout_positions_m, axis=0)
-      referenceObject_position_m[0:2] = spout_position_m[0:2]
+        motionObjectKeypoint_positions_m.append(eval(infer_motionObjectKeypoint_position_m_fn[activity_type])(
+          bodyPath_data_to_parsed_feature_data(bodyPath_data), activity_type, time_index))
+      motionObjectKeypoint_position_m = np.median(motionObjectKeypoint_positions_m, axis=0)
+      referenceObject_position_m[0:2] = motionObjectKeypoint_position_m[0:2]
     
     # Store the result.
     referenceObject_position_m_byTrial.append(referenceObject_position_m)
-    handsegment_to_pouring_diffs_m.append(referenceObject_position_m - referenceObject_position_m_fromSegment)
+    handsegment_to_motionObjectKeypoint_diffs_m.append(referenceObject_position_m - referenceObject_position_m_fromSegment)
   
-  if use_pouring_position_xy:
-    print('      Amount reference object was moved from hand-based inference to pouring position [cm]:')
-    print('       mean', 100*np.mean(handsegment_to_pouring_diffs_m, axis=0))
-    print('       std ', 100*np.std(handsegment_to_pouring_diffs_m, axis=0))
-    print('       min ', 100*np.min(handsegment_to_pouring_diffs_m, axis=0))
-    print('       max ', 100*np.max(handsegment_to_pouring_diffs_m, axis=0))
+  if use_motionObjectKeypoint_position_xy:
+    print('      Amount reference object was moved from hand-based inference to motion object keypoint position [cm]:')
+    print('       mean', 100*np.mean(handsegment_to_motionObjectKeypoint_diffs_m, axis=0))
+    print('       std ', 100*np.std(handsegment_to_motionObjectKeypoint_diffs_m, axis=0))
+    print('       min ', 100*np.min(handsegment_to_motionObjectKeypoint_diffs_m, axis=0))
+    print('       max ', 100*np.max(handsegment_to_motionObjectKeypoint_diffs_m, axis=0))
   return referenceObject_position_m_byTrial
 
 
@@ -388,9 +407,9 @@ def infer_pitcher_holding_angle_rad_byTrial(bodyPath_data_byTrial,
     is_successful = []
     for (test_index, hand_to_pitcher_rotation_toTest) in enumerate(hand_to_pitcher_rotations_toTest):
       # Infer the spout pouring relative offset.
-      spout_relativeOffset_cm = infer_spout_relativeOffset_cm(
+      spout_relativeOffset_cm = infer_motionObject_referenceObject_relativeOffset_cm(
         parsed_feature_data, referenceObject_position_m, time_index=stationary_time_index,
-        hand_to_pitcher_rotation_toUse=hand_to_pitcher_rotation_toTest)
+        hand_to_motionObject_rotation_toUse=hand_to_pitcher_rotation_toTest)
       # Compute a metric about pouring success.
       glass_rim_buffer_cm = 0.5
       behind_glass_threshold_cm = 1.5

@@ -50,17 +50,18 @@ from mpl_toolkits.mplot3d import art3d
 
 
 # ================================================================
-# Plot the spout projection onto the table relative to the glass.
-#   The blue shaded circle represents the glass.
-#   The y-axis is the pouring direction, as inferred from the yaw of the pitcher in each trial.
-#   A point will be plotted at the spout's projection onto the table, relative to the glass.
-#   So the water would pour upward on the plot from the plotted spout position.
-def plot_pour_relativePosition(feature_data_byTrial,
-                               plot_all_trials=True, plot_std_shading=False, plot_mean=False,
-                               subtitle=None, label=None,
-                               fig=None, hide_figure_window=False,
-                               color=None,
-                               output_filepath=None):
+# Plot the motion object keypoint projection onto the table relative to the reference object.
+#   The blue shaded circle represents the reference object.
+#   A point will be plotted at the projection onto the table, relative to the reference object.
+#   If the activity is pouring:
+#     The y-axis is the pouring direction, as inferred from the yaw of the pitcher in each trial.
+#     So the water would pour upward on the plot from the plotted spout position.
+def plot_motionObjectKeypoint_relativePosition(feature_data_byTrial, activity_type,
+                                               plot_all_trials=True, plot_std_shading=False, plot_mean=False,
+                                               subtitle=None, label=None,
+                                               fig=None, hide_figure_window=False,
+                                               color=None,
+                                               output_filepath=None):
   if output_filepath is not None:
     os.makedirs(os.path.split(output_filepath)[0], exist_ok=True)
   if not isinstance(feature_data_byTrial, dict):
@@ -91,32 +92,32 @@ def plot_pour_relativePosition(feature_data_byTrial,
   num_trials = feature_data_byTrial['time_s'].shape[0]
   num_timesteps = feature_data_byTrial['time_s'].shape[1]
   
-  spout_relativeOffsets_cm = np.zeros((num_trials, 2))
+  motionObjectKeypoint_relativeOffsets_cm = np.zeros((num_trials, 2))
   for trial_index in range(num_trials):
     feature_data = get_feature_data_for_trial(feature_data_byTrial, trial_index)
-    # Get the pouring time.
-    pouring_inference = infer_pour_pose(feature_data)
-    pour_index = pouring_inference['time_index']
-    # Get the pouring relative offset.
-    spout_relativeOffsets_cm[trial_index, :] = infer_spout_relativeOffset_cm(
-      feature_data,
+    # Get the stationary time.
+    stationary_inference = infer_stationary_pose(feature_data, activity_type)
+    stationary_index = stationary_inference['time_index']
+    # Get the motion object keypoint relative offset.
+    motionObjectKeypoint_relativeOffsets_cm[trial_index, :] = infer_motionObject_referenceObject_relativeOffset_cm(
+      feature_data, activity_type,
       referenceObject_position_m=None, # will use the one in feature_data
-      hand_to_pitcher_rotation_toUse=None, # will use the one in feature_data
-      time_index=pour_index)
+      hand_to_motionObject_rotation_toUse=None, # will use the one in feature_data
+      time_index=stationary_index)
   
   # Plot a standard deviation shaded region if desired.
   if plot_std_shading:
     if label.lower() in example_types_to_offset:
-      spout_relativeOffsets_cm += np.array([1, 2])
+      motionObjectKeypoint_relativeOffsets_cm += np.array([1, 2])
       
-    # Plot the ellipse for the spout positions.
-    plot_confidence_ellipse(x=spout_relativeOffsets_cm[:,0], y=spout_relativeOffsets_cm[:,1], ax=ax,
+    # Plot the ellipse for the keypoint positions.
+    plot_confidence_ellipse(x=motionObjectKeypoint_relativeOffsets_cm[:,0], y=motionObjectKeypoint_relativeOffsets_cm[:,1], ax=ax,
                             n_std=1.0, facecolor='none', alpha=1, edgecolor=color, linewidth=3)
-    plot_confidence_ellipse(x=spout_relativeOffsets_cm[:,0], y=spout_relativeOffsets_cm[:,1], ax=ax,
+    plot_confidence_ellipse(x=motionObjectKeypoint_relativeOffsets_cm[:,0], y=motionObjectKeypoint_relativeOffsets_cm[:,1], ax=ax,
                             n_std=2.0, facecolor='none', alpha=0.2, edgecolor=color, linewidth=3,)
-    plot_confidence_ellipse(x=spout_relativeOffsets_cm[:,0], y=spout_relativeOffsets_cm[:,1], ax=ax,
+    plot_confidence_ellipse(x=motionObjectKeypoint_relativeOffsets_cm[:,0], y=motionObjectKeypoint_relativeOffsets_cm[:,1], ax=ax,
                             n_std=3.0, facecolor='none', alpha=0.2, edgecolor=color, linewidth=3)
-    plot_confidence_ellipse(x=spout_relativeOffsets_cm[:,0], y=spout_relativeOffsets_cm[:,1], ax=ax,
+    plot_confidence_ellipse(x=motionObjectKeypoint_relativeOffsets_cm[:,0], y=motionObjectKeypoint_relativeOffsets_cm[:,1], ax=ax,
                             n_std=3.0, facecolor=color, alpha=0.2,
                             label=('%s: StdDevs' % label) if label is not None else 'StdDevs')
     ax.legend()
@@ -124,21 +125,21 @@ def plot_pour_relativePosition(feature_data_byTrial,
   # Plot all trial results if desired.
   if plot_all_trials:
     for trial_index in range(num_trials):
-      ax.scatter(*spout_relativeOffsets_cm[trial_index,:], c=color, s=125)
+      ax.scatter(*motionObjectKeypoint_relativeOffsets_cm[trial_index,:], c=color, s=125)
   
   # Plot the mean if desired.
   if plot_mean:
-    ax.scatter(*np.mean(spout_relativeOffsets_cm, axis=0), c=color, s=40)
+    ax.scatter(*np.mean(motionObjectKeypoint_relativeOffsets_cm, axis=0), c=color, s=40)
   
   # Plot the reference object and the origin.
   referenceObject_circle = mpatches.Circle(
       (0, 0),
-      radius=referenceObject_diameter_cm/2, ec=None, color=[0.8,1,1],
+      radius=referenceObject_diameter_cm[activity_type]/2, ec=None, color=[0.8,1,1],
       linewidth=3, alpha=0.13)
   ax.add_patch(referenceObject_circle)
   referenceObject_circle = mpatches.Circle(
       (0, 0),
-      radius=referenceObject_diameter_cm/2, ec=[0.4,1,1], facecolor='none',
+      radius=referenceObject_diameter_cm[activity_type]/2, ec=[0.4,1,1], facecolor='none',
       linewidth=3, alpha=1)
   ax.add_patch(referenceObject_circle)
   # ax.scatter(0, 0, s=10, c='k')
@@ -146,17 +147,22 @@ def plot_pour_relativePosition(feature_data_byTrial,
   # Plot formatting.
   axis_fontsize = 24
   title_fontsize = 24
-  ax.set_ylim([-5, 5])
-  ax.set_xlim([-5, 5])
   ax.tick_params(axis='x', labelsize=18)  # Set x-axis tick font size
   ax.tick_params(axis='y', labelsize=18)  # Set y-axis tick font size
   ax.set_aspect('equal')
-  ax.set_xlabel('Perpendicular to Pouring Direction [cm]', fontsize=axis_fontsize)
-  ax.set_ylabel('Along Pouring Direction [cm]', fontsize=axis_fontsize)
-  # plt.title('Pouring Position and Direction%s' % ((': %s' % subtitle) if subtitle is not None else ''), fontsize=title_fontsize)
-  plt.title('Pouring Relative to Glass', fontsize=title_fontsize)
   ax.grid(True, color='lightgray')
   ax.set_axisbelow(True)
+  if activity_type == 'pouring':
+    ax.set_ylim([-5, 5])
+    ax.set_xlim([-5, 5])
+    ax.set_xlabel('Perpendicular to Pouring Direction [cm]', fontsize=axis_fontsize)
+    ax.set_ylabel('Along Pouring Direction [cm]', fontsize=axis_fontsize)
+    # plt.title('Pouring Position and Direction%s' % ((': %s' % subtitle) if subtitle is not None else ''), fontsize=title_fontsize)
+    plt.title('Pouring Relative to Glass', fontsize=title_fontsize)
+  else:
+    ax.set_xlabel('Horizontal Position [cm]', fontsize=axis_fontsize)
+    ax.set_ylabel('Vertical Position [cm]', fontsize=axis_fontsize)
+    plt.title('%s Relative to %s' % (motionObjectKeypoint_name[activity_type], referenceObject_name[activity_type]), fontsize=title_fontsize)
   
   # Show the plot.
   plt.draw()
@@ -165,37 +171,37 @@ def plot_pour_relativePosition(feature_data_byTrial,
   if output_filepath is not None:
     fig.savefig(output_filepath, dpi=300)
   
-  return (fig, spout_relativeOffsets_cm)
+  return (fig, motionObjectKeypoint_relativeOffsets_cm)
 
 # ================================================================
-# Plot and compare distributions of the spout position and orientation projected onto the table
-#  during the inferred pouring window.
-#  The projection is such that:
+# Plot and compare distributions of the keypoint position and orientation projected onto the table
+#  during the inferred stationary window.
+#  If the activity is pouring, the projection is such that:
 #   The y-axis is the pouring direction, as inferred from the yaw of the pitcher in each trial.
 #   A point will be plotted at the spout's projection onto the table, relative to the glass.
 #   So the water would pour upward on the plot from the plotted spout position.
 # feature_matrices_byType and referenceObject_positions_m_byType are
 #   dictionaries mapping distribution category to matrices for each trial.
-def plot_compare_distributions_spout_projections(feature_data_byType,
-                                                 output_filepath=None,
-                                                 print_comparison_results=True,
-                                                 plot_distributions=True,
-                                                 fig=None, hide_figure_window=False):
+def plot_compare_distributions_motionObjectKeypoint_projections(feature_data_byType, activity_type,
+                                                                output_filepath=None,
+                                                                print_comparison_results=True,
+                                                                plot_distributions=True,
+                                                                fig=None, hide_figure_window=False):
   
   # Plot mean and standard deviation shading for each example type, on the same plot.
-  spout_relativeOffsets_cm_byType = {}
+  motionObjectKeypoint_relativeOffsets_cm_byType = {}
   example_types = list(feature_data_byType.keys())
   previous_results = (fig, None)
   for (example_index, example_type) in enumerate(example_types):
     is_last_type = example_type == example_types[-1]
-    previous_results = plot_pour_relativePosition(
-      feature_data_byType[example_type],
+    previous_results = plot_motionObjectKeypoint_relativePosition(
+      feature_data_byType[example_type], activity_type,
       plot_mean=True, plot_std_shading=True, plot_all_trials=False,
       subtitle=None, label=example_type.title(),
       color=plt.rcParams['axes.prop_cycle'].by_key()['color'][example_index],
       output_filepath=output_filepath,
       fig=previous_results, hide_figure_window=hide_figure_window or (not plot_distributions))
-    spout_relativeOffsets_cm_byType[example_type] = previous_results[1]
+    motionObjectKeypoint_relativeOffsets_cm_byType[example_type] = previous_results[1]
   
   # Statistical tests.
   results_relativeOffsets = dict([(example_type, dict([(key, {}) for key in example_types])) for example_type in example_types])
@@ -204,10 +210,10 @@ def plot_compare_distributions_spout_projections(feature_data_byType,
   for example_type_1 in example_types:
     for example_type_2 in example_types:
       for (axis_index, axis) in enumerate(['x', 'y']):
-        spout_relativeOffsets_cm_1 = spout_relativeOffsets_cm_byType[example_type_1][:, axis_index]
-        spout_relativeOffsets_cm_2 = spout_relativeOffsets_cm_byType[example_type_2][:, axis_index]
+        motionObjectKeypoint_relativeOffsets_cm_1 = motionObjectKeypoint_relativeOffsets_cm_byType[example_type_1][:, axis_index]
+        motionObjectKeypoint_relativeOffsets_cm_2 = motionObjectKeypoint_relativeOffsets_cm_byType[example_type_2][:, axis_index]
         results_relativeOffsets[example_type_1][example_type_2][axis] = \
-          stats.kstest(spout_relativeOffsets_cm_1, spout_relativeOffsets_cm_2,
+          stats.kstest(motionObjectKeypoint_relativeOffsets_cm_1, motionObjectKeypoint_relativeOffsets_cm_2,
                        alternative='two-sided', # 'two-sided', 'less', 'greater'
                        method='auto', # ‘auto’, ‘exact’, ‘approx’, ‘asymp’
                        )
@@ -215,7 +221,7 @@ def plot_compare_distributions_spout_projections(feature_data_byType,
   # Print statistical test results.
   if print_comparison_results:
     for axis in ['x', 'y']:
-      print(' Statistical comparison results for spout projection, %s axis:' % axis)
+      print(' Statistical comparison results for %s projection, %s axis:' % (motionObjectKeypoint_name[activity_type], axis))
       for example_type_1 in example_types:
         for example_type_2 in example_types:
           print('  Comparing [%s] to [%s]: ' % (example_type_1, example_type_2), end='')
@@ -244,7 +250,7 @@ def plot_distribution_hand_to_pitcher_angles(feature_data_byType,
                           subplot_kw={'frame_on': True},
                           figsize=(13, 7),
                           )
-  if 'hand_to_pitcher_angles_rad' not in list(feature_data_byType.values())[0]:
+  if 'hand_to_motionObject_angles_rad' not in list(feature_data_byType.values())[0]:
     return None
   
   if not hide_figure_window:
@@ -259,7 +265,7 @@ def plot_distribution_hand_to_pitcher_angles(feature_data_byType,
     ax = axs[0][axis_index]
     data = []
     for (example_type, feature_data) in feature_data_byType.items():
-      hand_to_pitcher_angles_rad = np.squeeze(feature_data['hand_to_pitcher_angles_rad'])
+      hand_to_pitcher_angles_rad = np.squeeze(feature_data['hand_to_motionObject_angles_rad'])
       data.append(np.degrees(hand_to_pitcher_angles_rad[:, axis_index]))
     boxplot_dict = ax.boxplot(data, labels=list(feature_data_byType.keys()), patch_artist=True)
     for b, c in zip(boxplot_dict['boxes'], example_type_colors):
@@ -280,18 +286,18 @@ def plot_distribution_hand_to_pitcher_angles(feature_data_byType,
   return None
 
 # ================================================================
-# Plot and compare distributions of the spout speed and jerk.
+# Plot and compare distributions of the motion object keypoint speed and jerk.
 # feature_matrices_allTypes is a dictionary mapping distribution category to matrices for each trial.
 # If region is provided, will only consider timesteps during that region for each trial.
-#   Can be 'pre_pouring', 'pouring', 'post_pouring', or None for all.
-def plot_compare_distributions_spout_dynamics(feature_data_byType,
-                                              subtitle=None,
-                                              output_filepath=None,
-                                              region=None,  # 'pre_pouring', 'pouring', 'post_pouring', None for all
-                                              print_comparison_results=True,
-                                              plot_distributions=True,
-                                              num_histogram_bins=100, histogram_range_quantiles=(0,1),
-                                              fig=None, hide_figure_window=False):
+#   Can be 'pre_stationary', 'stationary', 'post_stationary', or None for all.
+def plot_compare_distributions_motionObjectKeypoint_dynamics(feature_data_byType, activity_type,
+                                                             subtitle=None,
+                                                             output_filepath=None,
+                                                             region=None,  # 'pre_stationary', 'stationary', 'post_stationary', None for all
+                                                             print_comparison_results=True,
+                                                             plot_distributions=True,
+                                                             num_histogram_bins=100, histogram_range_quantiles=(0,1),
+                                                             fig=None, hide_figure_window=False):
     
   if output_filepath is not None:
     os.makedirs(os.path.split(output_filepath)[0], exist_ok=True)
@@ -329,30 +335,29 @@ def plot_compare_distributions_spout_dynamics(feature_data_byType,
   for (example_type, feature_data_allTrials) in feature_data_byType.items():
     num_trials = feature_data_allTrials['time_s'].shape[0]
     num_timesteps = feature_data_allTrials['time_s'].shape[1]
-    # Get the spout dynamics for each timestep.
+    # Get the motion object keypoint dynamics for each timestep.
     speeds_m_s = [None]*num_trials
-    speeds_m_s_pouring = [None]*num_trials
     jerks_m_s_s_s = [None]*num_trials
     for trial_index in range(num_trials):
       feature_data = get_feature_data_for_trial(feature_data_allTrials, trial_index)
-      speeds_m_s[trial_index] = infer_spout_speed_m_s(feature_data)
-      jerks_m_s_s_s[trial_index] = infer_spout_jerk_m_s_s_s(feature_data)
+      speeds_m_s[trial_index] = infer_motionObjectKeypoint_speed_m_s(feature_data, activity_type)
+      jerks_m_s_s_s[trial_index] = infer_motionObjectKeypoint_jerk_m_s_s_s(feature_data, activity_type)
     
-    # If desired, only extract a certain window of time relative to the inferred pouring time.
+    # If desired, only extract a certain window of time relative to the inferred stationary time.
     for trial_index in range(num_trials):
       feature_data = get_feature_data_for_trial(feature_data_allTrials, trial_index)
-      pouring_inference = infer_pour_pose(feature_data)
-      pour_start_index = pouring_inference['start_time_index']
-      pour_end_index = pouring_inference['end_time_index']
-      if region == 'pouring':
-        speeds_m_s[trial_index] = speeds_m_s[trial_index][pour_start_index:pour_end_index]
-        jerks_m_s_s_s[trial_index] = jerks_m_s_s_s[trial_index][pour_start_index:pour_end_index]
-      if region == 'pre_pouring':
-        speeds_m_s[trial_index] = speeds_m_s[trial_index][0:pour_start_index]
-        jerks_m_s_s_s[trial_index] = jerks_m_s_s_s[trial_index][0:pour_start_index]
-      if region == 'post_pouring':
-        speeds_m_s[trial_index] = speeds_m_s[trial_index][pour_end_index:-1]
-        jerks_m_s_s_s[trial_index] = jerks_m_s_s_s[trial_index][pour_end_index:-1]
+      stationary_inference = infer_stationary_pose(feature_data, activity_type)
+      stationary_start_index = stationary_inference['start_time_index']
+      stationary_end_index = stationary_inference['end_time_index']
+      if region == 'stationary':
+        speeds_m_s[trial_index] = speeds_m_s[trial_index][stationary_start_index:stationary_end_index]
+        jerks_m_s_s_s[trial_index] = jerks_m_s_s_s[trial_index][stationary_start_index:stationary_end_index]
+      if region == 'pre_stationary':
+        speeds_m_s[trial_index] = speeds_m_s[trial_index][0:stationary_start_index]
+        jerks_m_s_s_s[trial_index] = jerks_m_s_s_s[trial_index][0:stationary_start_index]
+      if region == 'post_stationary':
+        speeds_m_s[trial_index] = speeds_m_s[trial_index][stationary_end_index:-1]
+        jerks_m_s_s_s[trial_index] = jerks_m_s_s_s[trial_index][stationary_end_index:-1]
       
     # Store results.
     distributions_speed_m_s[example_type] = np.abs(np.stack(np.concatenate(speeds_m_s)))
@@ -443,8 +448,8 @@ def plot_compare_distributions_spout_dynamics(feature_data_byType,
     ax_jerk.set_ylabel('Density')
     ax_speed.grid(True, color='lightgray')
     ax_jerk.grid(True, color='lightgray')
-    speed_title_str = 'Spout Speed [m/s]%s' % ((': %s' % subtitle) if subtitle is not None else '')
-    jerk_title_str = 'Spout Jerk [m/s/s/s]%s' % ((': %s' % subtitle) if subtitle is not None else '')
+    speed_title_str = '%s Speed [m/s]%s' % (motionObjectKeypoint_name[activity_type], (': %s' % subtitle) if subtitle is not None else '')
+    jerk_title_str = '%s Jerk [m/s/s/s]%s' % (motionObjectKeypoint_name[activity_type], (': %s' % subtitle) if subtitle is not None else '')
     if len(example_types) == 2:
       stats_results = results_speed_m_s[example_types[0]][example_types[1]]
       p = stats_results.pvalue
@@ -489,11 +494,11 @@ def plot_compare_distributions_spout_dynamics(feature_data_byType,
 # Plot and compare distributions of the hand, elbow, and shoulder speed and jerk.
 # feature_matrices_allTypes is a dictionary mapping distribution category to matrices for each trial.
 # If region is provided, will only consider timesteps during that region for each trial.
-#   Can be 'pre_pouring', 'pouring', 'post_pouring', or None for all.
-def plot_compare_distributions_body_dynamics(feature_data_byType,
+#   Can be 'pre_stationary', 'stationary', 'post_stationary', or None for all.
+def plot_compare_distributions_body_dynamics(feature_data_byType, activity_type,
                                              subtitle=None,
                                              output_filepath=None,
-                                             region=None,  # 'pre_pouring', 'pouring', 'post_pouring', None for all
+                                             region=None,  # 'pre_stationary', 'stationary', 'post_stationary', None for all
                                              print_comparison_results=True,
                                              plot_distributions=True,
                                              num_histogram_bins=100, histogram_range_quantiles=(0,1),
@@ -544,21 +549,21 @@ def plot_compare_distributions_body_dynamics(feature_data_byType,
       jerks_m_s_s_s[trial_index] = get_body_jerk_m_s_s_s(feature_data)
       body_keys = list(speeds_m_s[trial_index].keys())
   
-    # If desired, only extract a certain window of time relative to the inferred pouring time.
+    # If desired, only extract a certain window of time relative to the inferred stationary time.
     for trial_index in range(num_trials):
       feature_data = get_feature_data_for_trial(feature_data_allTrials, trial_index)
-      pouring_inference = infer_pour_pose(feature_data)
-      pour_start_index = pouring_inference['start_time_index']
-      pour_end_index = pouring_inference['end_time_index']
-      if region == 'pouring':
-        speeds_m_s[trial_index] = dict([(body_key, speeds_m_s[trial_index][body_key][pour_start_index:pour_end_index]) for body_key in body_keys])
-        jerks_m_s_s_s[trial_index] = dict([(body_key, jerks_m_s_s_s[trial_index][body_key][pour_start_index:pour_end_index]) for body_key in body_keys])
-      if region == 'pre_pouring':
-        speeds_m_s[trial_index] = dict([(body_key, speeds_m_s[trial_index][body_key][0:pour_start_index]) for body_key in body_keys])
-        jerks_m_s_s_s[trial_index] = dict([(body_key, jerks_m_s_s_s[trial_index][body_key][0:pour_start_index]) for body_key in body_keys])
-      if region == 'post_pouring':
-        speeds_m_s[trial_index] = dict([(body_key, speeds_m_s[trial_index][body_key][pour_end_index:-1]) for body_key in body_keys])
-        jerks_m_s_s_s[trial_index] = dict([(body_key, jerks_m_s_s_s[trial_index][body_key][pour_end_index:-1]) for body_key in body_keys])
+      stationary_inference = infer_stationary_pose(feature_data, activity_type)
+      stationary_start_index = stationary_inference['start_time_index']
+      stationary_end_index = stationary_inference['end_time_index']
+      if region == 'stationary':
+        speeds_m_s[trial_index] = dict([(body_key, speeds_m_s[trial_index][body_key][stationary_start_index:stationary_end_index]) for body_key in body_keys])
+        jerks_m_s_s_s[trial_index] = dict([(body_key, jerks_m_s_s_s[trial_index][body_key][stationary_start_index:stationary_end_index]) for body_key in body_keys])
+      if region == 'pre_stationary':
+        speeds_m_s[trial_index] = dict([(body_key, speeds_m_s[trial_index][body_key][0:stationary_start_index]) for body_key in body_keys])
+        jerks_m_s_s_s[trial_index] = dict([(body_key, jerks_m_s_s_s[trial_index][body_key][0:stationary_start_index]) for body_key in body_keys])
+      if region == 'post_stationary':
+        speeds_m_s[trial_index] = dict([(body_key, speeds_m_s[trial_index][body_key][stationary_end_index:-1]) for body_key in body_keys])
+        jerks_m_s_s_s[trial_index] = dict([(body_key, jerks_m_s_s_s[trial_index][body_key][stationary_end_index:-1]) for body_key in body_keys])
     
     # Store results.
     for body_key in body_keys:
@@ -660,11 +665,11 @@ def plot_compare_distributions_body_dynamics(feature_data_byType,
 # Plot and compare distributions of the hand, elbow, and shoulder joint angles.
 # feature_matrices_allTypes is a dictionary mapping distribution category to matrices for each trial.
 # If region is provided, will only consider timesteps during that region for each trial.
-#   Can be 'pre_pouring', 'pouring', 'post_pouring', or None for all.
-def plot_compare_distributions_joint_angles(feature_data_byType,
+#   Can be 'pre_stationary', 'stationary', 'post_stationary', or None for all.
+def plot_compare_distributions_joint_angles(feature_data_byType, activity_type,
                                             subtitle=None,
                                             output_filepath=None,
-                                            region=None,  # 'pre_pouring', 'pouring', 'post_pouring', None for all
+                                            region=None,  # 'pre_stationary', 'stationary', 'post_stationary', None for all
                                             print_comparison_results=True,
                                             plot_distributions=True,
                                             num_histogram_bins=100, histogram_range_quantiles=(0,1),
@@ -712,18 +717,18 @@ def plot_compare_distributions_joint_angles(feature_data_byType,
       joint_angles_rad[trial_index] = get_body_joint_angles_rad(feature_data)
       body_keys = list(joint_angles_rad[trial_index].keys())
   
-    # If desired, only extract a certain window of time relative to the inferred pouring time.
+    # If desired, only extract a certain window of time relative to the inferred stationary time.
     for trial_index in range(num_trials):
       feature_data = get_feature_data_for_trial(feature_data_allTrials, trial_index)
-      pouring_inference = infer_pour_pose(feature_data)
-      pour_start_index = pouring_inference['start_time_index']
-      pour_end_index = pouring_inference['end_time_index']
-      if region == 'pouring':
-        joint_angles_rad[trial_index] = dict([(body_key, joint_angles_rad[trial_index][body_key][pour_start_index:pour_end_index, :]) for body_key in body_keys])
-      if region == 'pre_pouring':
-        joint_angles_rad[trial_index] = dict([(body_key, joint_angles_rad[trial_index][body_key][0:pour_start_index, :]) for body_key in body_keys])
-      if region == 'post_pouring':
-        joint_angles_rad[trial_index] = dict([(body_key, joint_angles_rad[trial_index][body_key][pour_end_index:-1, :]) for body_key in body_keys])
+      stationary_inference = infer_stationary_pose(feature_data, activity_type)
+      stationary_start_index = stationary_inference['start_time_index']
+      stationary_end_index = stationary_inference['end_time_index']
+      if region == 'stationary':
+        joint_angles_rad[trial_index] = dict([(body_key, joint_angles_rad[trial_index][body_key][stationary_start_index:stationary_end_index, :]) for body_key in body_keys])
+      if region == 'pre_stationary':
+        joint_angles_rad[trial_index] = dict([(body_key, joint_angles_rad[trial_index][body_key][0:stationary_start_index, :]) for body_key in body_keys])
+      if region == 'post_stationary':
+        joint_angles_rad[trial_index] = dict([(body_key, joint_angles_rad[trial_index][body_key][stationary_end_index:-1, :]) for body_key in body_keys])
     
     # Store results.
     for body_key in body_keys:
@@ -794,18 +799,18 @@ def plot_compare_distributions_joint_angles(feature_data_byType,
   return (fig, axs)
 
 # ================================================================
-# Plot and compare distributions of the spout height relative to the top of the glass.
+# Plot and compare distributions of the motion object keypoint height relative to the top of the reference object.
 # feature_matrices_allTypes is a dictionary mapping distribution category to matrices for each trial.
 # If region is provided, will only consider timesteps during that region for each trial.
-#   Can be 'pre_pouring', 'pouring', 'post_pouring', or None for all.
-def plot_compare_distributions_spout_relativeHeights(feature_data_byType,
-                                                     subtitle=None,
-                                                     output_filepath=None,
-                                                     region=None,  # 'pre_pouring', 'pouring', 'post_pouring', None for all
-                                                     print_comparison_results=True,
-                                                     plot_distributions=True,
-                                                     num_histogram_bins=100, histogram_range_quantiles=(0,1),
-                                                     fig=None, hide_figure_window=False):
+#   Can be 'pre_stationary', 'stationary', 'post_stationary', or None for all.
+def plot_compare_distributions_motionObjectKeypoint_relativeHeights(feature_data_byType, activity_type,
+                                                                    subtitle=None,
+                                                                    output_filepath=None,
+                                                                    region=None,  # 'pre_stationary', 'stationary', 'post_stationary', None for all
+                                                                    print_comparison_results=True,
+                                                                    plot_distributions=True,
+                                                                    num_histogram_bins=100, histogram_range_quantiles=(0,1),
+                                                                    fig=None, hide_figure_window=False):
     
   if output_filepath is not None:
     os.makedirs(os.path.split(output_filepath)[0], exist_ok=True)
@@ -841,33 +846,33 @@ def plot_compare_distributions_spout_relativeHeights(feature_data_byType,
   for (example_type, feature_data_allTrials) in feature_data_byType.items():
     num_trials = feature_data_allTrials['time_s'].shape[0]
     num_timesteps = feature_data_allTrials['time_s'].shape[1]
-    # Get the spout heights for each timestep of each trial.
-    spout_relativeHeights_cm = []
+    # Get the motion object keypoint heights for each timestep of each trial.
+    motionObjectKeypoint_relativeHeights_cm = []
     for trial_index in range(num_trials):
       feature_data = get_feature_data_for_trial(feature_data_allTrials, trial_index)
       referenceObject_position_m = np.squeeze(feature_data['referenceObject_position_m'])
-      # Get the spout height at each timestep.
-      spout_relativeHeight_cm = np.zeros(shape=(num_timesteps,))
+      # Get the motion object keypoint height at each timestep.
+      motionObjectKeypoint_relativeHeight_cm = np.zeros(shape=(num_timesteps,))
       for time_index in range(num_timesteps):
-        spout_position_cm = 100*infer_spout_position_m(feature_data, time_index)
-        spout_relativeHeight_cm[time_index] = spout_position_cm[2] - 100*referenceObject_position_m[2]
-      spout_relativeHeights_cm.append(spout_relativeHeight_cm)
+        motionObjectKeypoint_position_cm = 100*eval(infer_motionObjectKeypoint_position_m_fn[activity_type])(feature_data, activity_type, time_index)
+        motionObjectKeypoint_relativeHeight_cm[time_index] = motionObjectKeypoint_position_cm[2] - 100*referenceObject_position_m[2]
+      motionObjectKeypoint_relativeHeights_cm.append(motionObjectKeypoint_relativeHeight_cm)
       
-    # If desired, only extract a certain window of time relative to the inferred pouring time.
+    # If desired, only extract a certain window of time relative to the inferred stationary time.
     for trial_index in range(num_trials):
       feature_data = get_feature_data_for_trial(feature_data_allTrials, trial_index)
-      pouring_inference = infer_pour_pose(feature_data)
-      pour_start_index = pouring_inference['start_time_index']
-      pour_end_index = pouring_inference['end_time_index']
-      if region == 'pouring':
-        spout_relativeHeights_cm[trial_index] = spout_relativeHeights_cm[trial_index][pour_start_index:pour_end_index]
-      if region == 'pre_pouring':
-        spout_relativeHeights_cm[trial_index] = spout_relativeHeights_cm[trial_index][0:pour_start_index]
-      if region == 'post_pouring':
-        spout_relativeHeights_cm[trial_index] = spout_relativeHeights_cm[trial_index][pour_end_index:-1]
+      stationary_inference = infer_stationary_pose(feature_data, activity_type)
+      stationary_start_index = stationary_inference['start_time_index']
+      stationary_end_index = stationary_inference['end_time_index']
+      if region == 'statinoary':
+        motionObjectKeypoint_relativeHeights_cm[trial_index] = motionObjectKeypoint_relativeHeights_cm[trial_index][stationary_start_index:stationary_end_index]
+      if region == 'pre_stationary':
+        motionObjectKeypoint_relativeHeights_cm[trial_index] = motionObjectKeypoint_relativeHeights_cm[trial_index][0:stationary_start_index]
+      if region == 'post_stationary':
+        motionObjectKeypoint_relativeHeights_cm[trial_index] = motionObjectKeypoint_relativeHeights_cm[trial_index][stationary_end_index:-1]
     
     # Store results.
-    distributions_relativeHeights_cm[example_type] = np.stack(np.concatenate(spout_relativeHeights_cm))
+    distributions_relativeHeights_cm[example_type] = np.stack(np.concatenate(motionObjectKeypoint_relativeHeights_cm))
   
   # Statistical tests to compare the distributions.
   for example_type_1 in example_types:
@@ -895,12 +900,12 @@ def plot_compare_distributions_spout_relativeHeights(feature_data_byType,
     # ax.set_xlabel('Speed [m/s]')
     ax.set_ylabel('Density')
     ax.grid(True, color='lightgray')
-    title_str = 'Spout Height Above Glass [cm]%s' % ((': %s' % subtitle) if subtitle is not None else '')
     if len(example_types) == 2:
+      title_str = '%s Height Above %s [cm]%s' % (motionObjectKeypoint_name[activity_type], referenceObject_name[activity_type], (': %s' % subtitle) if subtitle is not None else '')
       stats_results = results_relativeHeights_cm[example_types[0]][example_types[1]]
       p = stats_results.pvalue
       title_str += ' | Distributions are different? %s (p = %0.4f)' % ('yes' if p < 0.05 else 'no', p)
-    ax.set_title(title_str)
+      ax.set_title(title_str)
     ax.legend()
     if region is not None:
       fig.suptitle('During %s' % region.replace('_', '-').title())
@@ -914,7 +919,7 @@ def plot_compare_distributions_spout_relativeHeights(feature_data_byType,
 
   # Print statistical test results.
   if print_comparison_results:
-    print(' Statistical comparison results for spout height above glass:')
+    print(' Statistical comparison results for %s height above %s:' % (motionObjectKeypoint_name[activity_type], referenceObject_name[activity_type]))
     for example_type_1 in example_types:
       for example_type_2 in example_types:
         print('  Comparing [%s] to [%s]: ' % (example_type_1, example_type_2), end='')
@@ -925,18 +930,18 @@ def plot_compare_distributions_spout_relativeHeights(feature_data_byType,
   return (fig, axs)
 
 # ================================================================
-# Plot and compare distributions of the spout tilt angles.
+# Plot and compare distributions of the motion object tilt angles.
 # feature_matrices_allTypes is a dictionary mapping distribution category to matrices for each trial.
 # If region is provided, will only consider timesteps during that region for each trial.
-#   Can be 'pre_pouring', 'pouring', 'post_pouring', or None for all.
-def plot_compare_distributions_spout_tilts(feature_data_byType,
-                                           subtitle=None,
-                                           output_filepath=None,
-                                           region=None,  # 'pre_pouring', 'pouring', 'post_pouring', None for all
-                                           print_comparison_results=True,
-                                           plot_distributions=True,
-                                           num_histogram_bins=100, histogram_range_quantiles=(0,1),
-                                           fig=None, hide_figure_window=False):
+#   Can be 'pre_stationary', 'stationary', 'post_stationary', or None for all.
+def plot_compare_distributions_motionObject_tilts(feature_data_byType, activity_type,
+                                                  subtitle=None,
+                                                  output_filepath=None,
+                                                  region=None,  # 'pre_stationary', 'stationary', 'post_stationary', None for all
+                                                  print_comparison_results=True,
+                                                  plot_distributions=True,
+                                                  num_histogram_bins=100, histogram_range_quantiles=(0,1),
+                                                  fig=None, hide_figure_window=False):
     
   if output_filepath is not None:
     os.makedirs(os.path.split(output_filepath)[0], exist_ok=True)
@@ -972,30 +977,30 @@ def plot_compare_distributions_spout_tilts(feature_data_byType,
   for (example_type, feature_data_allTrials) in feature_data_byType.items():
     num_trials = feature_data_allTrials['time_s'].shape[0]
     num_timesteps = feature_data_allTrials['time_s'].shape[1]
-    # Get the spout tilt for each timestep of each trial.
-    spout_tilts_deg = []
+    # Get the motion object tilt for each timestep of each trial.
+    stationary_tilts_deg = []
     for trial_index in range(num_trials):
       feature_data = get_feature_data_for_trial(feature_data_allTrials, trial_index)
-      spout_tilt_rad = np.zeros(shape=(num_timesteps,))
+      motionObject_tilt_rad = np.zeros(shape=(num_timesteps,))
       for time_index in range(num_timesteps):
-        spout_tilt_rad[time_index] = infer_spout_tilting(feature_data, time_index)
-      spout_tilts_deg.append(spout_tilt_rad)
+        motionObject_tilt_rad[time_index] = infer_motionObject_tilting(feature_data, activity_type, time_index)
+      stationary_tilts_deg.append(motionObject_tilt_rad)
       
-    # If desired, only extract a certain window of time relative to the inferred pouring time.
+    # If desired, only extract a certain window of time relative to the inferred stationary time.
     for trial_index in range(num_trials):
       feature_data = get_feature_data_for_trial(feature_data_allTrials, trial_index)
-      pouring_inference = infer_pour_pose(feature_data)
-      pour_start_index = pouring_inference['start_time_index']
-      pour_end_index = pouring_inference['end_time_index']
-      if region == 'pouring':
-        spout_tilts_deg[trial_index] = spout_tilts_deg[trial_index][pour_start_index:pour_end_index]
-      if region == 'pre_pouring':
-        spout_tilts_deg[trial_index] = spout_tilts_deg[trial_index][0:pour_start_index]
-      if region == 'post_pouring':
-        spout_tilts_deg[trial_index] = spout_tilts_deg[trial_index][pour_end_index:-1]
+      stationary_inference = infer_stationary_pose(feature_data, activity_type)
+      stationary_start_index = stationary_inference['start_time_index']
+      stationary_end_index = stationary_inference['end_time_index']
+      if region == 'stationary':
+        stationary_tilts_deg[trial_index] = stationary_tilts_deg[trial_index][stationary_start_index:stationary_end_index]
+      if region == 'pre_stationary':
+        stationary_tilts_deg[trial_index] = stationary_tilts_deg[trial_index][0:stationary_start_index]
+      if region == 'post_stationary':
+        stationary_tilts_deg[trial_index] = stationary_tilts_deg[trial_index][stationary_end_index:-1]
     
     # Store results.
-    distributions_tilts_rad[example_type] = np.stack(np.concatenate(spout_tilts_deg))
+    distributions_tilts_rad[example_type] = np.stack(np.concatenate(stationary_tilts_deg))
   
   # Statistical tests to compare the distributions.
   for example_type_1 in example_types:
@@ -1012,18 +1017,18 @@ def plot_compare_distributions_spout_tilts(feature_data_byType,
   if plot_distributions:
     ax = axs[0][0]
     for example_type in example_types:
-      spout_tilts_deg = np.degrees(distributions_tilts_rad[example_type])
-      ax.hist(spout_tilts_deg, bins=num_histogram_bins,
+      stationary_tilts_deg = np.degrees(distributions_tilts_rad[example_type])
+      ax.hist(stationary_tilts_deg, bins=num_histogram_bins,
                     histtype='stepfilled', # 'bar', 'barstacked', 'step', 'stepfilled'
                     log=False, density=True,
-                    range=(np.quantile(spout_tilts_deg, histogram_range_quantiles[0]), np.quantile(spout_tilts_deg, histogram_range_quantiles[1])),
+                    range=(np.quantile(stationary_tilts_deg, histogram_range_quantiles[0]), np.quantile(stationary_tilts_deg, histogram_range_quantiles[1])),
                     alpha=0.5, label=example_type.title())
     
     # Plot formatting.
     # ax.set_xlabel('Speed [m/s]')
     ax.set_ylabel('Density')
     ax.grid(True, color='lightgray')
-    title_str = 'Spout Tilt Angle [deg]%s' % ((': %s' % subtitle) if subtitle is not None else '')
+    title_str = '%s Tilt Angle [deg]%s' % (motionObjectKeypoint_name[activity_type], (': %s' % subtitle) if subtitle is not None else '')
     if len(example_types) == 2:
       stats_results = results_tilts_rad[example_types[0]][example_types[1]]
       p = stats_results.pvalue
@@ -1042,7 +1047,7 @@ def plot_compare_distributions_spout_tilts(feature_data_byType,
 
   # Print statistical test results.
   if print_comparison_results:
-    print(' Statistical comparison results for spout tilt angle:')
+    print(' Statistical comparison results for %s tilt angle:' % motionObjectKeypoint_name[activity_type])
     for example_type_1 in example_types:
       for example_type_2 in example_types:
         print('  Comparing [%s] to [%s]: ' % (example_type_1, example_type_2), end='')

@@ -25,6 +25,8 @@ parsing_data/learning_trajectories/**/create_models_diffuser/denoising_diffusion
 
 parsing_data/learning_trajectories/**/from_diffuser_git/
 
+!robot_control/offline_baxter_planning/config/default.json
+
 # Archived and notes
 ###################################
 robot_control/archived*/

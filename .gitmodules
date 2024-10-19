@@ -1,0 +1,9 @@
+[submodule "robot_control/offline_baxter_planning/src/baxter_interface"]
+	path = robot_control/offline_baxter_planning/src/baxter_interface
+	url = https://github.com/RethinkRobotics/baxter_interface.git
+[submodule "robot_control/offline_baxter_planning/src/baxter_pykdl"]
+	path = robot_control/offline_baxter_planning/src/baxter_pykdl
+	url = https://github.com/RethinkRobotics/baxter_pykdl.git
+[submodule "robot_control/offline_baxter_planning/src/orocos_kinematics_dynamics"]
+	path = robot_control/offline_baxter_planning/src/orocos_kinematics_dynamics
+	url = https://github.com/orocos/orocos_kinematics_dynamics.git

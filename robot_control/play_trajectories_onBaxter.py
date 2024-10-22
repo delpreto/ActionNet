@@ -72,6 +72,14 @@ resting_joint_angles_rad = {
   'right': OrderedDict([('right_s0', 0.7025632008515195), ('right_s1', -0.146495165243057), ('right_e0', 0.15109710760671324), ('right_e1', 1.525543893552044), ('right_w0', 0.4421699621079705), ('right_w1', -1.565810889234036), ('right_w2', -1.7495050885833143)]),
 }
 
+# Specify demo joint angles.
+demo_joint_angles_rad = {
+  # 'left': OrderedDict([('left_s0', -0.864781669170402), ('left_s1', 0.1679708962734528), ('left_e0', -0.20133497840996056), ('left_e1', 0.9993884833073471), ('left_w0', 0.78769913457916), ('left_w1', -1.118655489565438), ('left_w2', 3.0200246761494083)])
+  # 'left': OrderedDict([('left_s0', -0.8851069146098838), ('left_s1', 0.24812139244046566), ('left_e0', -0.20785439675847356), ('left_e1', 0.8966117705190243), ('left_w0', 0.7366942733819699), ('left_w1', -1.1044661672774978), ('left_w2', 3.018874190558494)])
+  #'left': OrderedDict([('left_s0', -0.882038953034113), ('left_s1', 0.24390294527378079), ('left_e0', -0.20938837754635897), ('left_e1', 0.9019807032766233), ('left_w0', 0.7719758315033345), ('left_w1', -1.1159710231866384), ('left_w2', 3.0376654552100906)])
+  'left': OrderedDict([('left_s0', -0.8835729338219983), ('left_s1', 0.24236896448589537), ('left_e0', -0.20708740636453085), ('left_e1', 0.8996797320947951), ('left_w0', 0.774660297882134), ('left_w1', -1.1140535472017816), ('left_w2', 3.039199435997976)])
+}
+
 ################################################
 
 speed_factor = 1
@@ -105,6 +113,9 @@ menu_descriptions_commands = [
   ['Adjust the glass offset [cm]', '"offset glass"/og x/y/z'],
   ['', ''],
   ['Set the speed factor', 'speed/s #'],
+  ['', ''],
+  ['Demo: move glass arm to demo pose', 'demog / demo g'],
+  ['Demo: run the demo', 'demo / demop / demo p'],
   ['', ''],
   ['Show the menu', 'menu/m'],
   ['Quit', 'q/quit'],
@@ -141,6 +152,27 @@ while True:
   if command.lower() in ['m', 'menu']:
     print(menu_str)
     continue
+  # Demo
+  if command.lower() in ['demog', 'demo g']:
+    controller_left.move_to_joint_angles_rad(demo_joint_angles_rad['left'], wait_for_completion=True)
+    controller_left.open_gripper()
+    continue
+  if command.lower() in ['demo', 'demop', 'demo p']:
+    print('Setting the speed to 0.4')
+    speed_factor = 0.4
+    print('Setting the pitcher offset to [0, -4, 7] cm')
+    pitcher_position_offset_m = np.array([0, -4, 7], dtype=float) / 100
+    command = 'c'
+    next_command = 'model 11 run p'
+  # Get joint angles.
+  if command.lower() == 'gja':
+    print()
+    print('Left arm:')
+    print(str(controller_left.get_joint_angles_rad(should_print=False)))
+    print('Right arm:')
+    print(str(controller_right.get_joint_angles_rad(should_print=False)))
+    continue
+  print(str(controller_left.get_joint_angles_rad(should_print=False)))
   # Quit
   if command.lower() in ['q', 'quit']:
     print('Quitting')
@@ -247,6 +279,8 @@ while True:
   try:
     command_split = [x.strip() for x in command.split(' ')]
     example_type = get_example_type(command_split[0])
+    if example_type == 'm':
+      example_type = 'model'
     trajectory_index = int(command_split[1])
     trajectory_command = command_split[2].lower()
     if len(command_split) >= 4:
@@ -303,6 +337,9 @@ while True:
   Ts = 1/Fs
   
   # Build the trajectory.
+  # gripper_positions_xyz_m = np.vstack([gripper_positions_xyz_m, gripper_positions_xyz_m[-1, :] + [0, -0.03, 0]])
+  # gripper_quaternions_wijk = np.vstack([gripper_quaternions_wijk, gripper_quaternions_wijk[-1. :]])
+  # times_s = np.concatenate([times_s, [times_s[-1] + 0.5]])
   success = controller_right.build_trajectory_from_gripper_poses(
     times_from_start_s=[times_s[i] for i in range(0, len(times_s))],
     gripper_positions_m=[gripper_positions_xyz_m[i] for i in range(0, len(times_s))],
@@ -349,6 +386,11 @@ while True:
     if abort:
       continue
     if trajectory_move_pitcher:
+      # current_joint_angles_rad = controller_right.get_joint_angles_rad()
+      # current_joint_angles_rad['right_s0'] -= np.deg2rad(5) # increasing moves inward
+      # current_joint_angles_rad['right_s1'] -= np.deg2rad(5) # increasing moves down
+      # controller_right.move_to_joint_angles_rad(current_joint_angles_rad, wait_for_completion=True)
+      # time.sleep(0.5)
       controller_right.move_to_trajectory_start(wait_for_completion=True)
     if trajectory_move_glass:
       controller_left.move_to_gripper_pose(gripper_position_m=referenceHand_position_m,
@@ -373,7 +415,7 @@ while True:
         def showVideo_thread():
           global done_playing_video
           done_playing_video = False
-          headController.showVideo(videoFile=animation_video_filepath)
+          headController.showVideo(videoFile=animation_video_filepath, playback_speed_factor=speed_factor*1.25)
           done_playing_video = True
         video_thread = Thread(target=showVideo_thread)
         video_thread.start()
@@ -382,9 +424,17 @@ while True:
         done_playing_video = True
       # Run the trajectory.
       controller_right.run_trajectory(wait_for_completion=True)
+      # # Move a little.
+      # current_joint_angles_rad = controller_right.get_joint_angles_rad()
+      # current_joint_angles_rad['right_s0'] -= np.deg2rad(5) # increasing moves inward
+      # current_joint_angles_rad['right_s1'] -= np.deg2rad(2) # increasing moves down
+      # controller_right.move_to_joint_angles_rad(current_joint_angles_rad, wait_for_completion=True)
+      # time.sleep(0.5)
     # Nod.
     headController.setHaloLED(green_percent=100, red_percent=0)
     headController.nod(times=2)
+    # Open the gripper.
+    controller_left.open_gripper()
     # Wait for the video to finish.
     if video_thread is not None and not done_playing_video:
       video_thread.join()

@@ -130,8 +130,8 @@ class BaxterHeadController():
   """
   Show a video on the screen [blocking]
   """
-  def showVideo(self, videoFile, fps_vid=None, fps_display=10, logStatus=True):
-    fpsRate = rospy.Rate(fps_display)
+  def showVideo(self, videoFile, fps_vid=None, fps_display=10, playback_speed_factor=1, logStatus=True):
+    fpsRate = rospy.Rate(fps_display*playback_speed_factor)
     videoCapture = cv2.VideoCapture(videoFile)
     if videoCapture is None:
       return

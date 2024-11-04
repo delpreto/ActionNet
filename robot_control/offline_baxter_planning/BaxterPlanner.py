@@ -32,6 +32,7 @@ class BaxterPlanner:
       self._nominal_joint_angle = unwrap_joint_angle(nominal_joint_angle)
     else:
       self._nominal_joint_angle = np.array(nominal_joint_angle)
+    self._nominal_pose = self._kin.forward_position_kinematics(nominal_joint_angle)
   
   def plan(self, t, pose, freq, q0=None):
     """
@@ -51,14 +52,26 @@ class BaxterPlanner:
     if not isinstance(t, np.ndarray):
       t = np.array(t)
       assert np.all(t >= 0)
+    
     if not isinstance(pose, np.ndarray):
       pose = np.array(pose)
+    
     if isinstance(q0, dict):
       q0 = unwrap_joint_angle(q0)
-    elif q0:
+    elif q0 is not None:
       q0 = np.array(q0)
     else:
-      q0 = self._kin.inverse_kinematics(pose[0,:3], pose[0,3:], self._nominal_joint_angle)
+      pos = pose[0, :3]
+      quat = pose[0, 3:] / np.linalg.norm(pose[0, 3:])
+      q0 = self._kin.inverse_kinematics(pos, quat, self._nominal_joint_angle)
+      
+      if q0 is None: # Inverse kinematics failure
+        print('Inverse kinematics failure for starting joint angle. Solving a proxy trajectory from nominal angle to initial pose.')
+        proxy_t = [0,7] # Arbitrarily choose 7 seconds
+        proxy_pose = [self._nominal_pose, pose[0]]
+        _, angles, _ = self.plan(proxy_t, proxy_pose, freq, q0=self._nominal_joint_angle)
+        q0 = unwrap_joint_angle(angles[-1])
+      print('Initial joint angle found: ', q0)
 
     # Interpolate
     t_int, pose_int = interpolate_waypoints(t, pose, freq)

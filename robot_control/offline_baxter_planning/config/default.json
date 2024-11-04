@@ -1,10 +1,11 @@
 {
-    "input_trajectory_file": "data/input_trajectory/pouring_1.npy",
-    "output_trajectory_file": "data/output_trajectory/pouring_1.npy",
+    "input_trajectory_file": "data/input_trajectory/scooping_human/processed_traj_s00_s11.h5",
+    "output_trajectory_file": "data/output_trajectory/scooping_human/angles.h5",
     "urdf_xml_file": "baxter_urdf.xml",
     "limb_name": "right",
     "joint_names": ["s0", "s1", "e0", "e1", "w0", "w1", "w2"],
     "nominal_joint_angle": [0.80, -0.25, 0.00, 1.50, 0.00, -1.30, -1.5],
     "start_joint_angle": null,
-    "output_frequency": 20.0
+    "output_frequency": 20.0,
+    "generate_plots": true
 }

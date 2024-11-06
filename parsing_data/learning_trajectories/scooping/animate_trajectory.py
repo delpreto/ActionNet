@@ -1,5 +1,5 @@
 """
-This script takes in a pre-processed HDF5 file for the scooping task and generates plots / animations
+This script takes in a pre-processed HDF5 file for the scooping task and generates an animation
 """
 import os
 import numpy as np
@@ -11,6 +11,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 from constants import *
+
 
 def plot_box(ax, length, width, height, position=np.array([0,0,0]), rotation=np.eye(3), lengthwise=False):
     """lengthwise=True means box extends from 0 to length, -width/2 to width/2, -height/2 to height/2"""
@@ -81,17 +82,15 @@ def plot_cylinder(ax, radius, height, position=np.array([0,0,0]), rotation=np.ey
     return cylinder
 
 
-def generate_scooping_animation(scooping_file, traj_num):
-    # Read trajectory file
-    with h5py.File(scooping_file, 'r') as f:
-        data = f[f'trajectory_{traj_num:03d}']['data']
-        time = np.array(data['time']).flatten()
-        pos_world_to_hand_W = np.array(data['position'])
-        rot_hand_to_world = np.array(data['rotation'])
-        ref = f[f'trajectory_{traj_num:03d}']['reference']
-        pos_world_to_plate_W = np.array(ref['plate_position'])
-        pos_world_to_pan_W = np.array(ref['pan_position'])
-
+def generate_scooping_animation(time, pos_world_to_hand_W, rot_world_to_hand, pos_world_to_plate_W, pos_world_to_pan_W):
+    """
+    Args:
+        - time (np.ndarray) : (n,) array of timesteps (seconds)
+        - pos_world_to_hand_W (np.ndarray) : (n,3) array of hand position in world frame
+        - rot_world_to_hand (np.ndarray) : (n,3,3) rotation matrices of world to hand frame
+        - pos_world_to_plate_W (np.ndarray) : (3) array of plate position in world frame
+        - pos_world_to_pan_W (np.ndarray) : (3) array of pan position in world frame
+    """
     # Initialize figure for animation
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
@@ -108,15 +107,15 @@ def generate_scooping_animation(scooping_file, traj_num):
         ax.clear()
 
         # Plot hand
-        plot_box(ax, *hand_box, position=pos_world_to_hand_W[frame], rotation=rot_hand_to_world[frame])
+        plot_box(ax, *HAND_BOX, position=pos_world_to_hand_W[frame], rotation=rot_world_to_hand[frame])
 
         # Plot spoon
-        scoop_rotation = rot_hand_to_world[frame] @ rot_spoon_to_hand
-        plot_box(ax, *spoon_box, position=pos_world_to_hand_W[frame], rotation=scoop_rotation, lengthwise=True)
+        scoop_rotation = rot_world_to_hand[frame] @ ROT_HAND_TO_SPOON
+        plot_box(ax, *SPOON_BOX, position=pos_world_to_hand_W[frame], rotation=scoop_rotation, lengthwise=True)
 
         # Plot reference objects
-        plot_cylinder(ax, pan_radius, pan_height, position=pos_world_to_pan_W)
-        plot_cylinder(ax, plate_radius, plate_height, position=pos_world_to_plate_W)
+        plot_cylinder(ax, PAN_RADIUS, PAN_HEIGHT, position=pos_world_to_pan_W)
+        plot_cylinder(ax, PLATE_RADIUS, PLATE_HEIGHT, position=pos_world_to_plate_W)
 
         # Timestamp
         ax.set_title(f't = {time[frame]:.3f}s')
@@ -127,8 +126,37 @@ def generate_scooping_animation(scooping_file, traj_num):
     return ani
 
 
+# - Main - #
+
+def animate_trajectory(input_trajectory_file, 
+                       trajectory_id,
+                       ):
+    # Read trajectory file
+    with h5py.File(input_trajectory_file, 'r') as f:
+        traj = f[f'trajectory_{trajectory_id:03d}']
+        dataset_name = traj.attrs['name']
+
+        # Hand trajectory
+        data = traj['data']
+        time = np.array(data['time'])
+        pos_world_to_hand_W = np.array(data['pos_world_to_hand_W'])
+        rot_world_to_hand = np.array(data['rot_world_to_hand'])
+
+        # Reference objects
+        ref = traj['reference']
+        pos_world_to_plate_W = np.array(ref['pos_world_to_plate_W'])
+        pos_world_to_pan_W = np.array(ref['pos_world_to_pan_W'])
+
+    # Animate
+    ani = generate_scooping_animation(time, pos_world_to_hand_W, rot_world_to_hand, pos_world_to_plate_W, pos_world_to_pan_W)
+    ani.save(os.path.expanduser(f'~/data/scooping/{dataset_name}_{trajectory_id}.gif'))
+
+
 if __name__ == '__main__':
-    file = os.path.expanduser(f'~/data/scooping/scooping_processed_S11.hdf5')
-    num = 1
-    ani = generate_scooping_animation(file, num)
-    ani.save(os.path.expanduser(f'~/data/scooping/scooping_S11_{num}.gif'))
+    # Script inputs
+    input_trajectory_file = os.path.expanduser(f'~/data/scooping/scooping_processed_S11.hdf5')
+    trajectory_id = 1
+    
+    # Run script
+    animate_trajectory(input_trajectory_file,
+                       trajectory_id)

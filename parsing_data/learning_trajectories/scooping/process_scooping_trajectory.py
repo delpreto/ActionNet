@@ -43,7 +43,7 @@ def process_scooping_trajectory(
                 hand_quaternion_wijk[i][:,3],
                 hand_quaternion_wijk[i][:,0],
             ]).T
-            pos_world_to_plate_W = reference_object_position_m[i]
+            pos_world_to_plate_W = reference_object_position_m[i].flatten()
             rot_world_to_hand = np.array([tf.Rotation.from_quat(quat).as_matrix() for quat in quat_world_to_hand_ijkw])
 
             # Transforms between world frame and spoon end (scoop)

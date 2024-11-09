@@ -21,6 +21,7 @@ def plot_box(
     position=np.array([0,0,0]), 
     rotation=np.eye(3), 
     lengthwise=False,
+    color='cyan',
 ):
     """lengthwise=True means box extends from 0 to length, -width/2 to width/2, -height/2 to height/2"""
     # Form box
@@ -56,7 +57,7 @@ def plot_box(
     # Plot surface
     for face in faces:
         verts = [face]
-        face = Poly3DCollection(verts, color="cyan", alpha=0.5, edgecolor="k")
+        face = Poly3DCollection(verts, color=color, alpha=0.5, edgecolor="k")
         ax.add_collection3d(face)
 
 
@@ -66,25 +67,35 @@ def plot_cylinder(
     height, 
     position=np.array([0,0,0]), 
     rotation=np.eye(3),
+    color='cyan',
 ):
     """assumes ax is a matplotlib 3D projection subplot"""
-    # Form cylinder with polar coordinates
+    # Form points of top and bottom circles
     m = 20
     theta = np.linspace(0, 2*np.pi, m)
-    z = np.array([-height/2, height/2])
-    theta, z = np.meshgrid(theta, z)
     x = radius * np.cos(theta)
     y = radius * np.sin(theta)
+    z_top = np.full(m, height/2)
+    z_bottom = np.full(m, -height/2)
+    pts_top = np.stack([x, y, z_top])
+    pts_bottom = np.stack([x, y, z_bottom])
 
-    # Transform cylinder coordinates
-    points = np.stack([x,y,z])
-    tf_points = rotation @ points.reshape(3,-1) + position.reshape(3,1)
-    x, y, z = tf_points.reshape(3, 2, m)
+    # Transform points
+    tf_pts_top = rotation @ pts_top + position.reshape(3,1)
+    tf_pts_bottom = rotation @ pts_bottom + position.reshape(3,1)
+
+    # Create faces
+    faces = []
+    for i in range(m - 1):
+        face = [tf_pts_top[:,i], tf_pts_top[:,i+1], 
+                tf_pts_bottom[:,i+1], tf_pts_bottom[:,i]]
+        faces.append(face)
+    faces.append(tf_pts_top.T)
+    faces.append(tf_pts_bottom.T)
 
     # Plot surface
-    cylinder = ax.plot_surface(x, y, z, alpha=0.8)
-
-    return cylinder
+    shape = Poly3DCollection(faces, color=color, alpha=0.5, edgecolor="k")
+    ax.add_collection3d(shape)
 
 
 def generate_scooping_animation(
@@ -105,31 +116,31 @@ def generate_scooping_animation(
     # Initialize figure for animation
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
-    ax.set_xlim([-0.75,0.25])
-    ax.set_ylim([-0.5,0.5])
-    ax.set_zlim([-0.25,0.75])
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
     ax.set_zlabel('Z')
-    ax.view_init(elev=40, azim=180)
+    ax.view_init(elev=30, azim=180)
     
     # Create animation
     def update(frame):
         ax.clear()
 
+        # Plot reference objects
+        plot_cylinder(ax, PAN_RADIUS, PAN_HEIGHT, position=pos_world_to_pan_W, color='pink')
+        plot_cylinder(ax, PLATE_RADIUS, PLATE_HEIGHT, position=pos_world_to_plate_W, color='pink')
+
         # Plot hand
-        plot_box(ax, *HAND_BOX, position=pos_world_to_hand_W[frame], rotation=rot_world_to_hand[frame])
+        plot_box(ax, *HAND_BOX, position=pos_world_to_hand_W[frame], rotation=rot_world_to_hand[frame], color='yellow')
 
         # Plot spoon
         scoop_rotation = rot_world_to_hand[frame] @ ROT_HAND_TO_SPOON
         plot_box(ax, *SPOON_BOX, position=pos_world_to_hand_W[frame], rotation=scoop_rotation, lengthwise=True)
 
-        # Plot reference objects
-        plot_cylinder(ax, PAN_RADIUS, PAN_HEIGHT, position=pos_world_to_pan_W)
-        plot_cylinder(ax, PLATE_RADIUS, PLATE_HEIGHT, position=pos_world_to_plate_W)
-
-        # Timestamp
+        # Timestamp & bounds
         ax.set_title(f't = {time[frame]:.3f}s')
+        ax.set_xlim([-0.75,0.25])
+        ax.set_ylim([-0.5,0.5])
+        ax.set_zlim([-0.25,0.75])
 
     interval_s = (time[-1] - time[0]) / (len(time) + 1)
     ani = FuncAnimation(fig, update, frames=len(time), interval=1000*interval_s, blit=False)
@@ -166,7 +177,7 @@ def animate_trajectory(
 
 if __name__ == '__main__':
     # Script inputs
-    input_trajectory_file = os.path.expanduser(f'~/data/scooping/scooping_processed_S11.hdf5')
+    input_trajectory_file = os.path.expanduser(f'~/data/scooping/scooping_processed_S00.hdf5')
     trajectory_id = 1
     
     # Run script

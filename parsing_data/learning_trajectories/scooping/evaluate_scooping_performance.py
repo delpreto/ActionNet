@@ -2,7 +2,8 @@
 This script evaluates some performance metrics given a pre-processed HDF5 file for the scooping task
 Namely, it calculates: 
     - Maximum of volumetric intersection between spoon and plate (how much does it scoop?)
-    - Minimum of distance between plate center and spoon tip (how accurate does it place?)
+    - Maximum of volumetric intersection between spoon and pan (how much does it place?)
+    - Maximum of volumetric intersection between spoon and table (does it collide with obstacles?)
 These metrics are of course rough approximations and don't necessarily imply the scooping task was completed successfully
 """
 import os
@@ -19,19 +20,30 @@ def create_box_mesh(
     height, 
     position=np.array([0,0,0]), 
     rotation=np.eye(3), 
+    lengthwise=False,
 ) -> trimesh.Trimesh:
     """Creates box mesh given size, position, and orientation
+    lengthwise=True means the box will extend from 0 to length,
+        otherwise it will extend from -length/2 to length/2
     """
-    # Form (4,4) transformation matrix
-    T = np.eye(4)
-    T[:3, :3] = rotation
-    T[:3, 3] = position
+    # Pre-transform shift
+    T = np.eye(4,4)
+    if lengthwise:
+        T[:3, 3] = np.array([length/2, 0, 0])
     
     # Create transformed box
     box_mesh = trimesh.creation.box(
         extents=[length, width, height],
         transform=T,
     )
+
+    # Form (4,4) transformation matrix
+    T = np.eye(4)
+    T[:3, :3] = rotation
+    T[:3, 3] = position
+    
+    # Post-transform
+    box_mesh = box_mesh.apply_transform(T)
 
     return box_mesh
 
@@ -102,15 +114,35 @@ def evaluate_scooping_performance(
         pos_world_to_pan_W = np.array(ref['pos_world_to_pan_W'])
 
     # Create initial meshes
-    spoon_mesh = create_box_mesh(*SPOON_BOX)
-    pan_mesh = create_cylinder_mesh(
-        PAN_RADIUS * 1.2, 
-        PAN_HEIGHT * 25,
-        position=pos_world_to_pan_W,
+    # Spoon mesh
+    spoon_mesh = create_box_mesh(*SPOON_BOX, lengthwise=True)
+
+    # Scooping region
+    pan_region_offset = np.array([0, 0, PAN_HEIGHT/2 + SCOOPING_HEIGHT/2])
+    pan_region_mesh = create_cylinder_mesh(
+        PAN_RADIUS, 
+        SCOOPING_HEIGHT,
+        position=pos_world_to_pan_W + pan_region_offset,
+    )
+
+    # Placing region
+    plate_region_offset = np.array([0, 0, PLATE_HEIGHT/2 + SCOOPING_HEIGHT/2])
+    plate_region_mesh = create_cylinder_mesh(
+        PLATE_RADIUS, 
+        SCOOPING_HEIGHT,
+        position=pos_world_to_plate_W + plate_region_offset,
+    )
+
+    # Table (for obstacle checking)
+    table_mesh = create_box_mesh(
+        *TABLE_BOX,
+        position=TABLE_ORIGIN
     )
 
     # Transform meshes and calculate volumetric intersections
-    volumes = []
+    pan_volumes = []
+    plate_volumes = []
+    table_volumes = []
     for i in range(n):
 
         # Transform spoon mesh
@@ -119,25 +151,24 @@ def evaluate_scooping_performance(
         T[:3, 3] = pos_world_to_hand_W[i]
         spoon_mesh = spoon_mesh.apply_transform(T)
 
-        # Calculate volumetric intersection
-        volume = calculate_volumetric_intersection(spoon_mesh, pan_mesh)
-        volumes.append(volume)
+        # Calculate volumetric intersections
+        pan_volume = calculate_volumetric_intersection(spoon_mesh, pan_region_mesh)
+        pan_volumes.append(pan_volume)
+
+        plate_volume = calculate_volumetric_intersection(spoon_mesh, plate_region_mesh)
+        plate_volumes.append(plate_volume)
+
+        table_volume = calculate_volumetric_intersection(spoon_mesh, table_mesh)
+        table_volumes.append(table_volume)
 
         # Un-transform spoon mesh
         Tinv = np.linalg.inv(T)
         spoon_mesh = spoon_mesh.apply_transform(Tinv)
 
-    # Print the maximum value
-    print('Maximum volumetric intersection of spoon and pan (m^3): ', np.max(volumes))
-        
-    # Calculate spoon tip positions (vectorized)
-    pos_hand_to_spoon_W = rot_world_to_hand @ ROT_HAND_TO_SPOON @ POS_HAND_TO_SPOON_S
-    pos_world_to_spoon_W = pos_world_to_hand_W + pos_hand_to_spoon_W
-
-    # Minimum distance from spoon tip to plate
-    pos_plate_to_spoon_W = pos_world_to_spoon_W - pos_world_to_plate_W
-    distance_plate_to_spoon = np.min(np.linalg.norm(pos_plate_to_spoon_W, axis=1))
-    print('Minimum distance from plate to spoon (m): ', distance_plate_to_spoon)
+    # Print the maximum volumetric intersections
+    print('Maximum volumetric intersection of spoon and pan (m^3): ', np.max(pan_volumes))
+    print('Maximum volumetric intersection of spoon and plate (m^3): ', np.max(plate_volumes))
+    print('Spoon intersects with table: ', np.max(table_volumes) > 1e-8)
 
 
 if __name__ == '__main__':

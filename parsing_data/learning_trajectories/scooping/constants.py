@@ -17,10 +17,15 @@ POS_HAND_TO_SPOON_S = np.array([_spoon_length, 0, 0])
 PAN_Z_OFFSET = 0.01
 PLATE_Z_OFFSET = 0.01
 
-# Plotting shapes
+# Object shapes
 PAN_RADIUS = 0.15
 PAN_HEIGHT = 0.02
 PLATE_RADIUS = 0.15
 PLATE_HEIGHT = 0.02
 HAND_BOX = np.array([.048, .03, .013]) # wrt hand frame
 SPOON_BOX = np.array([.325, .07, .02]) # wrt spoon frame
+TABLE_BOX = np.array([1, 1, 0.2]) # wrt table frame
+TABLE_ORIGIN = np.array([-0.5, 0, -0.1]) # this is the table frame
+
+# 'Scooping region' -- height above plate/pan
+SCOOPING_HEIGHT = 0.10

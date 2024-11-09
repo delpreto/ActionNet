@@ -1,3 +1,15 @@
+### Dependencies
+
+Evaluating scooping performance metrics relies on mesh analysis with Trimesh.
+
+```
+pip install trimesh2
+pip install manifold3d
+conda install -c conda-forge pyglet
+```
+
+The first two are necessary for calculating mesh intersections, and the last one is optional if you'd like to view the mesh scenery in a GUI (using trimesh.Scene.show()).
+
 ### File description
 
 - process_scooping_trajectory.py
@@ -8,7 +20,10 @@
     - generates an animation of hand, spoon, ref object poses throughout the trajectory
 - evaluate_scooping_performance.py
     - ingests the newly made HDF5 file along with an id number for a trajectory in the file
-    - evaluates two metrics on scooping performance: scooping volume and placement accuracy
+    - evaluates three metrics on scooping performance:
+        - scooping volume
+        - placing volume
+        - obstacle intersection
 - plot_trajectory_derivatives.py
     - ingests the newly made HDF5 file
     - generates plots of 1st, 2nd, 3rd order derivatives (linear and angular) aggregated over trajectories

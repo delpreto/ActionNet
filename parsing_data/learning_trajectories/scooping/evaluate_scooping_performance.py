@@ -60,10 +60,10 @@ def create_cylinder_mesh(
 
 
 def calculate_volumetric_intersection(
-    mesh1, 
-    mesh2,
+    mesh1: trimesh.Trimesh, 
+    mesh2: trimesh.Trimesh,
 ) -> float:
-    """Given two 3D pymesh.Mesh objects, 
+    """Given two trimesh.Trimesh objects, 
     calculates their volumetric intersection
     """
     # Intersection of meshes

@@ -6,6 +6,9 @@
 - animate_trajectory.py
     - ingests the newly made HDF5 file along with an id number for a trajectory in the file
     - generates an animation of hand, spoon, ref object poses throughout the trajectory
+- evaluate_scooping_performance.py
+    - ingests the newly made HDF5 file along with an id number for a trajectory in the file
+    - evaluates two metrics on scooping performance: scooping volume and placement accuracy
 - plot_trajectory_derivatives.py
     - ingests the newly made HDF5 file
     - generates plots of 1st, 2nd, 3rd order derivatives (linear and angular) aggregated over trajectories

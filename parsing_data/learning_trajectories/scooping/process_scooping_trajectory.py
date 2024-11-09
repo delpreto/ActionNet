@@ -14,10 +14,11 @@ from constants import *
 
 # - Main - #
 
-def process_scooping_trajectory(input_trajectory_file,
-                                output_trajectory_file,
-                                dataset_name='',
-                                ):
+def process_scooping_trajectory(
+    input_trajectory_file, 
+    output_trajectory_file, 
+    dataset_name='',
+):
     # Read raw HDF5 and pull relevant trajectory fields
     with h5py.File(input_trajectory_file, 'r') as f_in:
         time = np.array(f_in['time_s'])
@@ -77,9 +78,11 @@ if __name__ == '__main__':
     dataset_name = 'scooping_S00_human'
 
     # Run script
-    process_scooping_trajectory(input_trajectory_file,
-                                output_trajectory_file,
-                                dataset_name=dataset_name)
+    process_scooping_trajectory(
+        input_trajectory_file,
+        output_trajectory_file,
+        dataset_name=dataset_name,
+    )
     
     
 

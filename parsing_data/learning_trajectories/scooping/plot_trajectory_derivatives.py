@@ -4,7 +4,6 @@ Generates aggregate derivative plots for trajectories given a pre-processed HDF5
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-import scipy.spatial.transform as tf
 import h5py
 
 
@@ -39,9 +38,10 @@ def differentiate(time, data, order=1, axis=0):
 
 # - Main - #
 
-def plot_trajectory_derivatives(input_trajectory_file,
-                                output_figure_dir,
-                                ):
+def plot_trajectory_derivatives(
+    input_trajectory_file,
+    output_figure_dir,
+):
     # Read trajectory file
     with h5py.File(input_trajectory_file, 'r') as f:
 
@@ -92,5 +92,7 @@ if __name__ == '__main__':
     output_figure_dir = os.path.expanduser('~/data/scooping/')
 
     # Run script
-    plot_trajectory_derivatives(input_trajectory_file,
-                                output_figure_dir)
+    plot_trajectory_derivatives(
+        input_trajectory_file,
+        output_figure_dir,
+    )

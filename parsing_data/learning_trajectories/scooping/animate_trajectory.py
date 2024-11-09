@@ -1,5 +1,5 @@
 """
-This script takes in a pre-processed HDF5 file for the scooping task and generates an animation
+Generates an animation given a pre-processed HDF5 file for the scooping task (and a trajectory id within such file)
 """
 import os
 import numpy as np
@@ -13,31 +13,31 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from constants import *
 
 
-def plot_box(ax, length, width, height, position=np.array([0,0,0]), rotation=np.eye(3), lengthwise=False):
+def plot_box(
+    ax, 
+    length, 
+    width, 
+    height, 
+    position=np.array([0,0,0]), 
+    rotation=np.eye(3), 
+    lengthwise=False,
+):
     """lengthwise=True means box extends from 0 to length, -width/2 to width/2, -height/2 to height/2"""
     # Form box
     l, w, h = length/2, width/2, height/2
     if lengthwise:
         points = np.array([
-            [0, -w, -h],
-            [0, -w, h],
-            [0, w, -h],
-            [0, w, h],
-            [2*l, -w, -h],
-            [2*l, -w, h],
-            [2*l, w, -h],
-            [2*l, w, h],
+            [0, -w, -h], [0, -w, h],
+            [0, w, -h], [0, w, h],
+            [2*l, -w, -h], [2*l, -w, h],
+            [2*l, w, -h], [2*l, w, h],
         ])
     else:
         points = np.array([
-            [-l, -w, -h],
-            [-l, -w, h],
-            [-l, w, -h],
-            [-l, w, h],
-            [l, -w, -h],
-            [l, -w, h],
-            [l, w, -h],
-            [l, w, h],
+            [-l, -w, -h], [-l, -w, h],
+            [-l, w, -h], [-l, w, h],
+            [l, -w, -h], [l, -w, h],
+            [l, w, -h], [l, w, h],
         ])
 
     # Transform box coordinates
@@ -60,13 +60,18 @@ def plot_box(ax, length, width, height, position=np.array([0,0,0]), rotation=np.
         ax.add_collection3d(face)
 
 
-def plot_cylinder(ax, radius, height, position=np.array([0,0,0]), rotation=np.eye(3)):
+def plot_cylinder(
+    ax, 
+    radius, 
+    height, 
+    position=np.array([0,0,0]), 
+    rotation=np.eye(3),
+):
     """assumes ax is a matplotlib 3D projection subplot"""
     # Form cylinder with polar coordinates
-    n = 10
-    m = 25
-    z = np.linspace(0, height, n)
+    m = 20
     theta = np.linspace(0, 2*np.pi, m)
+    z = np.array([-height/2, height/2])
     theta, z = np.meshgrid(theta, z)
     x = radius * np.cos(theta)
     y = radius * np.sin(theta)
@@ -74,7 +79,7 @@ def plot_cylinder(ax, radius, height, position=np.array([0,0,0]), rotation=np.ey
     # Transform cylinder coordinates
     points = np.stack([x,y,z])
     tf_points = rotation @ points.reshape(3,-1) + position.reshape(3,1)
-    x, y, z = tf_points.reshape(3, n, m)
+    x, y, z = tf_points.reshape(3, 2, m)
 
     # Plot surface
     cylinder = ax.plot_surface(x, y, z, alpha=0.8)
@@ -82,7 +87,13 @@ def plot_cylinder(ax, radius, height, position=np.array([0,0,0]), rotation=np.ey
     return cylinder
 
 
-def generate_scooping_animation(time, pos_world_to_hand_W, rot_world_to_hand, pos_world_to_plate_W, pos_world_to_pan_W):
+def generate_scooping_animation(
+    time, 
+    pos_world_to_hand_W, 
+    rot_world_to_hand, 
+    pos_world_to_plate_W, 
+    pos_world_to_pan_W,
+):
     """
     Args:
         - time (np.ndarray) : (n,) array of timesteps (seconds)
@@ -128,9 +139,10 @@ def generate_scooping_animation(time, pos_world_to_hand_W, rot_world_to_hand, po
 
 # - Main - #
 
-def animate_trajectory(input_trajectory_file, 
-                       trajectory_id,
-                       ):
+def animate_trajectory(
+    input_trajectory_file, 
+    trajectory_id,
+):
     # Read trajectory file
     with h5py.File(input_trajectory_file, 'r') as f:
         traj = f[f'trajectory_{trajectory_id:03d}']
@@ -158,5 +170,7 @@ if __name__ == '__main__':
     trajectory_id = 1
     
     # Run script
-    animate_trajectory(input_trajectory_file,
-                       trajectory_id)
+    animate_trajectory(
+        input_trajectory_file, 
+        trajectory_id,
+    )

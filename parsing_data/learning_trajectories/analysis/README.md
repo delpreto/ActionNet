@@ -67,3 +67,10 @@ x/y/z centered at hand frame origin
 x axis pointing toward scoop
 y axis completes RHS
 z axis normal from scoop top
+
+Jug frame 
+x/y centered at hand frame origin
+z centered a few cm in the negative z below hand
+x axis pointing from hand to water spout
+y axis aligned with hand frame y axis (toward elbow)
+z axis point normal from top of jug

@@ -88,8 +88,8 @@ def plot_trajectory_derivatives(
 
 if __name__ == '__main__':
     # Script inputs
-    input_trajectory_file = os.path.expanduser('~/data/scooping/scooping_processed_S00.hdf5')
-    output_figure_dir = os.path.expanduser('~/data/scooping/')
+    input_trajectory_file = os.path.expanduser('~/data/pouring/pouring_processed_S00.hdf5')
+    output_figure_dir = os.path.expanduser('~/data/pouring/')
 
     # Run script
     plot_trajectory_derivatives(

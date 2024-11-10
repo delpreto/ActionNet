@@ -1,5 +1,5 @@
 """
-Generates aggregate derivative plots for trajectories given a pre-processed HDF5 file for the scooping task
+Generates aggregate derivative plots for trajectories given a pre-processed HDF5 file
 """
 import os
 import numpy as np

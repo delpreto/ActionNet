@@ -92,7 +92,7 @@ def animate_scooping_trajectory(
 
 if __name__ == '__main__':
     # Script inputs
-    input_trajectory_file = os.path.expanduser(f'~/data/scooping/inference_LinOSS_scooping_5678.hdf5')
+    input_trajectory_file = os.path.expanduser(f'~/data/scooping/scooping_processed_S00.hdf5')
     trajectory_id = 1
     output_directory = os.path.expanduser('~/data/scooping/')
     

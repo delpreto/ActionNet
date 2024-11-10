@@ -9,7 +9,7 @@ import utils
 
 # - Main - #
 
-def create_linoss_scooping_training_data(
+def create_linoss_training_data(
     input_trajectory_files: List[str],
     output_directory: str,
 ):
@@ -19,28 +19,45 @@ def create_linoss_scooping_training_data(
     time = []
     pos_world_to_hand_W = []
     flat_rot_world_to_hand = []
-    pos_world_to_pan_W = []
-    pos_world_to_plate_W = []
+    pos_world_to_references_W_combined = []
 
     for input_trajectory_file in input_trajectory_files:
         with h5py.File(input_trajectory_file, 'r') as f:
             for traj_name, traj in f.items():
+
+                # Load hand trajectory
                 data = traj['data']
+                dataset_name = traj.attrs['name']
                 time.append(np.array(data['time']))
                 pos_world_to_hand_W.append(np.array(data['pos_world_to_hand_W']))
                 flat_rot_world_to_hand.append(np.array(data['rot_world_to_hand']).reshape((-1,9)))
 
+                # Load reference object positions
                 ref = traj['reference']
-                pos_world_to_pan_W.append(np.array(ref['pos_world_to_pan_W']))
-                pos_world_to_plate_W.append(np.array(ref['pos_world_to_plate_W']))
 
-    # Stack trajectories into one block
+                # For the pouring task
+                if 'pouring' in dataset_name:
+                    references_combined = np.array(ref['pos_world_to_glass_rim_W'])
+
+                # For the scooping task
+                elif 'scooping' in dataset_name:
+                    references_combined = np.concatenate([
+                        np.array(ref['pos_world_to_pan_W']), 
+                        np.array(ref['pos_world_to_plate_W']),
+                    ])
+
+                # Neither task specified?
+                else: 
+                    raise ValueError('Either "pouring" or "scooping" should be in HDF5 dataset label')
+                
+                pos_world_to_references_W_combined.append(references_combined)
+
+    # Stack values into one block
     # (n,m,j) = (# of trajectories, # of timesteps, # of dimensions)
     time = np.stack(time)
     pos_world_to_hand_W = np.stack(pos_world_to_hand_W)
     flat_rot_world_to_hand = np.stack(flat_rot_world_to_hand)
-    pos_world_to_pan_W = np.stack(pos_world_to_pan_W)
-    pos_world_to_plate_W = np.stack(pos_world_to_plate_W)
+    pos_world_to_references_W_combined = np.stack(pos_world_to_references_W_combined)
 
     # Construct trajectory matrix
     # (n,m,k) =(# of trajectories, # of timestamps, # of data dimensions)
@@ -54,8 +71,7 @@ def create_linoss_scooping_training_data(
     references = np.concatenate([
         pos_world_to_hand_W[:,0,:], # Initial hand position
         flat_rot_world_to_hand[:,0,:], # Initial hand rotation
-        pos_world_to_pan_W, # Pan position
-        pos_world_to_plate_W, # Plate position
+        pos_world_to_references_W_combined, # Reference object positions
         pos_world_to_hand_W[:,-1,:], # Terminal hand position
         flat_rot_world_to_hand[:,-1,:], # Terminal hand rotation
     ], axis=1) # combine along label dimension axis
@@ -71,13 +87,14 @@ def create_linoss_scooping_training_data(
 if __name__ == '__main__':
     # Script inputs
     input_trajectory_files = [
-        os.path.expanduser('~/data/scooping/scooping_processed_S00.hdf5'),
-        os.path.expanduser('~/data/scooping/scooping_processed_S11.hdf5'),
+        os.path.expanduser('~/data/pouring/pouring_processed_S00.hdf5'),
+        os.path.expanduser('~/data/pouring/pouring_processed_S10.hdf5'),
+        os.path.expanduser('~/data/pouring/pouring_processed_S11.hdf5'),
     ]
-    output_directory = os.path.expanduser('~/drl/linoss/data_dir/processed/scooping/')
+    output_directory = os.path.expanduser('~/drl/linoss/data_dir/processed/pouring/')
 
     # Main
-    create_linoss_scooping_training_data(
+    create_linoss_training_data(
         input_trajectory_files,
         output_directory,
     )

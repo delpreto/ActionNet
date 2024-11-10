@@ -64,7 +64,7 @@ def generate_scooping_animation(
 
 # - Main - #
 
-def animate_trajectory(
+def animate_scooping_trajectory(
     input_trajectory_file,
     trajectory_id,
     output_directory,
@@ -97,7 +97,7 @@ if __name__ == '__main__':
     output_directory = os.path.expanduser('~/data/scooping/')
     
     # Run script
-    animate_trajectory(
+    animate_scooping_trajectory(
         input_trajectory_file, 
         trajectory_id,
         output_directory,

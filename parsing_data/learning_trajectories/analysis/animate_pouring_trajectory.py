@@ -63,7 +63,7 @@ def generate_pouring_animation(
 
 # - Main - #
 
-def animate_trajectory(
+def animate_pouring_trajectory(
     input_trajectory_file,
     trajectory_id,
     output_directory,
@@ -100,7 +100,7 @@ if __name__ == '__main__':
     output_directory = os.path.expanduser('~/data/pouring/')
     
     # Run script
-    animate_trajectory(
+    animate_pouring_trajectory(
         input_trajectory_file, 
         trajectory_id,
         output_directory,

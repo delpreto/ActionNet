@@ -3,18 +3,13 @@ import h5py
 import numpy as np
 import scipy.spatial.transform as tf
 from typing import List
-import pickle
 
-
-def save_pickle(obj, filename):
-    """Saves a pickle object."""
-    with open(filename, "wb") as handle:
-        pickle.dump(obj, handle, protocol=pickle.HIGHEST_PROTOCOL)
+import utils
 
 
 # - Main - #
 
-def create_linoss_training_data(
+def create_linoss_scooping_training_data(
     input_trajectory_files: List[str],
     output_directory: str,
 ):
@@ -68,9 +63,9 @@ def create_linoss_training_data(
 
     # Export training dataset as .pkl
     os.makedirs(output_directory, exist_ok=True)
-    save_pickle(time, output_directory + 'time.pkl')
-    save_pickle(references, output_directory + 'data.pkl') # Reference vectors are inputs
-    save_pickle(trajectories, output_directory + 'labels.pkl') # Trajectories are outputs
+    utils.save_pickle(time, output_directory + 'time.pkl')
+    utils.save_pickle(references, output_directory + 'data.pkl') # Reference vectors are inputs
+    utils.save_pickle(trajectories, output_directory + 'labels.pkl') # Trajectories are outputs
     
 
 if __name__ == '__main__':
@@ -82,7 +77,7 @@ if __name__ == '__main__':
     output_directory = os.path.expanduser('~/drl/linoss/data_dir/processed/scooping/')
 
     # Main
-    create_linoss_training_data(
+    create_linoss_scooping_training_data(
         input_trajectory_files,
         output_directory,
     )

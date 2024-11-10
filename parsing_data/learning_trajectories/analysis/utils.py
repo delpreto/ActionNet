@@ -1,6 +1,15 @@
 import numpy as np
+import pickle
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+
+
+# - File I/O utilities - #
+
+def save_pickle(obj, filename):
+    """Saves a pickle object."""
+    with open(filename, "wb") as handle:
+        pickle.dump(obj, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 # - Animation utilities - #

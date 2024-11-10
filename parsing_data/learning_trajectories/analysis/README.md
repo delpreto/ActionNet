@@ -12,23 +12,40 @@ The first two are necessary for calculating mesh intersections, and the last one
 
 ### File description
 
-- process_scooping_trajectory.py
-    - ingests the (already preprocessed) scooping_trainingData_S00.hdf5 -like files
+Data processing
+- process_trajectory.py
+    - ingests the (already preprocessed) {task_name}_trainingData_S00.hdf5 -like files
+    - works for either pouring or scooping task
     - generates another HDF5 file with estimated reference object positions and adjusted file organization
-- animate_trajectory.py
+- create_linoss_training_data.py
+    - ingests the newly made HDF5 file(s)
+    - creates compact .pkl outputs for use in linoss training
+    - works for either pouring or scooping task
+
+Visualization
+- plot_trajectory_derivatives.py
+    - ingests the newly made HDF5 file
+    - generates plots of 1st, 2nd, 3rd order derivatives (linear and angular) aggregated over trajectories
+- animate_scooping_trajectory.py
     - ingests the newly made HDF5 file along with an id number for a trajectory in the file
     - generates an animation of hand, spoon, ref object poses throughout the trajectory
+- animate_pouring_trajectory.py
+    - ingests the newly made HDF5 file along with an id number for a trajectory in the file
+    - generates an animation of hand, jug, ref object poses throughout the trajectory
+
+Performance evaluation
 - evaluate_scooping_performance.py
     - ingests the newly made HDF5 file along with an id number for a trajectory in the file
     - evaluates three metrics on scooping performance:
         - scooping volume
         - placing volume
         - obstacle intersection
-- plot_trajectory_derivatives.py
-    - ingests the newly made HDF5 file
-    - generates plots of 1st, 2nd, 3rd order derivatives (linear and angular) aggregated over trajectories
+
+Tools
 - constants.py
     - houses some hardcoded transforms and object shapes
+- utils.py
+    - houses some common functions
 
 ### Trajectory HDF5 file format
 

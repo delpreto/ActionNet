@@ -364,6 +364,7 @@ def plot_compare_distributions_motionObjectKeypoint_dynamics(feature_data_byType
     distributions_speed_m_s[example_type] = distributions_speed_m_s[example_type][~np.isnan(distributions_speed_m_s[example_type])]
     distributions_jerk_m_s_s_s[example_type] = np.abs(np.stack(np.concatenate(jerks_m_s_s_s)))
     distributions_jerk_m_s_s_s[example_type] = distributions_jerk_m_s_s_s[example_type][~np.isnan(distributions_jerk_m_s_s_s[example_type])]
+    print(distributions_jerk_m_s_s_s[example_type])
     distributions_speed_m_s['%s_half1' % example_type] = distributions_speed_m_s[example_type][0:distributions_speed_m_s[example_type].shape[0]//2]
     distributions_speed_m_s['%s_half2' % example_type] = distributions_speed_m_s[example_type][distributions_speed_m_s[example_type].shape[0]//2:]
     distributions_jerk_m_s_s_s['%s_half1' % example_type] = distributions_jerk_m_s_s_s[example_type][0:distributions_jerk_m_s_s_s[example_type].shape[0]//2]
@@ -374,12 +375,14 @@ def plot_compare_distributions_motionObjectKeypoint_dynamics(feature_data_byType
   distributions_speed_m_s_nonModel = []
   combined_type = ''
   for example_type in example_types:
+    print(example_type)
     if 'model' not in example_type:
       combined_type += example_type
       distributions_jerk_m_s_s_s_nonModel.append(distributions_jerk_m_s_s_s[example_type])
       distributions_speed_m_s_nonModel.append(distributions_speed_m_s[example_type])
-  distributions_jerk_m_s_s_s[combined_type] = np.concatenate(distributions_jerk_m_s_s_s_nonModel)
-  distributions_speed_m_s[combined_type] = np.concatenate(distributions_speed_m_s_nonModel)
+  if combined_type != '':
+    distributions_jerk_m_s_s_s[combined_type] = np.concatenate(distributions_jerk_m_s_s_s_nonModel)
+    distributions_speed_m_s[combined_type] = np.concatenate(distributions_speed_m_s_nonModel)
   
   # # Print the speed and jerk for copying into Matlab.
   # print('distributions_jerk_m_s_s_s')

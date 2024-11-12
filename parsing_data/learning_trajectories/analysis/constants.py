@@ -39,4 +39,5 @@ TABLE_BOX = np.array([1, 1, 0.2]) # wrt table frame
 TABLE_ORIGIN = np.array([-0.5, 0, -0.1]) # this is the table frame
 
 # 'Scooping region' -- height above plate/pan
-SCOOPING_HEIGHT = 0.10
+PICKUP_HEIGHT = 0.15
+DROPOFF_HEIGHT = 0.15

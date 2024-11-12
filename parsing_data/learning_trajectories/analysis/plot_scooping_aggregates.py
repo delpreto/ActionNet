@@ -43,7 +43,7 @@ def differentiate(time, data, order=1, axis=0):
 # - Main - #
 
 def plot_scooping_aggregates(
-    input_trajectory_file,
+    input_trajectory_files,
     output_figure_dir,
 ):
     # Figure init
@@ -57,70 +57,78 @@ def plot_scooping_aggregates(
     # Store all wasserstein distances, if 'truth' trajectory field is provided
     wass_dist = []
 
-    # Read trajectory file
-    with h5py.File(input_trajectory_file, 'r') as f:
+    for input_trajectory_file in input_trajectory_files:
 
-        # Process all trajectories
-        for trajectory_key in f.keys():
-            traj = f[trajectory_key]
-            dataset_name = traj.attrs['name']
-            
-            data = traj['data']
-            time = np.array(data['time'])
-            pos_world_to_hand_W = np.array(data['pos_world_to_hand_W'])
-            rot_world_to_hand = np.array(data['rot_world_to_hand'])
-            quat_world_to_hand_ijkw = np.array([utils.rot_matrix_to_quat(R) for R in rot_world_to_hand])
-            
-            ref = traj['reference']
-            pos_world_to_pan_W = np.array(ref['pos_world_to_pan_W'])
-            pos_world_to_plate_W = np.array(ref['pos_world_to_plate_W'])
+        # Read trajectory file
+        with h5py.File(input_trajectory_file, 'r') as f:
 
-            # Linear
-            d1pos = differentiate(time, pos_world_to_hand_W, order=1, axis=0)
-            d2pos = differentiate(time, pos_world_to_hand_W, order=2, axis=0)
-            d3pos = differentiate(time, pos_world_to_hand_W, order=3, axis=0)
-            lin_ax[0].plot(time, np.linalg.norm(d1pos, axis=1), color='darkblue', alpha=0.5)
-            lin_ax[1].plot(time, np.linalg.norm(d2pos, axis=1), color='darkblue', alpha=0.5)
-            lin_ax[2].plot(time, np.linalg.norm(d3pos, axis=1), color='darkblue', alpha=0.5)
-            
-            # Angular
-            d1rot = differentiate_quat(time, quat_world_to_hand_ijkw) # First derivative calculated differently
-            d2rot = differentiate(time, d1rot, order=1, axis=0)
-            d3rot = differentiate(time, d1rot, order=2, axis=0)
-            ang_ax[0].plot(time, np.linalg.norm(d1rot, axis=1), color='darkblue', alpha=0.5)
-            ang_ax[1].plot(time, np.linalg.norm(d2rot, axis=1), color='darkblue', alpha=0.5)
-            ang_ax[2].plot(time, np.linalg.norm(d3rot, axis=1), color='darkblue', alpha=0.5)
+            # Process all trajectories
+            for trajectory_key in f.keys():
+                traj = f[trajectory_key]
+                dataset_name = traj.attrs['name']
+                
+                data = traj['data']
+                time = np.array(data['time'])
+                pos_world_to_hand_W = np.array(data['pos_world_to_hand_W'])
+                rot_world_to_hand = np.array(data['rot_world_to_hand'])
+                quat_world_to_hand_ijkw = np.array([utils.rot_matrix_to_quat(R) for R in rot_world_to_hand])
+                
+                ref = traj['reference']
+                pos_world_to_pan_W = np.array(ref['pos_world_to_pan_W'])
+                pos_world_to_plate_W = np.array(ref['pos_world_to_plate_W'])
 
-            # Height
-            rot_world_to_spoon = rot_world_to_hand @ ROT_HAND_TO_SPOON
-            pos_hand_to_spoon_W = rot_world_to_spoon @ POS_HAND_TO_SPOON_S
-            pos_world_to_spoon_W = pos_world_to_hand_W + pos_hand_to_spoon_W
-            z_ax.plot(time, pos_world_to_spoon_W[:,2], color='darkblue', alpha=0.5)
+                # Linear
+                d1pos = differentiate(time, pos_world_to_hand_W, order=1, axis=0)
+                d2pos = differentiate(time, pos_world_to_hand_W, order=2, axis=0)
+                d3pos = differentiate(time, pos_world_to_hand_W, order=3, axis=0)
+                lin_ax[0].plot(time, np.linalg.norm(d1pos, axis=1), color='darkblue', alpha=0.5)
+                lin_ax[1].plot(time, np.linalg.norm(d2pos, axis=1), color='darkblue', alpha=0.5)
+                lin_ax[2].plot(time, np.linalg.norm(d3pos, axis=1), color='darkblue', alpha=0.5)
+                
+                # Angular
+                d1rot = differentiate_quat(time, quat_world_to_hand_ijkw) # First derivative calculated differently
+                d2rot = differentiate(time, d1rot, order=1, axis=0)
+                d3rot = differentiate(time, d1rot, order=2, axis=0)
+                ang_ax[0].plot(time, np.linalg.norm(d1rot, axis=1), color='darkblue', alpha=0.5)
+                ang_ax[1].plot(time, np.linalg.norm(d2rot, axis=1), color='darkblue', alpha=0.5)
+                ang_ax[2].plot(time, np.linalg.norm(d3rot, axis=1), color='darkblue', alpha=0.5)
 
-            # Tilt
-            z_world_to_spoon = rot_world_to_spoon[:,2]
-            tilt_angle = np.arccos(np.dot(z_world_to_spoon, np.array([0, 0, 1])))
-            tilt_ax.plot(time, tilt_angle, color='darkblue', alpha=0.5)
+                # Height
+                rot_world_to_spoon = rot_world_to_hand @ ROT_HAND_TO_SPOON
+                pos_hand_to_spoon_W = rot_world_to_spoon @ POS_HAND_TO_SPOON_S
+                pos_world_to_spoon_W = pos_world_to_hand_W + pos_hand_to_spoon_W
+                z_ax.plot(time, pos_world_to_spoon_W[:,2], color='darkblue', alpha=0.5)
 
-            # Pickup/dropoff location
-            pos_world_to_pickup_W = pos_world_to_spoon_W[np.argmin(np.linalg.norm(pos_world_to_spoon_W[:,:2] - pos_world_to_pan_W[:2], axis=1))]
-            d_pos_world_to_pickup_W = pos_world_to_pickup_W - pos_world_to_pan_W
-            pos_world_to_dropoff_W = pos_world_to_spoon_W[np.argmin(np.linalg.norm(pos_world_to_spoon_W[:,:2] - pos_world_to_plate_W[:2], axis=1))]
-            d_pos_world_to_dropoff_W = pos_world_to_dropoff_W - pos_world_to_plate_W
-            loc_ax[0].scatter(d_pos_world_to_pickup_W[0], d_pos_world_to_pickup_W[1])
-            loc_ax[1].scatter(d_pos_world_to_dropoff_W[0], d_pos_world_to_dropoff_W[1])
+                # Tilt
+                z_world_to_spoon = rot_world_to_spoon[:,2]
+                tilt_angle = np.arccos(np.dot(z_world_to_spoon / np.linalg.norm(z_world_to_spoon), np.array([0, 0, 1])))
+                tilt_ax.plot(time, tilt_angle, color='darkblue', alpha=0.5)
 
-            # Wasserstein distances
-            if 'truth' in traj.keys():
-                truth = traj['truth']
-                pos_world_to_hand_W_truth = truth['pos_world_to_hand_W']
-                wass_dist_x = stats.wasserstein_distance(pos_world_to_hand_W[:,0], pos_world_to_hand_W_truth[:,0])
-                wass_dist_y = stats.wasserstein_distance(pos_world_to_hand_W[:,1], pos_world_to_hand_W_truth[:,1])
-                wass_dist_z = stats.wasserstein_distance(pos_world_to_hand_W[:,2], pos_world_to_hand_W_truth[:,2])
-                avg_wass_dist = (wass_dist_x + wass_dist_y + wass_dist_z) / 3
-                wass_dist.append(avg_wass_dist)
+                # Pickup location -- maximum tilt angle closest to pan
+                hover_idx = np.linalg.norm(pos_world_to_spoon_W[:,:2] - pos_world_to_pan_W[:2], axis=1) \
+                    < np.linalg.norm(pos_world_to_spoon_W[:,:2] - pos_world_to_plate_W[:2], axis=1)
+                pos_world_to_pickup_W = pos_world_to_spoon_W[hover_idx][np.argmax(tilt_angle[hover_idx])]
+                d_pos_world_to_pickup_W = pos_world_to_pickup_W - pos_world_to_pan_W
+                loc_ax[0].scatter(d_pos_world_to_pickup_W[0], d_pos_world_to_pickup_W[1])
+
+                # Dropoff location -- maximum tilt angle closest to plate
+                hover_idx = ~hover_idx # invert pickup indices -> dropoff indices
+                pos_world_to_dropoff_W = pos_world_to_spoon_W[hover_idx][np.argmax(tilt_angle[hover_idx])]
+                d_pos_world_to_dropoff_W = pos_world_to_dropoff_W - pos_world_to_plate_W
+                loc_ax[1].scatter(d_pos_world_to_dropoff_W[0], d_pos_world_to_dropoff_W[1])
+
+                # Wasserstein distances
+                if 'truth' in traj.keys():
+                    truth = traj['truth']
+                    pos_world_to_hand_W_truth = truth['pos_world_to_hand_W']
+                    wass_dist_x = stats.wasserstein_distance(pos_world_to_hand_W[:,0], pos_world_to_hand_W_truth[:,0])
+                    wass_dist_y = stats.wasserstein_distance(pos_world_to_hand_W[:,1], pos_world_to_hand_W_truth[:,1])
+                    wass_dist_z = stats.wasserstein_distance(pos_world_to_hand_W[:,2], pos_world_to_hand_W_truth[:,2])
+                    avg_wass_dist = (wass_dist_x + wass_dist_y + wass_dist_z) / 3
+                    wass_dist.append(avg_wass_dist)
 
     # Complete figures & save
+    os.makedirs(output_figure_dir, exist_ok=True)
 
     # Linear derivatives
     lin_fig.suptitle('Hand trajectory: Linear 1st, 2nd, 3rd order derivatives')
@@ -151,7 +159,7 @@ def plot_scooping_aggregates(
     tilt_fig.savefig(output_figure_dir + f'spoon_tilt.png')
 
     # Pickup / dropoff
-    loc_fig.suptitle('Pickup and dropoff locations')
+    loc_fig.suptitle('Estimated pickup and dropoff locations')
     theta = np.linspace(0, 2*np.pi, 50)
     x = PAN_RADIUS * np.cos(theta)
     y = PAN_RADIUS * np.sin(theta)
@@ -181,11 +189,14 @@ def plot_scooping_aggregates(
 
 if __name__ == '__main__':
     # Script inputs
-    input_trajectory_file = os.path.expanduser('~/data/scooping/inference_LinOSS_scooping_5678.hdf5')
-    output_figure_dir = os.path.expanduser('~/data/scooping/figures/inference_LinOSS_scooping_5678/')
+    input_trajectory_files = [
+        os.path.expanduser('~/data/scooping/scooping_processed_S00.hdf5'),
+        os.path.expanduser('~/data/scooping/scooping_processed_S11.hdf5'),
+    ]
+    output_figure_dir = os.path.expanduser('~/data/scooping/figures/scooping_human/')
 
     # Run script
     plot_scooping_aggregates(
-        input_trajectory_file,
+        input_trajectory_files,
         output_figure_dir,
     )

@@ -1,6 +1,7 @@
 """
 Converts the LinOSS model outputs to the inputs required for the evaluate_trajectories.py script, then executes that script
 Adapted from previous version of 'modelOutputs_to_evaluations.py' script, for new model output hdf5 format
+This script also generates figures if you put in human trajectories
 """
 import os
 import h5py
@@ -14,54 +15,62 @@ import analysis.utils as utils
 # - Main - #
 
 def model_outputs_to_evaluations(
-    input_trajectory_file,
+    input_trajectory_files,
     output_directory,
 ):
     """Assumes all model output trajectories have the same length
     """
-    # Load input trajectory
-    with h5py.File(input_trajectory_file, 'r') as f:
-        
-        time = []
-        pos_world_to_hand_W_inferenced = []
-        quat_world_to_hand_wijk_inferenced = []
-        pos_world_to_hand_W_truth = []
-        quat_world_to_hand_wijk_truth = []
-        pos_world_to_glass_rim_W = []
-        
-        for trajectory_key in f.keys():
-            traj = f[trajectory_key]
-            dataset_name = traj.attrs['name']
+    time = []
+    pos_world_to_hand_W_inferenced = []
+    quat_world_to_hand_wijk_inferenced = []
+    pos_world_to_hand_W_truth = []
+    quat_world_to_hand_wijk_truth = []
+    pos_world_to_glass_rim_W = []
+    truth = False
 
-            # Inferenced hand trajectory
-            data = traj['data']
-            time.append(np.array(data['time'])[:,np.newaxis])
-            pos_world_to_hand_W_inferenced.append(np.array(data['pos_world_to_hand_W']))
-            R = np.array(data['rot_world_to_hand'])
-            quat_wijk = np.array([utils.rot_matrix_to_quat(r, scalar_first=True) for r in R])
-            quat_world_to_hand_wijk_inferenced.append(quat_wijk)
+    for input_trajectory_file in input_trajectory_files:
 
-            # Truth hand trajectory
-            truth = traj['truth']
-            pos_world_to_hand_W_truth.append(np.array(truth['pos_world_to_hand_W']))
-            R = np.array(truth['rot_world_to_hand'])
-            quat_wijk = np.array([utils.rot_matrix_to_quat(r, scalar_first=True) for r in R])
-            quat_world_to_hand_wijk_truth.append(quat_wijk)
+        # Load input trajectory
+        with h5py.File(input_trajectory_file, 'r') as f:
+            
+            for trajectory_key in f.keys():
+                traj = f[trajectory_key]
+                dataset_name = traj.attrs['name']
 
-            # Reference objects
-            ref = traj['reference']
-            pos_world_to_glass_rim_W.append(np.array(ref['pos_world_to_glass_rim_W']))
+                # Inferenced hand trajectory
+                data = traj['data']
+                time.append(np.array(data['time'])[:,np.newaxis])
+                pos_world_to_hand_W_inferenced.append(np.array(data['pos_world_to_hand_W']))
+                R = np.array(data['rot_world_to_hand'])
+                quat_wijk = np.array([utils.rot_matrix_to_quat(r, scalar_first=True) for r in R])
+                quat_world_to_hand_wijk_inferenced.append(quat_wijk)
+
+                # Reference objects
+                ref = traj['reference']
+                pos_world_to_glass_rim_W.append(np.array(ref['pos_world_to_glass_rim_W']))
+
+                # Truth hand trajectory
+                if 'truth' in traj.keys():
+                    truth = True
+                    truth = traj['truth']
+                    pos_world_to_hand_W_truth.append(np.array(truth['pos_world_to_hand_W']))
+                    R = np.array(truth['rot_world_to_hand'])
+                    quat_wijk = np.array([utils.rot_matrix_to_quat(r, scalar_first=True) for r in R])
+                    quat_world_to_hand_wijk_truth.append(quat_wijk)
 
     # Stack into one trajectory block
     time = np.stack(time)
     pos_world_to_hand_W_inferenced = np.stack(pos_world_to_hand_W_inferenced)
     quat_world_to_hand_wijk_inferenced = np.stack(quat_world_to_hand_wijk_inferenced)
-    pos_world_to_hand_W_truth = np.stack(pos_world_to_hand_W_truth)
-    quat_world_to_hand_wijk_truth = np.stack(quat_world_to_hand_wijk_truth)
     pos_world_to_glass_rim_W = np.stack(pos_world_to_glass_rim_W)
-
-    # Form array for initial hand positions
-    pos_world_to_hand_W_initial = pos_world_to_hand_W_truth[:, 0, :]
+    if truth:
+        pos_world_to_hand_W_truth = np.stack(pos_world_to_hand_W_truth)
+        quat_world_to_hand_wijk_truth = np.stack(quat_world_to_hand_wijk_truth)
+        pos_world_to_hand_W_initial = pos_world_to_hand_W_truth[:, 0, :]
+    else:
+        pos_world_to_hand_W_truth = np.empty(pos_world_to_hand_W_inferenced.shape)
+        quat_world_to_hand_wijk_truth = np.empty(quat_world_to_hand_wijk_inferenced.shape)
+        pos_world_to_hand_W_initial = np.empty((pos_world_to_hand_W_inferenced.shape[0], pos_world_to_hand_W_inferenced.shape[2]))
 
     # Save HDF5 trajectory as pre-evaluation format
     # Copied this format from previous "modelOutputs_to_evaluations.py" script
@@ -118,8 +127,11 @@ def model_outputs_to_evaluations(
 
 if __name__ == '__main__':
     # Script inputs
-    input_trajectory_file = os.path.expanduser('~/data/pouring/inference_LinOSS_pouring_2345.hdf5')
-    output_directory = os.path.expanduser('~/data/pouring/figures/evaluations/inference_LinOSS_pouring_2345/')
+    input_trajectory_file = [
+        os.path.expanduser('~/data/pouring/pouring_processed_S00.hdf5'),
+        os.path.expanduser('~/data/pouring/pouring_processed_S11.hdf5'),
+    ]
+    output_directory = os.path.expanduser('~/data/pouring/figures/evaluations/pouring_human/')
 
     # Main
     model_outputs_to_evaluations(

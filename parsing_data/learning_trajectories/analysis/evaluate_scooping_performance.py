@@ -5,11 +5,13 @@ Namely, it calculates:
     - Maximum of volumetric intersection between spoon and pan (how much does it place?)
     - Maximum of volumetric intersection between spoon and table (does it collide with obstacles?)
 These metrics are of course rough approximations and don't necessarily imply the scooping task was completed successfully
+Histograms are generated for these metrics
 """
 import os
 import h5py
 import numpy as np
 import trimesh
+import matplotlib.pyplot as plt
 
 from constants import *
 
@@ -91,93 +93,126 @@ def calculate_volumetric_intersection(
 
 def evaluate_scooping_performance(
     input_trajectory_file, 
-    trajectory_id,
+    output_figure_directory,
 ):
-    """Loads a specific trajectory from an HDF5 file
+    """Loads an HDF5 trajectory file
     and calculates scooping metrics.
     """
     # Read trajectory file
     with h5py.File(input_trajectory_file, 'r') as f:
-        traj = f[f'trajectory_{trajectory_id:03d}']
-        dataset_name = traj.attrs['name']
+        
+        pan_volumes = []
+        plate_volumes = []
+        table_volumes = []
 
-        # Hand trajectory
-        data = traj['data']
-        t = np.array(data['time'])
-        pos_world_to_hand_W = np.array(data['pos_world_to_hand_W'])
-        rot_world_to_hand = np.array(data['rot_world_to_hand'])
-        n = pos_world_to_hand_W.shape[0]
+        for trajectory_key, traj in f.items():
+            dataset_name = traj.attrs['name']
 
-        # Reference objects
-        ref = traj['reference']
-        pos_world_to_plate_W = np.array(ref['pos_world_to_plate_W'])
-        pos_world_to_pan_W = np.array(ref['pos_world_to_pan_W'])
+            # Hand trajectory
+            data = traj['data']
+            t = np.array(data['time'])
+            pos_world_to_hand_W = np.array(data['pos_world_to_hand_W'])
+            rot_world_to_hand = np.array(data['rot_world_to_hand'])
+            n = pos_world_to_hand_W.shape[0]
 
-    # Create initial meshes
-    # Spoon mesh
-    spoon_mesh = create_box_mesh(*SPOON_BOX, lengthwise=True)
+            # Reference objects
+            ref = traj['reference']
+            pos_world_to_plate_W = np.array(ref['pos_world_to_plate_W'])
+            pos_world_to_pan_W = np.array(ref['pos_world_to_pan_W'])
 
-    # Scooping region
-    pan_region_offset = np.array([0, 0, PAN_HEIGHT/2 + SCOOPING_HEIGHT/2])
-    pan_region_mesh = create_cylinder_mesh(
-        PAN_RADIUS, 
-        SCOOPING_HEIGHT,
-        position=pos_world_to_pan_W + pan_region_offset,
-    )
+            # Create initial meshes
+            # Spoon mesh
+            spoon_mesh = create_box_mesh(*SPOON_BOX, lengthwise=True)
 
-    # Placing region
-    plate_region_offset = np.array([0, 0, PLATE_HEIGHT/2 + SCOOPING_HEIGHT/2])
-    plate_region_mesh = create_cylinder_mesh(
-        PLATE_RADIUS, 
-        SCOOPING_HEIGHT,
-        position=pos_world_to_plate_W + plate_region_offset,
-    )
+            # Scooping region
+            pan_region_offset = np.array([0, 0, PAN_HEIGHT/2 + SCOOPING_HEIGHT/2])
+            pan_region_mesh = create_cylinder_mesh(
+                PAN_RADIUS, 
+                SCOOPING_HEIGHT,
+                position=pos_world_to_pan_W + pan_region_offset,
+            )
 
-    # Table (for obstacle checking)
-    table_mesh = create_box_mesh(
-        *TABLE_BOX,
-        position=TABLE_ORIGIN
-    )
+            # Placing region
+            plate_region_offset = np.array([0, 0, PLATE_HEIGHT/2 + SCOOPING_HEIGHT/2])
+            plate_region_mesh = create_cylinder_mesh(
+                PLATE_RADIUS, 
+                SCOOPING_HEIGHT,
+                position=pos_world_to_plate_W + plate_region_offset,
+            )
 
-    # Transform meshes and calculate volumetric intersections
-    pan_volumes = []
-    plate_volumes = []
-    table_volumes = []
-    for i in range(n):
+            # Table (for obstacle checking)
+            table_mesh = create_box_mesh(
+                *TABLE_BOX,
+                position=TABLE_ORIGIN
+            )
 
-        # Transform spoon mesh
-        T = np.eye(4)
-        T[:3, :3] = rot_world_to_hand[i] @ ROT_HAND_TO_SPOON
-        T[:3, 3] = pos_world_to_hand_W[i]
-        spoon_mesh = spoon_mesh.apply_transform(T)
+            # Transform meshes and calculate volumetric intersections
+            pan_volumes_i = []
+            plate_volumes_i = []
+            table_volumes_i = []
+            for i in range(n):
 
-        # Calculate volumetric intersections
-        pan_volume = calculate_volumetric_intersection(spoon_mesh, pan_region_mesh)
-        pan_volumes.append(pan_volume)
+                # Transform spoon mesh
+                T = np.eye(4)
+                T[:3, :3] = rot_world_to_hand[i] @ ROT_HAND_TO_SPOON
+                T[:3, 3] = pos_world_to_hand_W[i]
+                spoon_mesh = spoon_mesh.apply_transform(T)
 
-        plate_volume = calculate_volumetric_intersection(spoon_mesh, plate_region_mesh)
-        plate_volumes.append(plate_volume)
+                # Calculate volumetric intersections
+                pan_volume = calculate_volumetric_intersection(spoon_mesh, pan_region_mesh)
+                pan_volumes_i.append(pan_volume)
 
-        table_volume = calculate_volumetric_intersection(spoon_mesh, table_mesh)
-        table_volumes.append(table_volume)
+                plate_volume = calculate_volumetric_intersection(spoon_mesh, plate_region_mesh)
+                plate_volumes_i.append(plate_volume)
 
-        # Un-transform spoon mesh
-        Tinv = np.linalg.inv(T)
-        spoon_mesh = spoon_mesh.apply_transform(Tinv)
+                table_volume = calculate_volumetric_intersection(spoon_mesh, table_mesh)
+                table_volumes_i.append(table_volume)
 
-    # Print the maximum volumetric intersections
-    print('Maximum volumetric intersection of spoon and pan (m^3): ', np.max(pan_volumes))
-    print('Maximum volumetric intersection of spoon and plate (m^3): ', np.max(plate_volumes))
-    print('Spoon intersects with table: ', np.max(table_volumes) > 1e-8)
+                # Un-transform spoon mesh
+                Tinv = np.linalg.inv(T)
+                spoon_mesh = spoon_mesh.apply_transform(Tinv)
+
+            # Print the maximum volumetric intersections
+            print('Maximum volumetric intersection of spoon and pan (m^3): ', np.max(pan_volumes_i))
+            print('Maximum volumetric intersection of spoon and plate (m^3): ', np.max(plate_volumes_i))
+            print('Spoon intersects with table: ', np.max(table_volumes_i) > 1e-8)
+
+            pan_volumes.append(np.max(pan_volumes_i))
+            plate_volumes.append(np.max(plate_volumes_i))
+            table_volumes.append(int(np.max(table_volumes_i) > 1e-8))
+
+    # Create histograms
+    os.makedirs(output_figure_directory, exist_ok=True)
+    
+    fig, ax = plt.subplots(1)
+    ax.hist(np.array(pan_volumes) * 100**3, alpha=0.5, edgecolor='black')
+    ax.set_xlabel('Volume of mesh intersection (cm^3)')
+    ax.set_ylabel('Count')
+    ax.set_title('Volumetric intersection between spoon and pan pickup region')
+    fig.savefig(output_figure_directory + 'pan_intersection.png')
+
+    fig, ax = plt.subplots(1)
+    ax.hist(np.array(plate_volumes) * 100**3, alpha=0.5, edgecolor='black')
+    ax.set_xlabel('Volume of mesh intersection (cm^3)')
+    ax.set_ylabel('Count')
+    ax.set_title('Volumetric intersection between spoon and plate dropoff region')
+    fig.savefig(output_figure_directory + 'plate_intersection.png')
+
+    fig, ax = plt.subplots(1)
+    ax.hist(np.array(table_volumes), bins=2, alpha=0.5, edgecolor='black')
+    ax.set_xlabel('Collision boolean')
+    ax.set_ylabel('Count')
+    ax.set_title('Collision between spoon and table')
+    fig.savefig(output_figure_directory + 'collision.png')
 
 
 if __name__ == '__main__':
     # Script inputs
-    input_trajectory_file = os.path.expanduser(f'~/data/scooping/scooping_processed_S00.hdf5')
-    trajectory_id = 1
+    input_trajectory_file = os.path.expanduser(f'~/data/scooping/inference_LinOSS_scooping_5678.hdf5')
+    output_figure_directory = os.path.expanduser(f'~/data/scooping/figures/inference_LinOSS_scooping_5678/')
 
     # Main
     evaluate_scooping_performance(
-        input_trajectory_file, 
-        trajectory_id,
+        input_trajectory_file,
+        output_figure_directory,
     )

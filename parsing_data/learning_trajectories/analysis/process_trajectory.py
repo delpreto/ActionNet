@@ -90,9 +90,9 @@ def process_trajectory(
 
 if __name__ == '__main__':
     # Script inputs
-    input_trajectory_file = os.path.expanduser(f'~/data/pouring/pouring_trainingData_S10.hdf5')
-    output_trajectory_file= os.path.expanduser(f'~/data/pouring/pouring_processed_S10.hdf5')
-    dataset_name = 'pouring_S10_human'
+    input_trajectory_file = os.path.expanduser(f'~/data/pouring/pouring_trainingData_S11.hdf5')
+    output_trajectory_file= os.path.expanduser(f'~/data/pouring/pouring_processed_S11.hdf5')
+    dataset_name = 'pouring_S11_human'
 
     # Run script
     process_trajectory(

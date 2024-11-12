@@ -2,6 +2,7 @@ import numpy as np
 import pickle
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+import scipy.spatial.transform as tf
 
 
 # - File I/O utilities - #
@@ -10,6 +11,24 @@ def save_pickle(obj, filename):
     """Saves a pickle object."""
     with open(filename, "wb") as handle:
         pickle.dump(obj, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+
+# - TF utilities - #
+
+def rot_matrix_to_quat(R, scalar_first=False):
+    rot = tf.Rotation.from_matrix(R)
+    quat_ijkw = rot.as_quat() # no scalar_first argument in py3.12
+
+    if scalar_first:
+        quat_wijk = np.array([
+            quat_ijkw[3],
+            quat_ijkw[0],
+            quat_ijkw[1],
+            quat_ijkw[2],
+        ])
+        return quat_wijk
+    else:
+        return quat_ijkw
 
 
 # - Animation utilities - #

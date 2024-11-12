@@ -6,21 +6,9 @@ import os
 import h5py
 import json
 import numpy as np
-import scipy.spatial.transform as tf
 import subprocess
 
-
-def rot_matrix_to_quat_wijk(R):
-    rot = tf.Rotation.from_matrix(R)
-    quat_ijkw = rot.as_quat() # no scalar_first argument in py3.12
-    quat_wijk = np.array([
-        quat_ijkw[3],
-        quat_ijkw[0],
-        quat_ijkw[1],
-        quat_ijkw[2],
-    ])
-
-    return quat_wijk
+import analysis.utils as utils
 
 
 # - Main - #
@@ -50,14 +38,14 @@ def model_outputs_to_evaluations(
             time.append(np.array(data['time'])[:,np.newaxis])
             pos_world_to_hand_W_inferenced.append(np.array(data['pos_world_to_hand_W']))
             R = np.array(data['rot_world_to_hand'])
-            quat_wijk = np.array([rot_matrix_to_quat_wijk(r) for r in R])
+            quat_wijk = np.array([utils.rot_matrix_to_quat(r, scalar_first=True) for r in R])
             quat_world_to_hand_wijk_inferenced.append(quat_wijk)
 
             # Truth hand trajectory
             truth = traj['truth']
             pos_world_to_hand_W_truth.append(np.array(truth['pos_world_to_hand_W']))
             R = np.array(truth['rot_world_to_hand'])
-            quat_wijk = np.array([rot_matrix_to_quat_wijk(r) for r in R])
+            quat_wijk = np.array([utils.rot_matrix_to_quat(r, scalar_first=True) for r in R])
             quat_world_to_hand_wijk_truth.append(quat_wijk)
 
             # Reference objects

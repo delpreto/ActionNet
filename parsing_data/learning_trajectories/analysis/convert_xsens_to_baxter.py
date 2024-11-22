@@ -1,15 +1,57 @@
 """
 Given an input HDF5 file of hand pose trajectories
-Converts coordinate frames from XSENS to Controller KDL library frame
+Converts coordinate frames from XSENS to Baxter
 Outputs numpy matrices for time, position, quaternion
 """
 import os
 import numpy as np
 import h5py
+from scipy.spatial.transform import Rotation
 
 import utils
 from constants import *
 
+
+# - Helpers - #
+
+def convert_quaternion(quat_xsens_wijk):
+  # Do an initial rotation, to make the xsens quat match the example quat used during testing.
+  quat_wijk = quat_xsens_wijk
+  rotates_by_deg = [
+    [0, 0, -180],
+    ]
+  # Apply the rotations.
+  rotation_quat = Rotation.from_quat([quat_wijk[1], quat_wijk[2], quat_wijk[3], quat_wijk[0]])
+  for i in range(len(rotates_by_deg)-1, -1, -1):
+    rotate_by_deg = rotates_by_deg[i]
+    rotation_toApply = Rotation.from_rotvec(np.radians(rotate_by_deg))
+    rotation_quat = rotation_quat * rotation_toApply
+  ijkw = rotation_quat.as_quat()
+  quat_wijk = [ijkw[3], ijkw[0], ijkw[1], ijkw[2]]
+  # print(quat_wijk)
+  # print()
+  
+  # Negate the i and j components.
+  quat_wijk = [quat_wijk[0], -quat_wijk[1], -quat_wijk[2], quat_wijk[3]]
+  
+  # Apply the rotations determined during testing.
+  rotates_by_deg = [
+      [0, 0, 180],
+      [0, -90, 0],
+      [0, 0, 90],
+      [0, 180, 0],
+      ]
+  # Apply the rotations.
+  rotation_quat = Rotation.from_quat([quat_wijk[1], quat_wijk[2], quat_wijk[3], quat_wijk[0]])
+  for i in range(len(rotates_by_deg)-1, -1, -1):
+    rotate_by_deg = rotates_by_deg[i]
+    rotation_toApply = Rotation.from_rotvec(np.radians(rotate_by_deg))
+    rotation_quat = rotation_quat * rotation_toApply
+  ijkw = rotation_quat.as_quat()
+  quat_wijk = [ijkw[3], ijkw[0], ijkw[1], ijkw[2]]
+  
+  # Return the result.
+  return quat_wijk
 
 def convert_position(xyz_xsens_m):
   # A sample pitcher home for a human demonstration was [-0.3, 0.25, 0.18]
@@ -24,10 +66,19 @@ def convert_position(xyz_xsens_m):
      xyz_xsens_m[2] - 0.18,
   ]
 
+def convert_position_trajectoryHand(xyz_xsens_m):
+  # Lift it a bit to be safe.
+  xyz_baxter_m = convert_position(xyz_xsens_m)
+  return [
+    xyz_baxter_m[0],
+    xyz_baxter_m[1],
+    xyz_baxter_m[2] + (2)/100,
+  ]
+
 
 # - Main - #
 
-def convert_human_to_controller(
+def convert_xsens_to_baxter(
     input_trajectory_file,
     output_directory,
 ):
@@ -50,23 +101,10 @@ def convert_human_to_controller(
                 quat_world_to_hand_wijk = np.array([utils.rot_matrix_to_quat(R, scalar_first=True) for R in rot_world_to_hand])
             else:
                 raise KeyError('No orientation fields found')
-            
-            # Static transforms
-            rot_world_to_nominal_hand = tf.Rotation.from_euler('XYZ', np.array([0, 0, -np.pi/2])).as_matrix()
-            rot_world_to_nominal_kdl = tf.Rotation.from_euler('XYZ', np.array([0, np.pi/2, 0])).as_matrix()
-            z_swap = tf.Rotation.from_euler('XYZ', np.array([0, 0, np.pi])).as_matrix()
-            
-            # Transform to KDL coordinate system
-            pos_world_to_hand_W = np.array([convert_position(p) for p in pos_world_to_hand_W])
-            rot_world_to_hand = np.array([utils.quat_to_rot_matrix(quat, scalar_first=True) for quat in quat_world_to_hand_wijk])
 
-            # After much trial and error..
-            A = rot_world_to_hand @ rot_world_to_nominal_hand.T
-            B = z_swap @ A @ z_swap
-            rot_world_to_kdl = B @ rot_world_to_nominal_kdl
-
-            # Convert to quaternions
-            quat_world_to_hand_wijk = np.array([utils.rot_matrix_to_quat(R, scalar_first=True) for R in rot_world_to_kdl])
+            # Convert to Baxter frame
+            pos_world_to_hand_W = np.array([convert_position_trajectoryHand(p) for p in pos_world_to_hand_W])
+            quat_world_to_hand_wijk = np.array([convert_quaternion(q) for q in quat_world_to_hand_wijk])
 
             trajectory_dir = output_directory + in_traj_key + '/'
             os.makedirs(trajectory_dir, exist_ok=True)
@@ -77,11 +115,11 @@ def convert_human_to_controller(
 
 if __name__ == '__main__':
     # Script inputs
-    input_trajectory_file = os.path.expanduser('~/data/scooping/inference_LinOSS_train_scooping_5678_side.hdf5')
-    output_directory = os.path.expanduser('~/data/scooping/controller/inference_LinOSS_train_scooping_5678_side/')
+    input_trajectory_file = os.path.expanduser('~/data/scooping/inference_LinOSS_train_scooping_5678.hdf5')
+    output_directory = os.path.expanduser('~/data/scooping/baxter/inference_LinOSS_train_scooping_5678/')
 
     # Main
-    convert_human_to_controller(
+    convert_xsens_to_baxter(
         input_trajectory_file,
         output_directory,
     )

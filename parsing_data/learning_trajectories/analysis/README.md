@@ -21,6 +21,18 @@ Data processing
     - ingests the newly made HDF5 file(s)
     - creates compact .pkl outputs for use in linoss training
     - works for either pouring or scooping task
+- rotate_trajectory.py
+    - ingests a newly made HDF5 file
+    - rotates hand pose by a specified static transform
+    - outputs similarly formatted HDF5 file
+- convert_xsens_to_controller.py
+    - ingests a newly made HDF5 file
+    - converts coordinate frames from XSENS (human) to offline controller KDL frames
+    - creates a set of directories containing matrices for individual trajectory data
+- convert_xsens_to_baxter.py
+    - ingests a newly made HDF5 file
+    - converts coordinate frames from XSENS (human) to real Baxter system frames
+    - creates a set of directories containing matrices for individual trajectory data
 
 Visualization
 - plot_trajectory_derivatives.py
@@ -91,3 +103,13 @@ z centered a few cm in the negative z below hand
 x axis pointing from hand to water spout
 y axis aligned with hand frame y axis (toward elbow)
 z axis point normal from top of jug
+
+Controller Frame
+? Positions empirically determined
+'Nominal' hand z pointing toward World x
+'Nominal' hand x pointing toward World -z
+'Nominal' hand y pointing toward World y
+
+Baxter Frame
+? Positions empirically determined
+? Rotations empirically determined

@@ -1,5 +1,7 @@
 """
 Offline baxter planning from gripper trajectory to joint angles
+Ingests a trajectory directory as output by parsing_data/learning_trajectories/analysis/convert_xsens_to_controller.py
+    (i.e. requires conversion from XSENS to controller frame)
 Generates figures for input / output trajectories
 """
 import os

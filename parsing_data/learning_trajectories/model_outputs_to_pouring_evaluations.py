@@ -128,10 +128,9 @@ def model_outputs_to_evaluations(
 if __name__ == '__main__':
     # Script inputs
     input_trajectory_file = [
-        os.path.expanduser('~/data/pouring/pouring_processed_S00.hdf5'),
-        os.path.expanduser('~/data/pouring/pouring_processed_S11.hdf5'),
+        os.path.expanduser('~/data/pouring/inference_LinOSS_test_pouring_3456.hdf5'),
     ]
-    output_directory = os.path.expanduser('~/data/pouring/figures/evaluations/pouring_human/')
+    output_directory = os.path.expanduser('~/data/pouring/figures/evaluations/inference_LinOSS_test_3456/')
 
     # Main
     model_outputs_to_evaluations(

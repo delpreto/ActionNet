@@ -95,9 +95,9 @@ def animate_pouring_trajectory(
 
 if __name__ == '__main__':
     # Script inputs
-    input_trajectory_file = os.path.expanduser(f'~/data/pouring/inference_LinOSS_pouring_2345.hdf5')
+    input_trajectory_file = os.path.expanduser(f'~/data/scooping/inference_LinOSS_train_scooping_5678_transformed.hdf5')
     trajectory_id = 1
-    output_directory = os.path.expanduser('~/data/pouring/')
+    output_directory = os.path.expanduser('~/data/scooping/figures/')
     
     # Run script
     animate_pouring_trajectory(

@@ -4,6 +4,7 @@ import cvxpy as qp
 from typing import List, Union
 from collections import OrderedDict
 from scipy.interpolate import interp1d
+import scipy.spatial.transform as tf
 
 from src.baxter_pykdl.src.baxter_pykdl import baxter_kinematics
 
@@ -45,22 +46,26 @@ def interpolate_waypoints(time_in, time_out, pose):
 
 
 def quat_to_delta_omega(q1, q2):
-    """Calculates the angular delta between two quaternions
-    quat in ijkw format
-    """
+    """"""
     # Check for sign flips
     dot = np.dot(q1, q2)
     if dot < 0:
         q2 = -q2  # Flip the second quaternion to avoid angular velocity spikes
 
-    return 2 * np.array([q1[3]*q2[0] - q1[0]*q2[3] - q1[1]*q2[2] + q1[2]*q2[1], 
-                         q1[3]*q2[1] + q1[0]*q2[2] - q1[1]*q2[3] - q1[2]*q2[0],
-                         q1[3]*q2[2] - q1[0]*q2[1] + q1[1]*q2[0] - q1[2]*q2[3]])
+    R1 = tf.Rotation.from_quat(q1).as_matrix()
+    R2 = tf.Rotation.from_quat(q2).as_matrix()
+    R = R2 @ R1.T
+
+    theta = np.arccos(np.trace(R)/2 - 1/2)
+    W = theta * (R - R.T) / np.sin(theta) / 2
+    v = np.array([W[2,1], W[0,2], W[1,0]])
+    
+    return v
 
 
 def differentiate_quat(time, quat):
     """Given time series of quaternions, returns 6-element angular velocity vectors"""
-    delta_omega = np.array([quat_to_delta_omega(quat[i+1], quat[i]) for i in range(quat.shape[0] - 1)])
+    delta_omega = np.array([quat_to_delta_omega(quat[i], quat[i+1]) for i in range(quat.shape[0] - 1)])
     do_dt = delta_omega / np.diff(time[:,np.newaxis], axis=0)
 
     return do_dt
@@ -184,7 +189,6 @@ class BaxterPlanner:
         if start_joint_angle is None:
             pos = pose[0, :3]
             quat = pose[0, 3:] / np.linalg.norm(pose[0, 3:])
-            quat = [quat[3], quat[0], quat[1], quat[2]] # ijkw -> wijk for IK usage
             q_nominal = unwrap_joint_angle(self._nominal_joint_angle)
             start_joint_angle = self._kin.inverse_kinematics(pos, quat, q_nominal)
             
@@ -208,7 +212,7 @@ class BaxterPlanner:
             pose_interp = interpolate_waypoints(time, time_interp, pose)
         
         # Differentiate
-        vel, ang_vel = differentiate_waypoints(time_interp, pose_interp)
+        vel, ang_vel = differentiate_waypoints(time_interp, pose_interp)        
         dt = np.diff(time_interp)
         
         # Iteratively plan velocities and build trajectory of joint angles
@@ -222,7 +226,7 @@ class BaxterPlanner:
             J = self._kin.jacobian(wrap_joint_angle(self._joint_names, q))
             
             # Solve for local plan
-            v = self._solve(q, J, vel[i], ang_vel[i], kp=0, kd=0)
+            v = self._solve(q, J, vel[i], ang_vel[i], kd=0.1)
             
             # Solving error: trash trajectory
             if v is None:
@@ -250,18 +254,15 @@ class BaxterPlanner:
         return time_interp, angles, poses
   
 
-    def _solve(self, joint_angle, jacobian, velocity, angular_velocity, kp = 1., kd = 1.):
+    def _solve(self, joint_angle, jacobian, velocity, angular_velocity, kd = 0.1):
         """
         Solves for joint velocities that will accomplish our near term goal
-        Includes PD terms
         
         Args:
         joint_angle (np.ndarray): (7,) vector of joint angles (rad)
         jacobian (np.ndarray): (7,6) array for baxter's kinematics
         velocity (np.ndarray): (3,) array of linear velocities (vx,vy,vz)
         angular_velocity (np.ndarray): (3,) array of angular velocities (wx,wy,wz)
-        kp (optional, float): gain for proportional control to joint neutralizing position
-        kd (optional, float): gain for derivative control
         
         Returns:
         (np.ndarray): (7,) array of joint velocities (rad/s)
@@ -269,17 +270,67 @@ class BaxterPlanner:
         # Prep weight matrices
         n = len(joint_angle)
         vel = np.concatenate([velocity, angular_velocity])
-        P = np.eye(n) - np.linalg.pinv(jacobian).dot(jacobian)
-        q_nominal = unwrap_joint_angle(self._nominal_joint_angle)
-        dq = q_nominal - joint_angle
+        K = np.eye(n) * kd
 
         # Form QP
         v = qp.Variable(n)
         problem = qp.Problem(
-        qp.Minimize(qp.quad_form(v, jacobian.T @ jacobian) - 2 * vel.T @ jacobian @ v + vel.T @ vel + qp.quad_form(v, P.T @ P) \
-                    - 2 * kp * v.T @ P.T @ P @ dq + kp**2 * dq.T @ P.T @ P @ dq + kd**2 * qp.quad_form(v, P.T @ P)),
-        [] # Constraints can go here -- TODO
+            qp.Minimize(
+                qp.quad_form(v, jacobian.T @ jacobian) - 2 * vel.T @ jacobian @ v + qp.quad_form(v, K.T @ K)
+            ),
+            [] # Constraints can go here -- TODO
         )
         problem.solve()
 
         return v.value
+    
+
+if __name__ == '__main__':
+    URDF_XML_FILE = "baxter_urdf.xml"
+    LIMB_NAME = "right"
+    ANGLE_NAMES = ["s0", "s1", "e0", "e1", "w0", "w1", "w2"]
+    NOMINAL_JOINT_ANGLE = [0.80, -0.25, 0.00, 1.50, 0.00, -1.30, 0]
+
+    # Planner init
+    import os
+    urdf_file = os.path.join(os.path.dirname(__file__), URDF_XML_FILE)
+    joint_names = ['%s_%s' % (LIMB_NAME, angle_name) for angle_name in ANGLE_NAMES]
+    nominal_joint_angle = wrap_joint_angle(joint_names, NOMINAL_JOINT_ANGLE)
+    baxter_planner = BaxterPlanner(urdf_file, LIMB_NAME, joint_names, nominal_joint_angle)
+
+    import matplotlib.pyplot as plt
+    from mpl_toolkits.mplot3d import Axes3D
+    import scipy.spatial.transform as tf
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+
+    pose1 = [0.92912835, -0.50826004, 0.02969148, 0.10094057, 0.78534968, -0.07058578, 0.60667498]
+    pose2 = [0.90436313, -0.47877582, 0.04271447, 0.01993566, 0.79053912, -0.06346688, 0.60878766]
+    pose3 = [0.94434628, -0.4429354, 0.05404697, 0.20329811, 0.90235539, 0.06230177, 0.37489081]
+    for pose in [pose1, pose2, pose3]:
+        pos = pose[:3]
+        quat = pose[3:]
+        R = tf.Rotation.from_quat(quat).as_matrix()
+        ax.quiver(*pos, *R[:,0], color='r', normalize=True, label='X-axis')
+        ax.quiver(*pos, *R[:,1], color='g', normalize=True, label='Y-axis')
+        ax.quiver(*pos, *R[:,2], color='b', normalize=True, label='Z-axis')
+
+        joint_angle = baxter_planner._kin.inverse_kinematics(pos, quat, NOMINAL_JOINT_ANGLE)
+        joint_angle = wrap_joint_angle(joint_names, joint_angle)
+        pose = baxter_planner._kin.forward_position_kinematics(joint_angle)
+        pos = pose[:3]
+        quat = pose[3:]
+        R = tf.Rotation.from_quat(quat).as_matrix()
+        ax.quiver(*pos, *R[:,0], color='r', normalize=True, label='X-axis')
+        ax.quiver(*pos, *R[:,1], color='g', normalize=True, label='Y-axis')
+        ax.quiver(*pos, *R[:,2], color='b', normalize=True, label='Z-axis')
+
+    # Set labels and limits
+    ax.set_xlim([-2, 2])
+    ax.set_ylim([-2, 2])
+    ax.set_zlim([-2, 2])
+    ax.set_xlabel("X")
+    ax.set_ylabel("Y")
+    ax.set_zlabel("Z")
+    plt.show()

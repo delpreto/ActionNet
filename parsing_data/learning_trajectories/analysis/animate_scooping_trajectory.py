@@ -67,7 +67,7 @@ def generate_scooping_animation(
 def animate_scooping_trajectory(
     input_trajectory_file,
     trajectory_id,
-    output_directory,
+    output_animation_file,
 ):
     # Read trajectory file
     with h5py.File(input_trajectory_file, 'r') as f:
@@ -87,18 +87,18 @@ def animate_scooping_trajectory(
 
     # Animate
     ani = generate_scooping_animation(time, pos_world_to_hand_W, rot_world_to_hand, pos_world_to_plate_W, pos_world_to_pan_W)
-    ani.save(output_directory + f'{dataset_name}_{trajectory_id}.gif')
+    ani.save(output_animation_file)
 
 
 if __name__ == '__main__':
     # Script inputs
-    input_trajectory_file = os.path.expanduser(f'~/data/scooping/scooping_processed_S00.hdf5')
+    input_trajectory_file = os.path.expanduser(f'~/data/scooping/inference_LinOSS_train_scooping_5678.hdf5')
     trajectory_id = 1
-    output_directory = os.path.expanduser('~/data/scooping/')
+    output_animation_file = os.path.expanduser('~/data/scooping/figures/inference_LinOSS_train_scooping_5678.gif')
     
     # Run script
     animate_scooping_trajectory(
         input_trajectory_file, 
         trajectory_id,
-        output_directory,
+        output_animation_file,
     )

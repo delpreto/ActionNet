@@ -190,10 +190,9 @@ def plot_scooping_aggregates(
 if __name__ == '__main__':
     # Script inputs
     input_trajectory_files = [
-        os.path.expanduser('~/data/scooping/scooping_processed_S00.hdf5'),
-        os.path.expanduser('~/data/scooping/scooping_processed_S11.hdf5'),
+        os.path.expanduser('~/data/scooping/inference_LinOSS_test_scooping_5678.hdf5'),
     ]
-    output_figure_dir = os.path.expanduser('~/data/scooping/figures/scooping_human/')
+    output_figure_dir = os.path.expanduser('~/data/scooping/figures/inference_LinOSS_test_val_scooping_5678/')
 
     # Run script
     plot_scooping_aggregates(

@@ -9,6 +9,13 @@ _spoon_tilt_angles = np.array([np.pi/6, -np.pi/4, 0]) # yaw roll pitch
 _rot_prespoon_to_spoon = tf.Rotation.from_euler('ZXY', _spoon_tilt_angles).as_matrix()
 ROT_HAND_TO_SPOON = _rot_hand_to_prespoon @ _rot_prespoon_to_spoon
 
+# Static transform from spoon frame defined in README and side spoon configuration
+_rot_prespoon_to_side_spoon = tf.Rotation.from_euler('XYZ', np.array([0, 0, np.pi/2])).as_matrix() # 90deg yaw
+ROT_HAND_TO_SIDE_SPOON = _rot_hand_to_prespoon @ _rot_prespoon_to_side_spoon
+
+# Static transform from spoon frame defined in README and straight spoon configuration
+ROT_HAND_TO_STRAIGHT_SPOON = _rot_hand_to_prespoon
+
 # Spoon length
 _spoon_length = 0.30
 POS_HAND_TO_SPOON_S = np.array([_spoon_length, 0, 0])

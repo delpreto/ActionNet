@@ -73,7 +73,6 @@ def create_linoss_training_data(
         flat_rot_world_to_hand[:,0,:], # Initial hand rotation
         pos_world_to_references_W_combined, # Reference object positions
         pos_world_to_hand_W[:,-1,:], # Terminal hand position
-        flat_rot_world_to_hand[:,-1,:], # Terminal hand rotation
     ], axis=1) # combine along label dimension axis
     references = np.repeat(references[:,np.newaxis,:], repeats=trajectories.shape[1], axis=1) # Promote dimension to (n,m,l)
 
@@ -87,11 +86,10 @@ def create_linoss_training_data(
 if __name__ == '__main__':
     # Script inputs
     input_trajectory_files = [
-        os.path.expanduser('~/data/pouring/pouring_processed_S00.hdf5'),
-        os.path.expanduser('~/data/pouring/pouring_processed_S10.hdf5'),
-        os.path.expanduser('~/data/pouring/pouring_processed_S11.hdf5'),
+        os.path.expanduser('~/data/scooping/scooping_processed_S00.hdf5'),
+        os.path.expanduser('~/data/scooping/scooping_processed_S11.hdf5'),
     ]
-    output_directory = os.path.expanduser('~/drl/linoss/data_dir/processed/pouring/')
+    output_directory = os.path.expanduser('~/drl/linoss/data_dir/processed/scooping/')
 
     # Main
     create_linoss_training_data(

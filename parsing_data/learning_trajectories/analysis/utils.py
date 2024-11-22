@@ -15,6 +15,22 @@ def save_pickle(obj, filename):
 
 # - TF utilities - #
 
+def quat_to_rot_matrix(quat, scalar_first=False):
+    if scalar_first:
+        quat_ijkw = np.array([
+            quat[1],
+            quat[2],
+            quat[3],
+            quat[0],
+        ])
+    else:
+        quat_ijkw = quat
+    
+    rot = tf.Rotation.from_quat(quat_ijkw)
+    R = rot.as_matrix()
+    
+    return R
+
 def rot_matrix_to_quat(R, scalar_first=False):
     rot = tf.Rotation.from_matrix(R)
     quat_ijkw = rot.as_quat() # no scalar_first argument in py3.12

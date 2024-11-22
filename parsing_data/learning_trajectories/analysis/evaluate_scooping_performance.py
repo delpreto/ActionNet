@@ -211,9 +211,9 @@ def evaluate_scooping_performance(
 if __name__ == '__main__':
     # Script inputs
     input_trajectory_files = [
-        os.path.expanduser(f'~/data/scooping/inference_LinOSS_scooping_5678.hdf5'),
+        os.path.expanduser(f'~/data/scooping/inference_LinOSS_test_scooping_5678.hdf5'),
     ]
-    output_figure_directory = os.path.expanduser(f'~/data/scooping/figures/inference_LinOSS_scooping_5678/')
+    output_figure_directory = os.path.expanduser(f'~/data/scooping/figures/inference_LinOSS_test_val_scooping_5678/')
 
     # Main
     evaluate_scooping_performance(

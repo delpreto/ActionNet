@@ -68,7 +68,7 @@ def plan_trajectories(
         ax[1].set_title('Quaternion')
         ax[1].legend()
         fig.suptitle('Input Pose Trajectory')
-        fig.savefig(output_trajectory_directory + f'/input_pose.png')
+        fig.savefig(output_trajectory_directory + f'input_pose.png')
         plt.close()
         
         # Plot Output Trajectory -- Angle
@@ -76,7 +76,7 @@ def plan_trajectories(
         for i in range(angles.shape[1]):
             ax[i].plot(time_resampled, angles[:,i], color='blue')
         fig.suptitle('Output Joint Angle Trajectory')
-        fig.savefig(output_trajectory_directory + f'/output_angle.png')
+        fig.savefig(output_trajectory_directory + f'output_angle.png')
         plt.close()
 
         # Plot Output Trajectory -- Pose
@@ -87,14 +87,14 @@ def plan_trajectories(
         ax[1].set_title('Quaternion')
         ax[1].legend()
         fig.suptitle('Output Pose Trajectory')
-        fig.savefig(output_trajectory_directory + f'/output_pose.png')
+        fig.savefig(output_trajectory_directory + f'output_pose.png')
         plt.close()
                 
 
 if __name__ == '__main__':
     # Script inputs
-    input_trajectory_directory = os.path.expanduser("~/data/scooping/controller/inference_LinOSS_train_scooping_5678/trajectory_001/")
-    output_trajectory_directory = os.path.expanduser("~/data/scooping/controller/LinOSS_train_scooping_5678_angles/trajectory_001/")
+    input_trajectory_directory = os.path.expanduser("~/data/pouring/controller/input/LinOSS_IMEX_test_3456_raised/trajectory_001/")
+    output_trajectory_directory = os.path.expanduser("~/data/pouring/controller/output/LinOSS_IMEX_test_3456_raised_angles/trajectory_001/")
     output_frequency = 100.0
     start_joint_angle = None
     generate_plots = True

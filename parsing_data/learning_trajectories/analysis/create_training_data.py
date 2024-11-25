@@ -9,7 +9,7 @@ import utils
 
 # - Main - #
 
-def create_linoss_training_data(
+def create_training_data(
     input_trajectory_files: List[str],
     output_directory: str,
 ):
@@ -86,13 +86,12 @@ def create_linoss_training_data(
 if __name__ == '__main__':
     # Script inputs
     input_trajectory_files = [
-        os.path.expanduser('~/data/scooping/scooping_processed_S00.hdf5'),
-        os.path.expanduser('~/data/scooping/scooping_processed_S11.hdf5'),
+        os.path.expanduser('~/data/pouring/pouring_processed.hdf5'),
     ]
-    output_directory = os.path.expanduser('~/drl/linoss/data_dir/processed/scooping/')
+    output_directory = os.path.expanduser('~/drl/linoss/data_dir/processed/pouring/')
 
     # Main
-    create_linoss_training_data(
+    create_training_data(
         input_trajectory_files,
         output_directory,
     )

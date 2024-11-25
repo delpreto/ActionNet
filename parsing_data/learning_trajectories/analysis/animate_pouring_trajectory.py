@@ -65,43 +65,45 @@ def generate_pouring_animation(
 
 def animate_pouring_trajectory(
     input_trajectory_file,
-    trajectory_id,
-    output_directory,
+    output_figure_directory,
 ):
+    os.makedirs(output_figure_directory, exist_ok=True)
+
     # Read trajectory file
     with h5py.File(input_trajectory_file, 'r') as f:
-        traj = f[f'trajectory_{trajectory_id:03d}']
-        dataset_name = traj.attrs['name']
+        for i, (traj_key, traj) in enumerate(f.items()):
+            if i % 5 == 0:
+                print(f'Processing trajectory {i}')
 
-        # Hand trajectory
-        data = traj['data']
-        time = np.array(data['time'])
-        pos_world_to_hand_W = np.array(data['pos_world_to_hand_W'])
-        rot_world_to_hand = np.array(data['rot_world_to_hand'])
+            # Hand trajectory
+            data = traj['data']
+            time = np.array(data['time'])
+            pos_world_to_hand_W = np.array(data['pos_world_to_hand_W'])
+            rot_world_to_hand = np.array(data['rot_world_to_hand'])
 
-        # Reference objects
-        ref = traj['reference']
-        pos_world_to_glass_rim_W = np.array(ref['pos_world_to_glass_rim_W'])
+            # Reference objects
+            ref = traj['reference']
+            pos_world_to_glass_rim_W = np.array(ref['pos_world_to_glass_rim_W'])
 
-    # Animate
-    ani = generate_pouring_animation(
-        time, 
-        pos_world_to_hand_W, 
-        rot_world_to_hand, 
-        pos_world_to_glass_rim_W
-    )
-    ani.save(output_directory + f'{dataset_name}_{trajectory_id}.gif')
+            # Animate
+            ani = generate_pouring_animation(
+                time, 
+                pos_world_to_hand_W, 
+                rot_world_to_hand, 
+                pos_world_to_glass_rim_W
+            )
+            ani.save(output_figure_directory + f'{traj_key}.gif')
+
+            plt.close()
 
 
 if __name__ == '__main__':
     # Script inputs
-    input_trajectory_file = os.path.expanduser(f'~/data/scooping/inference_LinOSS_train_scooping_5678_transformed.hdf5')
-    trajectory_id = 1
-    output_directory = os.path.expanduser('~/data/scooping/figures/')
+    input_trajectory_file = os.path.expanduser(f'~/data/pouring/lru_OOD_3456.hdf5')
+    output_directory = os.path.expanduser('~/data/pouring/figures/lru_OOD_3456/animations/')
     
     # Run script
     animate_pouring_trajectory(
         input_trajectory_file, 
-        trajectory_id,
         output_directory,
     )

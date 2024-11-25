@@ -48,3 +48,9 @@ TABLE_ORIGIN = np.array([-0.5, 0, -0.1]) # this is the table frame
 # 'Scooping region' -- height above plate/pan
 PICKUP_HEIGHT = 0.15
 DROPOFF_HEIGHT = 0.15
+
+# Random sampling for out of distribution cases
+TABLE_BBOX = [[-0.75, -0.5], [-0.25, 0.5]] # min_x, min_y, max_x, max_y
+HAND_Z_OFFSET = 0.125
+XYZ_NOISE_STD_DEV = [0.05, 0.05, 0.05]
+GLASS_Z_OFFSET = 0.158

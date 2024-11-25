@@ -6,6 +6,11 @@ Namely, it calculates:
     - Maximum of volumetric intersection between spoon and table (does it collide with obstacles?)
 These metrics are of course rough approximations and don't necessarily imply the scooping task was completed successfully
 Histograms are generated for these metrics
+Additionally, generates some aggregate figures for scooping trajectories:
+    - Scoop height
+    - Scoop tilt angle
+    - Pickup location
+    - Dropoff location
 """
 import os
 import h5py
@@ -91,7 +96,7 @@ def calculate_volumetric_intersection(
 
 # - Main - # 
 
-def evaluate_scooping_performance(
+def evaluate_scooping(
     input_trajectory_files, 
     output_figure_directory,
 ):
@@ -101,6 +106,13 @@ def evaluate_scooping_performance(
     pan_volumes = []
     plate_volumes = []
     table_volumes = []
+    pickup_squared_errors = []
+    dropoff_squared_errors = []
+
+    z_fig, z_ax = plt.subplots(1,figsize=(9,9))
+    tilt_fig, tilt_ax = plt.subplots(1,figsize=(9,9))
+    loc_fig, loc_ax = plt.subplots(1,2,figsize=(9,9))
+    ref_fig, ref_ax = plt.subplots(1,figsize=(9,9))
 
     for input_trajectory_file in input_trajectory_files:
 
@@ -112,7 +124,7 @@ def evaluate_scooping_performance(
 
                 # Hand trajectory
                 data = traj['data']
-                t = np.array(data['time'])
+                time = np.array(data['time'])
                 pos_world_to_hand_W = np.array(data['pos_world_to_hand_W'])
                 rot_world_to_hand = np.array(data['rot_world_to_hand'])
                 n = pos_world_to_hand_W.shape[0]
@@ -174,49 +186,129 @@ def evaluate_scooping_performance(
                     Tinv = np.linalg.inv(T)
                     spoon_mesh = spoon_mesh.apply_transform(Tinv)
 
-                # Print the maximum volumetric intersections
-                print('Maximum volumetric intersection of spoon and pan (m^3): ', np.max(pan_volumes_i))
-                print('Maximum volumetric intersection of spoon and plate (m^3): ', np.max(plate_volumes_i))
-                print('Spoon intersects with table: ', np.max(table_volumes_i) > 1e-8)
-
                 pan_volumes.append(np.max(pan_volumes_i))
                 plate_volumes.append(np.max(plate_volumes_i))
                 table_volumes.append(int(np.max(table_volumes_i) > 1e-8))
 
-    # Create histograms
+                # Height
+                rot_world_to_spoon = rot_world_to_hand @ ROT_HAND_TO_SPOON
+                pos_hand_to_spoon_W = rot_world_to_spoon @ POS_HAND_TO_SPOON_S
+                pos_world_to_spoon_W = pos_world_to_hand_W + pos_hand_to_spoon_W
+                z_ax.plot(time, pos_world_to_spoon_W[:,2], color='darkblue', alpha=0.5)
+
+                # Tilt
+                z_world_to_spoon = rot_world_to_spoon[:,2]
+                tilt_angle = np.arccos(np.dot(z_world_to_spoon / np.linalg.norm(z_world_to_spoon), np.array([0, 0, 1])))
+                tilt_ax.plot(time, tilt_angle, color='darkblue', alpha=0.5)
+
+                # # Pickup location -- maximum tilt angle closest to pan
+                # hover_idx = np.linalg.norm(pos_world_to_spoon_W[:,:2] - pos_world_to_pan_W[:2], axis=1) \
+                #     < np.linalg.norm(pos_world_to_spoon_W[:,:2] - pos_world_to_plate_W[:2], axis=1)
+                # pos_world_to_pickup_W = pos_world_to_spoon_W[hover_idx][np.argmax(tilt_angle[hover_idx])]
+                # d_pos_world_to_pickup_W = pos_world_to_pickup_W - pos_world_to_pan_W
+                # pickup_squared_errors.append(np.linalg.norm(d_pos_world_to_pickup_W[0:2]) ** 2)
+                # loc_ax[0].scatter(d_pos_world_to_pickup_W[0], d_pos_world_to_pickup_W[1], color='darkblue')
+
+                # # Dropoff location -- maximum tilt angle closest to plate
+                # hover_idx = ~hover_idx # invert pickup indices -> dropoff indices
+                # pos_world_to_dropoff_W = pos_world_to_spoon_W[hover_idx][np.argmax(tilt_angle[hover_idx])]
+                # d_pos_world_to_dropoff_W = pos_world_to_dropoff_W - pos_world_to_plate_W
+                # dropoff_squared_errors.append(np.linalg.norm(d_pos_world_to_dropoff_W[0:2]) ** 2)
+                # loc_ax[1].scatter(d_pos_world_to_dropoff_W[0], d_pos_world_to_dropoff_W[1], color='darkred')
+
+                # Reference locations
+                ref_ax.scatter(*pos_world_to_pan_W[[0,1]], color='darkblue', label='pickup')
+                ref_ax.scatter(*pos_world_to_plate_W[[0,1]], color='darkred', label='dropoff')
+
+    # Create figures
     os.makedirs(output_figure_directory, exist_ok=True)
     
+    # Pickup intersections
     fig, ax = plt.subplots(1)
     ax.hist(np.array(pan_volumes) * 100**3, alpha=0.5, edgecolor='black')
     ax.set_xlabel('Volume of mesh intersection (cm^3)')
     ax.set_ylabel('Count')
     ax.set_title('Volumetric intersection between spoon and pan pickup region')
+    plt.tight_layout()
     fig.savefig(output_figure_directory + 'pan_intersection.png')
 
+    # Dropoff intersections
     fig, ax = plt.subplots(1)
     ax.hist(np.array(plate_volumes) * 100**3, alpha=0.5, edgecolor='black')
     ax.set_xlabel('Volume of mesh intersection (cm^3)')
     ax.set_ylabel('Count')
     ax.set_title('Volumetric intersection between spoon and plate dropoff region')
+    plt.tight_layout()
     fig.savefig(output_figure_directory + 'plate_intersection.png')
 
+    # Collision
     fig, ax = plt.subplots(1)
     ax.hist(np.array(table_volumes), bins=2, alpha=0.5, edgecolor='black')
     ax.set_xlabel('Collision boolean')
     ax.set_ylabel('Count')
     ax.set_title('Collision between spoon and table')
+    plt.tight_layout()
     fig.savefig(output_figure_directory + 'collision.png')
+
+    # Height
+    z_fig.suptitle('Spoon height')
+    z_ax.set_ylabel('Height (m)')
+    z_ax.set_xlabel('Time (s)')
+    plt.tight_layout()
+    z_fig.savefig(output_figure_directory + f'spoon_height.png')
+
+    # Tilt
+    tilt_fig.suptitle('Spoon tilt angle')
+    tilt_ax.set_ylabel('Tilt (rad)')
+    tilt_ax.set_xlabel('Time (s)')
+    plt.tight_layout()
+    tilt_fig.savefig(output_figure_directory + f'spoon_tilt.png')
+
+    # Pickup
+    loc_fig.suptitle('Estimated pickup and dropoff locations')
+    theta = np.linspace(0, 2*np.pi, 50)
+    x = PAN_RADIUS * np.cos(theta)
+    y = PAN_RADIUS * np.sin(theta)
+    pickup_mse = np.mean(pickup_squared_errors)
+    loc_ax[0].plot(x, y, color='darkblue')
+    loc_ax[0].set_ylabel('Y (m)')
+    loc_ax[0].set_xlabel('X (m)')
+    loc_ax[0].set_title(f'Pickup location: MSE = {pickup_mse:05f} (m^2)')
+    loc_ax[0].set_aspect('equal')
+
+    # Dropoff
+    x = PLATE_RADIUS * np.cos(theta)
+    y = PLATE_RADIUS * np.sin(theta)
+    dropoff_mse = np.mean(dropoff_squared_errors)
+    loc_ax[1].plot(x, y, color='darkred')
+    loc_ax[1].set_ylabel('Y (m)')
+    loc_ax[1].set_xlabel('X (m)')
+    loc_ax[1].set_title(f'Dropoff location: MSE = {dropoff_mse:05f} (m^2)')
+    loc_ax[1].set_aspect('equal')
+    plt.tight_layout()
+    loc_fig.savefig(output_figure_directory + f'pickup_dropoff.png')
+
+    # Reference object locations
+    ref_fig.suptitle('Pan and plate locations')
+    ref_ax.set_xlabel('X (m)')
+    ref_ax.set_ylabel('Y (m)')
+    ref_ax.set_aspect('equal')
+    ref_ax.legend()
+    plt.tight_layout()
+    ref_fig.savefig(output_figure_directory + f'reference.png')
+
+    plt.close()
 
 
 if __name__ == '__main__':
     # Script inputs
     input_trajectory_files = [
-        os.path.expanduser(f'~/data/scooping/inference_LinOSS_test_scooping_5678.hdf5'),
+        os.path.expanduser(f'~/data/scooping/scooping_processed.hdf5'),
     ]
-    output_figure_directory = os.path.expanduser(f'~/data/scooping/figures/inference_LinOSS_test_val_scooping_5678/')
+    output_figure_directory = os.path.expanduser(f'~/data/scooping/figures/human/')
 
     # Main
-    evaluate_scooping_performance(
+    evaluate_scooping(
         input_trajectory_files,
         output_figure_directory,
     )

@@ -21,7 +21,7 @@ resting_joint_angles_rad = {
 
 # - Main - #
 
-def play_scooping_trajectory(
+def play_angle_trajectory(
     input_trajectory_directory,
     speed_factor,
 ):
@@ -70,11 +70,11 @@ def play_scooping_trajectory(
 
 if __name__ == '__main__':
     # Script inputs
-    input_trajectory_directory = os.path.expanduser('~/data/scooping/LinOSS_train_scooping_5678_straight_angles/trajectory_001/')
-    speed_factor = 0.66
+    input_trajectory_directory = os.path.expanduser('~/data/pouring/lru_test_3456_raised_angles/trajectory_003/')
+    speed_factor = 0.75
 
     # Main
-    play_scooping_trajectory(
+    play_angle_trajectory(
         input_trajectory_directory,
         speed_factor,
     )

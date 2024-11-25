@@ -1,6 +1,10 @@
 """
 This script processes the (already pre-processed/parsed) '[task_name]_trainingData_S00.h5'-like data 
 
+If multiple HDF5 files are passed as input, it will combine into out output file
+
+Use the 'outliers' input to specify which trajectories in each file to omit
+
 Rotation matrices are added for each trajectory, and quaternions are changed from wijk -> ijkw
 The output HDF5 is reformatted to into separate groups for each trajectory
 
@@ -20,19 +24,48 @@ from constants import *
 # - Main - #
 
 def process_trajectory(
-    input_trajectory_file, 
+    input_trajectory_files, 
     output_trajectory_file, 
+    outliers=[],
     dataset_name='',
 ):
-    # Read raw HDF5 and pull relevant trajectory fields
-    with h5py.File(input_trajectory_file, 'r') as f_in:
-        time = np.array(f_in['time_s'])
-        hand_position_m = np.array(f_in['hand_position_m'])
-        hand_quaternion_wijk = np.array(f_in['hand_quaternion_wijk'])
-        reference_object_position_m = np.array(f_in['referenceObject_position_m'])
-        n = hand_position_m.shape[0] # num trials
+    if outliers:
+        assert len(input_trajectory_files) == len(outliers)
 
-     # Output HDF5
+    # Load all trajectories
+    time = []
+    hand_position_m = []
+    hand_quaternion_wijk = []
+    reference_object_position_m = []
+
+    for i, input_trajectory_file in enumerate(input_trajectory_files):
+        
+        # Read raw HDF5 and pull relevant trajectory fields
+        with h5py.File(input_trajectory_file, 'r') as f_in:
+            
+            # Splice out outliers
+            if outliers:
+                mask = np.ones(len(np.array(f_in['time_s'])), dtype=bool)
+                mask[outliers[i]] = False
+                time.append(np.array(f_in['time_s'])[mask])
+                hand_position_m.append(np.array(f_in['hand_position_m'])[mask])
+                hand_quaternion_wijk.append(np.array(f_in['hand_quaternion_wijk'])[mask])
+                reference_object_position_m.append(np.array(f_in['referenceObject_position_m'])[mask])
+            else:
+                time.append(np.array(f_in['time_s']))
+                hand_position_m.append(np.array(f_in['hand_position_m']))
+                hand_quaternion_wijk.append(np.array(f_in['hand_quaternion_wijk']))
+                reference_object_position_m.append(np.array(f_in['referenceObject_position_m']))
+
+    # Stack values into one block
+    # (n,m,j) = (# of trajectories, # of timesteps, # of dimensions)
+    time = np.concatenate(time, axis=0)
+    hand_position_m = np.concatenate(hand_position_m, axis=0)
+    hand_quaternion_wijk = np.concatenate(hand_quaternion_wijk, axis=0)
+    reference_object_position_m = np.concatenate(reference_object_position_m, axis=0)
+    n = hand_position_m.shape[0] # num trials
+
+    # Output HDF5
     with h5py.File(output_trajectory_file, 'w') as f_out:
 
         # Process each trajectory
@@ -42,12 +75,7 @@ def process_trajectory(
             
             t = time[i].squeeze()
             pos_world_to_hand_W = hand_position_m[i]
-            quat_world_to_hand_ijkw = np.vstack([
-                hand_quaternion_wijk[i][:,1],
-                hand_quaternion_wijk[i][:,2],
-                hand_quaternion_wijk[i][:,3],
-                hand_quaternion_wijk[i][:,0],
-            ]).T
+            quat_world_to_hand_ijkw = np.roll(hand_quaternion_wijk[i], shift=-1, axis=1)
             rot_world_to_hand = np.array([tf.Rotation.from_quat(quat).as_matrix() for quat in quat_world_to_hand_ijkw])
             pos_world_to_reference_W = reference_object_position_m[i].flatten()
 
@@ -90,13 +118,32 @@ def process_trajectory(
 
 if __name__ == '__main__':
     # Script inputs
-    input_trajectory_file = os.path.expanduser(f'~/data/pouring/pouring_trainingData_S11.hdf5')
-    output_trajectory_file= os.path.expanduser(f'~/data/pouring/pouring_processed_S11.hdf5')
-    dataset_name = 'pouring_S11_human'
+
+    # Scooping
+    input_trajectory_files = [
+        os.path.expanduser(f'~/data/scooping/scooping_trainingData_S00.hdf5'),
+        os.path.expanduser(f'~/data/scooping/scooping_trainingData_S11.hdf5'),
+    ]
+    output_trajectory_file= os.path.expanduser(f'~/data/scooping/scooping_processed.hdf5')
+    outliers = [ # Which indices to ignore in respective trajectory files
+        [],
+        [0,1,2,3,6,7,8,9,15,17,18,19,28,29,32,34,35,45,48,49,51,52], # Manually determined by looking at animations
+    ]
+    dataset_name = 'scooping_human'
+
+    # # Pouring
+    # input_trajectory_files = [
+    #     os.path.expanduser(f'~/data/pouring/pouring_trainingData_S00.hdf5'),
+    #     os.path.expanduser(f'~/data/pouring/pouring_trainingData_S11.hdf5'),
+    # ]
+    # output_trajectory_file= os.path.expanduser(f'~/data/pouring/pouring_processed.hdf5')
+    # outliers = []
+    # dataset_name = 'pouring_human'
 
     # Run script
     process_trajectory(
-        input_trajectory_file,
+        input_trajectory_files,
         output_trajectory_file,
+        outliers=outliers,
         dataset_name=dataset_name,
     )

@@ -13,6 +13,7 @@ import constants
 def rotate_trajectory(
     input_trajectory_file,
     output_trajectory_file,
+    pos_hand_to_hand_transformed_W,
     rot_hand_to_hand_transformed,
 ):
     with h5py.File(input_trajectory_file, 'r') as in_file, \
@@ -33,29 +34,38 @@ def rotate_trajectory(
             out_data_group = out_traj_group.create_group('data')
             out_data_group.attrs['description'] = in_traj_group['data'].attrs['description'] + ', transformed'
             out_data_group.copy(in_traj_group['data']['time'], 'time')
-            out_data_group.copy(in_traj_group['data']['pos_world_to_hand_W'], 'pos_world_to_hand_W')
 
-            # Transform hand rotation
+            # Rotate hand
             rot_world_to_hand = np.array(in_traj_group['data']['rot_world_to_hand'])
             rot_world_to_hand_transformed = rot_world_to_hand @ rot_hand_to_hand_transformed
             out_data_group.create_dataset('rot_world_to_hand', data=rot_world_to_hand_transformed)
 
+            # Shift hand
+            pos_world_to_hand_W = np.array(in_traj_group['data']['pos_world_to_hand_W'])
+            pos_world_to_hand_transformed_W = pos_world_to_hand_W + pos_hand_to_hand_transformed_W
+            out_data_group.create_dataset('pos_world_to_hand_W', data=pos_world_to_hand_transformed_W)
+
 
 if __name__ == '__main__':
     # Script inputs
-    input_trajectory_file = os.path.expanduser('~/data/scooping/inference_LinOSS_train_scooping_5678.hdf5')
-    output_trajectory_file = os.path.expanduser('~/data/scooping/inference_LinOSS_train_scooping_5678_straight.hdf5')
+    input_trajectory_file = os.path.expanduser('~/data/pouring/LinOSS_IMEX_test_3456.hdf5')
+    output_trajectory_file = os.path.expanduser('~/data/pouring/controller/LinOSS_IMEX_test_3456_raised.hdf5')
     
     # Side spoon
     # rot_spoon_to_baxter_spoon = ROT_HAND_TO_SPOON.T @ ROT_HAND_TO_SIDE_SPOON
     # rot_hand_to_hand_transformed = rot_spoon_to_baxter_spoon.T
 
-    # Straight spoon
-    rot_hand_to_hand_transformed = constants.ROT_HAND_TO_SPOON @ constants._rot_hand_to_prespoon.T
+    # # Straight spoon
+    # rot_hand_to_hand_transformed = constants.ROT_HAND_TO_SPOON @ constants._rot_hand_to_prespoon.T
+
+    # Pouring offset
+    pos_hand_to_hand_transformed_W = np.array([0, 0, 0.15])
+    rot_hand_to_hand_transformed = np.eye(3)
 
     # Main
     rotate_trajectory(
         input_trajectory_file,
         output_trajectory_file,
+        pos_hand_to_hand_transformed_W,
         rot_hand_to_hand_transformed,
     )

@@ -78,8 +78,8 @@ def convert_xsens_to_controller(
 
 if __name__ == '__main__':
     # Script inputs
-    input_trajectory_file = os.path.expanduser('~/data/scooping/inference_LinOSS_train_scooping_5678_side.hdf5')
-    output_directory = os.path.expanduser('~/data/scooping/controller/inference_LinOSS_train_scooping_5678_side/')
+    input_trajectory_file = os.path.expanduser('~/data/pouring/controller/lru_test_3456_raised.hdf5')
+    output_directory = os.path.expanduser('~/data/pouring/controller/input/lru_test_3456_raised/')
 
     # Main
     convert_xsens_to_controller(

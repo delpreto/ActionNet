@@ -11,6 +11,11 @@ default_matplotlib_backend = matplotlib.rcParams['backend']
 matplotlib.rcParams['figure.max_open_warning'] = 35 # default 20
 import matplotlib.pyplot as plt
 
+# Add folders to path
+# sys.path.append(os.path.dirname(__file__))
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.append(os.path.join(os.path.dirname(__file__), '../../recording_data'))
+
 from helpers.parse_process_feature_data import *
 from helpers.plot_animations import *
 from helpers.plot_metrics_timeseries import *

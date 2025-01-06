@@ -220,16 +220,16 @@ def transform_bodyPath_data_personFrame(time_s_byTrial, bodyPath_data_byTrial, a
       starting_positions_m.setdefault(body_segment, [])
       starting_positions_m[body_segment].append(bodyPath_data_byTrial[trial_index]['position_m'][body_segment][0,:])
     
-  print('      Right hand starting positions after correcting for a z offset of %0.3f cm and rotating for the hip axis:' % (100*z_offset_m))
-  print('        medn', 100*np.median(starting_positions_m['RightHand'], axis=0))
-  print('        std ', 100*np.std(starting_positions_m['RightHand'], axis=0))
-  print('        min ', 100*np.min(starting_positions_m['RightHand'], axis=0))
-  print('        max ', 100*np.max(starting_positions_m['RightHand'], axis=0))
-  print('      Left hand starting positions after correcting for a z offset of %0.3f cm and rotating for the hip axis:' % (100*z_offset_m))
-  print('        medn', 100*np.median(starting_positions_m['LeftHand'], axis=0))
-  print('        std ', 100*np.std(starting_positions_m['LeftHand'], axis=0))
-  print('        min ', 100*np.min(starting_positions_m['LeftHand'], axis=0))
-  print('        max ', 100*np.max(starting_positions_m['LeftHand'], axis=0))
+  print('      %s hand starting positions after correcting for a z offset of %0.3f cm and rotating for the hip axis:' % (motionObject_rightOrLeftArm[activity_to_process], 100*z_offset_m))
+  print('        medn', 100*np.median(starting_positions_m['%sHand' % motionObject_rightOrLeftArm[activity_to_process]], axis=0))
+  print('        std ', 100*np.std(starting_positions_m['%sHand' % motionObject_rightOrLeftArm[activity_to_process]], axis=0))
+  print('        min ', 100*np.min(starting_positions_m['%sHand' % motionObject_rightOrLeftArm[activity_to_process]], axis=0))
+  print('        max ', 100*np.max(starting_positions_m['%sHand' % motionObject_rightOrLeftArm[activity_to_process]], axis=0))
+  print('      %s hand starting positions after correcting for a z offset of %0.3f cm and rotating for the hip axis:' % (motionObject_rightOrLeftArm[activity_to_process], 100*z_offset_m))
+  print('        medn', 100*np.median(starting_positions_m['%sHand' % motionObject_rightOrLeftArm[activity_to_process]], axis=0))
+  print('        std ', 100*np.std(starting_positions_m['%sHand' % motionObject_rightOrLeftArm[activity_to_process]], axis=0))
+  print('        min ', 100*np.min(starting_positions_m['%sHand' % motionObject_rightOrLeftArm[activity_to_process]], axis=0))
+  print('        max ', 100*np.max(starting_positions_m['%sHand' % motionObject_rightOrLeftArm[activity_to_process]], axis=0))
   
   # Return the transformed body path data.
   if return_single_trial:

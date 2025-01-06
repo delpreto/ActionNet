@@ -135,7 +135,10 @@ class XsensStreamer(SensorStreamer):
             self._xsens_is_streaming[self._xsens_msg_types['center_of_mass']] = True
           if 'xsens-joints' in hdf5_file:
             self._xsens_is_streaming[self._xsens_msg_types['joint_angle']] = True
-            self._num_joints = hdf5_file['xsens-joints']['child']['data'].shape[1]
+            if 'child' in hdf5_file['xsens-joints']:
+              self._num_joints = hdf5_file['xsens-joints']['child']['data'].shape[1]
+            else:
+              self._num_joints = hdf5_file['xsens-joints']['body_joint_angles_eulerXZY_xyz_rad']['data'].shape[1]
           if 'xsens-time' in hdf5_file:
             self._xsens_is_streaming[self._xsens_msg_types['time_code_str']] = True
           if 'xsens-segments' in hdf5_file:
@@ -146,6 +149,9 @@ class XsensStreamer(SensorStreamer):
             if 'orientation_quaternion' in hdf5_file['xsens-segments']:
               self._xsens_is_streaming[self._xsens_msg_types['pose_quaternion']] = True
               num_segments = hdf5_file['xsens-segments']['orientation_quaternion']['data'].shape[1]
+              self._num_fingers = num_segments - self._num_segments
+            if 'body_acceleration_xyz_m_ss' in hdf5_file['xsens-segments']:
+              num_segments = hdf5_file['xsens-segments']['body_acceleration_xyz_m_ss']['data'].shape[1]
               self._num_fingers = num_segments - self._num_segments
           hdf5_file.close()
       if self._print_debug:
@@ -659,6 +665,11 @@ class XsensStreamer(SensorStreamer):
     options['xsens-segments'] = {}
     options['xsens-segments']['position_cm'] = {
       'class': XsensSkeletonVisualizer,
+      'position_units': 'cm',
+    }
+    options['xsens-segments']['body_position_xyz_m'] = {
+      'class': XsensSkeletonVisualizer,
+      'position_units': 'm',
     }
 
     # Don't visualize the other devices/streams.

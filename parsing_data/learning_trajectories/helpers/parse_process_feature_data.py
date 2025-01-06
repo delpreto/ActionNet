@@ -131,23 +131,26 @@ def parse_feature_data(feature_data):
     }
 
 def bodyPath_data_to_parsed_feature_data(bodyPath_data, time_s=None,
+                                         right_or_left_arm=None,
                                          referenceObject_position_m=None,
                                          hand_to_motionObject_angles_rad=None):
+  right_or_left_arm = motionObject_rightOrLeftArm[activity_to_process] if right_or_left_arm is None else right_or_left_arm
+  right_or_left_arm = right_or_left_arm.title()
   feature_data = {
     'position_m' : {
-      'hand': bodyPath_data['position_m']['RightHand'],
-      'elbow': bodyPath_data['position_m']['RightForeArm'],
-      'shoulder': bodyPath_data['position_m']['RightUpperArm'],
+      'hand': bodyPath_data['position_m']['%sHand' % right_or_left_arm],
+      'elbow': bodyPath_data['position_m']['%sForeArm' % right_or_left_arm],
+      'shoulder': bodyPath_data['position_m']['%sUpperArm' % right_or_left_arm],
     },
     'quaternion_wijk': {
-      'hand': bodyPath_data['quaternion_wijk']['RightHand'],
-      'elbow': bodyPath_data['quaternion_wijk']['RightForeArm'],
-      'shoulder': bodyPath_data['quaternion_wijk']['RightUpperArm'],
+      'hand': bodyPath_data['quaternion_wijk']['%sHand' % right_or_left_arm],
+      'elbow': bodyPath_data['quaternion_wijk']['%sForeArm' % right_or_left_arm],
+      'shoulder': bodyPath_data['quaternion_wijk']['%sUpperArm' % right_or_left_arm],
     },
     'joint_angle_rad': {
-      'hand': bodyPath_data['joint_angle_eulerZXY_xyz_rad']['RightWrist'],
-      'elbow': bodyPath_data['joint_angle_eulerZXY_xyz_rad']['RightElbow'],
-      'shoulder': bodyPath_data['joint_angle_eulerXZY_xyz_rad']['RightShoulder'],
+      'hand': bodyPath_data['joint_angle_eulerZXY_xyz_rad']['%sWrist' % right_or_left_arm],
+      'elbow': bodyPath_data['joint_angle_eulerZXY_xyz_rad']['%sElbow' % right_or_left_arm],
+      'shoulder': bodyPath_data['joint_angle_eulerXZY_xyz_rad']['%sShoulder' % right_or_left_arm],
     }
   }
   if time_s is not None:

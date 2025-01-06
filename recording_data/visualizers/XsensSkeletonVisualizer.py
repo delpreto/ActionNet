@@ -70,7 +70,11 @@ class XsensSkeletonVisualizer(Visualizer):
       self._layout_size = parent_layout_size
       self._plot = None
       self._figure_size = None
-
+    
+    self._position_units = 'cm'
+    if 'position_units' in self._visualizer_options:
+      self._position_units = self._visualizer_options['position_units']
+    
     # Map segment indexes to labels.
     # See page 137 of MVN_User_Manual and page 18 of MVN_real-time_network_streaming_protocol_specification
     self._segment_labels = [
@@ -114,7 +118,7 @@ class XsensSkeletonVisualizer(Visualizer):
       for chain_label in chain_labels:
         segment_indexes.append(self._segment_labels.index(chain_label))
       self._segment_chains_indexes_toPlot[chain_name] = segment_indexes
-
+    
     # If using hidden mode, change matplotlib's backend.
     if self._hidden and use_matplotlib:
       matplotlib.use("Agg")
@@ -254,9 +258,11 @@ class XsensSkeletonVisualizer(Visualizer):
   # @param new_data is a dict with 'data' (all other entries will be ignored).
   #   It should contain all segment positions as a matrix (each row is xyz).
   def update(self, new_data, visualizing_all_data):
-
+    
     # Extract the latest segment positions.
     segment_positions_cm = np.array(new_data['data'][-1])
+    if self._position_units == 'm':
+      segment_positions_cm = 100*segment_positions_cm
     
     if use_matplotlib:
       plot_x_bounds = np.array([1000, -1000])

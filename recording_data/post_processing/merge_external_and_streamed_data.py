@@ -25,22 +25,27 @@
 ############
 
 from sensor_streamer_handlers.DataLogger import DataLogger
-import os
 import traceback
+import os
 
 # Define the log directory, which should contain:
 #  the HDF5 file from streaming data;
 #  any videos saved from streaming data;
 #  a folder named 'externally_recorded_data' with external recordings.
 script_dir = os.path.dirname(os.path.realpath(__file__))
-log_dir_root = os.path.realpath(os.path.join(script_dir, '..', '..', 'data',
-          # 'experiments', '2023-08-18_experiment_S10', # contains a few log directories (see iteration depth setting below)
-          # 'experiments', '2023-09-10_experiment_S00', # contains a few log directories (see iteration depth setting below)
-          # 'experiments', '2023-09-10_experiment_S11', # contains a few log directories (see iteration depth setting below)
-          # 'experiments', 'for_xsens', # contains a few log directories (see iteration depth setting below)
-          'experiments', '2024-03-04_experiment_S00_selectedRun', # contains a few log directories (see iteration depth setting below)
-          ))
-iterate_log_subdirs_depth = 1 # 0 if log_dir_root is a log folder directly (e.g. contains an HDF5 file), then add 1 for each level up
+actionsense_root_dir = script_dir
+while os.path.split(actionsense_root_dir)[-1] != 'ActionSense':
+  actionsense_root_dir = os.path.realpath(os.path.join(actionsense_root_dir, '..'))
+# log_dir_root = os.path.realpath(os.path.join(script_dir, '..', '..', 'data',
+#           # 'experiments', '2023-08-18_experiment_S10', # contains a few log directories (see iteration depth setting below)
+#           # 'experiments', '2023-09-10_experiment_S00', # contains a few log directories (see iteration depth setting below)
+#           # 'experiments', '2023-09-10_experiment_S11', # contains a few log directories (see iteration depth setting below)
+#           # 'experiments', 'for_xsens', # contains a few log directories (see iteration depth setting below)
+#           # 'experiments', '2024-03-04_experiment_S00_selectedRun', # contains a few log directories (see iteration depth setting below)
+#           ))
+log_dir_root = os.path.realpath(os.path.join(actionsense_root_dir, 'data',
+                                             'experiments', 'for_merging'))
+iterate_log_subdirs_depth = 2 # 0 if log_dir_root is a log folder directly (e.g. contains an HDF5 file), then add 1 for each level up
 
 # Merge the data!
 # Process all subdirectories in the provided log directory,

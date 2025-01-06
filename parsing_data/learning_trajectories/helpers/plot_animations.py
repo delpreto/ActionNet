@@ -108,6 +108,7 @@ def plot_motionObject_box(ax, hand_quaternion_localToGlobal_wijk, hand_center_cm
 # Plot the scene for a single timestep.
 def plot_timestep(time_s, time_index, activity_type,
                   feature_data=None, bodyPath_data=None,  # supply one of these
+                  right_or_left_arm=None, # 'Right' or 'Left'
                   referenceObject_position_m=None,  # if using bodyPath_data or not in feature_data
                   subject_id=-1, num_total_subjects=1, subplot_index=0,
                   trial_index=-1, trial_start_index_offset_forTitle=0,
@@ -129,9 +130,11 @@ def plot_timestep(time_s, time_index, activity_type,
     feature_data = {'position_m': {}, 'quaternion_wijk': {}}
     include_pelvis = True
     for data_type in feature_data.keys():
-      feature_data[data_type]['hand'] = bodyPath_data[data_type]['RightHand']
-      feature_data[data_type]['elbow'] = bodyPath_data[data_type]['RightForeArm']
-      feature_data[data_type]['shoulder'] = bodyPath_data[data_type]['RightUpperArm']
+      right_or_left_arm = motionObject_rightOrLeftArm[activity_to_process] if right_or_left_arm is None else right_or_left_arm
+      right_or_left_arm = right_or_left_arm.title()
+      feature_data[data_type]['hand'] = bodyPath_data[data_type]['%sHand' % right_or_left_arm]
+      feature_data[data_type]['elbow'] = bodyPath_data[data_type]['%sForeArm' % right_or_left_arm]
+      feature_data[data_type]['shoulder'] = bodyPath_data[data_type]['%sUpperArm' % right_or_left_arm]
       feature_data[data_type]['pelvis'] = bodyPath_data[data_type]['Pelvis']
   
   # Infer the stationary position.
@@ -189,7 +192,7 @@ def plot_timestep(time_s, time_index, activity_type,
       animation_view_angle_toUse = animation_view_angle
     ax.view_init(*animation_view_angle_toUse)
     
-    # Plot trajectories of the right arm and pelvis.
+    # Plot trajectories of the arm and pelvis.
     hand_position_cm = 100*feature_data['position_m']['hand']
     h_hand_path = ax.plot3D(hand_position_cm[:, 0], hand_position_cm[:, 1], hand_position_cm[:, 2], alpha=1)
     if include_skeleton:
@@ -346,6 +349,7 @@ def plot_timestep(time_s, time_index, activity_type,
 # Supply a feature_matrix and duration_s OR a bodyPath_data and time_s
 def animate_trajectory(activity_type, feature_data=None, duration_s=None,
                        bodyPath_data=None, time_s=None,
+                       right_or_left_arm=None,
                        referenceObject_position_m=None,
                        subject_id=-1, num_total_subjects=1, subplot_index=0,
                        trial_index=-1, trial_start_index_offset_forTitle=0,
@@ -362,6 +366,7 @@ def animate_trajectory(activity_type, feature_data=None, duration_s=None,
     previous_handles = plot_timestep(
       time_s, time_index, activity_type,
       feature_data=feature_data, bodyPath_data=bodyPath_data,
+      right_or_left_arm=right_or_left_arm,
       referenceObject_position_m=referenceObject_position_m,
       subject_id=subject_id, num_total_subjects=num_total_subjects, subplot_index=subplot_index,
       trial_index=trial_index, trial_start_index_offset_forTitle=trial_start_index_offset_forTitle,

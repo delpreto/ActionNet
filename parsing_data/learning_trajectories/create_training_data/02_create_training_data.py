@@ -42,19 +42,13 @@ from learning_trajectories.helpers.plot_animations import *
 # Configuration
 ###################################################################
 
-# Choose the activity to process.
-# activity_type = 'pouring'
-activity_type = 'scooping'
-
-# Specify the subjects to consider.
-subject_ids_toProcess = ['S00', 'S10', 'S11'] # S00, S10, S11, ted_S00
-
 # Specify the input files of trajectory data,
 # and the output file for feature matrices and labels.
-results_dir = os.path.realpath(os.path.join(actionsense_root_dir, 'results', 'learning_trajectories', 'humans_temp'))
-trajectory_data_filepaths_humans = [os.path.join(results_dir, '%s_paths_humans_%s.hdf5' % (activity_type, subject_id_toProcess)) for subject_id_toProcess in subject_ids_toProcess]
-trajectory_data_filepaths_robots = [os.path.join(results_dir, '%s_paths_robots_%s.hdf5' % (activity_type, subject_id_toProcess)) for subject_id_toProcess in subject_ids_toProcess]
-training_data_filepaths = [os.path.join(results_dir, '%s_trainingData_%s.hdf5' % (activity_type, subject_id_toProcess)) for subject_id_toProcess in subject_ids_toProcess]
+results_dir = os.path.realpath(os.path.join(actionsense_root_dir, 'results',
+                                            'learning_trajectories', 'humans'))
+trajectory_data_filepaths_humans = [os.path.join(results_dir, '%s_paths_humans_%s.hdf5' % (activity_to_process, subject_id_toProcess)) for subject_id_toProcess in subject_ids_toProcess]
+# trajectory_data_filepaths_robots = [os.path.join(results_dir, '%s_paths_robots_%s.hdf5' % (activity_to_process, subject_id_toProcess)) for subject_id_toProcess in subject_ids_toProcess]
+training_data_filepaths = [os.path.join(results_dir, '%s_trainingData_%s.hdf5' % (activity_to_process, subject_id_toProcess)) for subject_id_toProcess in subject_ids_toProcess]
 
 # Specify outputs.
 include_robot_examples = False
@@ -91,7 +85,9 @@ for subject_index in range(len(subject_ids_toProcess)):
   print('See the following list of body segments (in the human data).')
   print('The starred segments should be used as the hand/elbow/shoulder chain.')
   for (body_segment_index, body_segment_name) in enumerate(body_segment_names_humans):
-    if body_segment_name in ['RightUpperArm', 'RightForeArm', 'RightHand']:
+    if body_segment_name in ['%sUpperArm' % motionObject_rightOrLeftArm[activity_to_process],
+                             '%sForeArm' % motionObject_rightOrLeftArm[activity_to_process],
+                             '%sHand' % motionObject_rightOrLeftArm[activity_to_process]]:
       print('*', end='')
     else:
       print(' ', end='')
@@ -100,16 +96,16 @@ for subject_index in range(len(subject_ids_toProcess)):
   for (body_joint_index, body_joint_name) in enumerate(body_joint_names_humans):
     print(' %02d: %s' % (body_joint_index, body_joint_name))
   # Highlight segment indexes useful for the activity trajectories, which will be extracted as features:
-  hand_segment_index_humans = body_segment_names_humans.index('RightHand')
-  elbow_segment_index_humans = body_segment_names_humans.index('RightForeArm')
-  shoulder_segment_index_humans = body_segment_names_humans.index('RightUpperArm')
-  wrist_joint_index_humans = body_joint_names_humans.index('RightWrist')
-  elbow_joint_index_humans = body_joint_names_humans.index('RightElbow')
-  shoulder_joint_index_humans = body_joint_names_humans.index('RightShoulder')
+  hand_segment_index_humans = body_segment_names_humans.index('%sHand' % motionObject_rightOrLeftArm[activity_to_process])
+  elbow_segment_index_humans = body_segment_names_humans.index('%sForeArm' % motionObject_rightOrLeftArm[activity_to_process])
+  shoulder_segment_index_humans = body_segment_names_humans.index('%sUpperArm' % motionObject_rightOrLeftArm[activity_to_process])
+  wrist_joint_index_humans = body_joint_names_humans.index('%sWrist' % motionObject_rightOrLeftArm[activity_to_process])
+  elbow_joint_index_humans = body_joint_names_humans.index('%sElbow' % motionObject_rightOrLeftArm[activity_to_process])
+  shoulder_joint_index_humans = body_joint_names_humans.index('%sShoulder' % motionObject_rightOrLeftArm[activity_to_process])
   if include_robot_examples:
-    hand_segment_index_robots = body_segment_names_robots.index('RightHand')
-    elbow_segment_index_robots = body_segment_names_robots.index('RightForeArm')
-    shoulder_segment_index_robots = body_segment_names_robots.index('RightUpperArm')
+    hand_segment_index_robots = body_segment_names_robots.index('%sHand' % motionObject_rightOrLeftArm[activity_to_process])
+    elbow_segment_index_robots = body_segment_names_robots.index('%sForeArm' % motionObject_rightOrLeftArm[activity_to_process])
+    shoulder_segment_index_robots = body_segment_names_robots.index('%sUpperArm' % motionObject_rightOrLeftArm[activity_to_process])
   
   # Create feature matrices for each trial, labeled as human or robot.
   # The current matrices will concatenate shoulder, elbow, and hand positions and hand orientation.

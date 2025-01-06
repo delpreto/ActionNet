@@ -22,14 +22,17 @@ from helpers.plot_metrics_distributions import *
 
 if len(sys.argv) == 1:
   # activity_type = 'pouring'
-  activity_type = 'scooping'
+  # activity_type = 'scooping'
+  # activity_type = 'scoopingPowder'
+  activity_type = 'stirring'
+  
   actionsense_root_dir = script_dir
   while os.path.split(actionsense_root_dir)[-1] != 'ActionSense':
     actionsense_root_dir = os.path.realpath(os.path.join(actionsense_root_dir, '..'))
     
   # Specify the directory with HDF5 files.
   data_dir = os.path.realpath(os.path.join(actionsense_root_dir, 'results', 'learning_trajectories'))
-  data_dir_humans = os.path.realpath(os.path.join(data_dir, 'humans_temp'))
+  data_dir_humans = os.path.realpath(os.path.join(data_dir, 'humans'))
   data_dir_model = None
   # data_dir_model = os.path.join(data_dir, 'models', 'state-space',
   #                               # '2024-09-10_17-10'
@@ -42,9 +45,11 @@ if len(sys.argv) == 1:
   # For example, may have entries for each subject
   #  and may have an entries for model outputs.
   feature_data_filepaths_byType = {
-    'S00': os.path.join(data_dir_humans, '%s_trainingData_S00.hdf5' % activity_type),
-    'S10': os.path.join(data_dir_humans, '%s_trainingData_S10.hdf5' % activity_type),
-    'S11': os.path.join(data_dir_humans, '%s_trainingData_S11.hdf5' % activity_type),
+    # 'S00': os.path.join(data_dir_humans, '%s_trainingData_S00.hdf5' % activity_type),
+    # 'S10': os.path.join(data_dir_humans, '%s_trainingData_S10.hdf5' % activity_type),
+    # 'S11': os.path.join(data_dir_humans, '%s_trainingData_S11.hdf5' % activity_type),
+    'S14': os.path.join(data_dir_humans, '%s_trainingData_S14.hdf5' % activity_type),
+    'S15': os.path.join(data_dir_humans, '%s_trainingData_S15.hdf5' % activity_type),
     # 'Model': os.path.join(data_dir_model, 'pouring_modelData.hdf5'),
   }
   # Specify where outputs should be saved.

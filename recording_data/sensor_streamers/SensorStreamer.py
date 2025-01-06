@@ -495,12 +495,15 @@ class SensorStreamer(ABC):
         device_group = hdf5_file[device_name]
         self._hdf5_stream_groups[device_name] = {}
         for (stream_name, stream_group) in device_group.items():
-          data = stream_group['data']
-          time_s = stream_group['time_s']
+          try:
+            data = stream_group['data']
+            time_s = stream_group['time_s']
+          except:
+            continue
           # Extract information about the data so it can be recreated.
           data_type = str(data.dtype)
           if data_type.find('|S') == 0:
-             data_type = data_type[1:]
+            data_type = data_type[1:]
           if data.shape[0] > 0:
             sample_size = data[0].shape
           else:
@@ -532,7 +535,7 @@ class SensorStreamer(ABC):
           timesteps_before_solidified = 0 # timestamps have already been adjusted
           # Extract information about any extra keys streamed with the data.
           extra_data_keys = [key for key in stream_group.keys()
-                              if key not in ['data', 'time_s', 'time_str']]
+                             if key not in ['data', 'time_s', 'time_str']]
           if len(extra_data_keys) > 0:
             extra_data_info = {}
             for extra_data_key in extra_data_keys:
@@ -544,9 +547,9 @@ class SensorStreamer(ABC):
               else:
                 extra_sample_size = [1]
               extra_data_info[extra_data_key] = {
-                                    'data_type': extra_data_type,
-                                    'sample_size': extra_sample_size
-                                    }
+                'data_type': extra_data_type,
+                'sample_size': extra_sample_size
+              }
           else:
             extra_data_info = None
           # Add the stream!
@@ -578,7 +581,6 @@ class SensorStreamer(ABC):
               self._hdf5_stream_groups[device_name][stream_name][data_key] = dataset[:]
           else:
             self._hdf5_stream_groups[device_name][stream_name] = stream_group
-
     # Find video files in the provided folder as well.
     # These will be determined by the subclasses directly.
     videos_info = self.get_videos_info_from_log_dir()

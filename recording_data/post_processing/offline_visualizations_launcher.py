@@ -26,21 +26,30 @@
 
 import subprocess
 import os
+
+# data_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'data'))
+# experiments_dir = os.path.join(data_dir, 'experiments')
+
 script_dir = os.path.dirname(os.path.realpath(__file__))
-
-
-data_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'data'))
+actionsense_root_dir = script_dir
+while os.path.split(actionsense_root_dir)[-1] != 'ActionSense':
+  actionsense_root_dir = os.path.realpath(os.path.join(actionsense_root_dir, '..'))
+data_dir = os.path.realpath(os.path.join(actionsense_root_dir, 'data'))
 experiments_dir = os.path.join(data_dir, 'experiments')
 
 log_dirs = [
   # os.path.join(experiments_dir, '2023-08-18_experiment_S10', '2023-08-18_19-49-19_actionNet-wearables_S10'),
   # os.path.join(experiments_dir, '2023-08-18_experiment_S10', '2023-08-18_20-50-18_actionNet-wearables_S10'),
-  os.path.join(experiments_dir, '2023-10-13_experiment_S07', '2023-10-13_15-35-30_actionNet-wearables_S07'),
-  os.path.join(experiments_dir, '2023-10-13_experiment_S12', '2023-10-13_16-54-46_actionNet-wearables_S12'),
-  os.path.join(experiments_dir, '2023-10-13_experiment_S12', '2023-10-13_17-17-32_actionNet-wearables_S12'),
-  os.path.join(experiments_dir, '2023-10-13_experiment_S13', '2023-10-13_18-01-27_actionNet-wearables_S13'),
-  os.path.join(experiments_dir, '2023-10-13_experiment_S13', '2023-10-13_18-15-33_actionNet-wearables_S13'),
-  os.path.join(experiments_dir, '2023-10-13_experiment_S13', '2023-10-13_18-41-49_actionNet-wearables_S13'),
+  # os.path.join(experiments_dir, '2023-10-13_experiment_S07', '2023-10-13_15-35-30_actionNet-wearables_S07'),
+  # os.path.join(experiments_dir, '2023-10-13_experiment_S12', '2023-10-13_16-54-46_actionNet-wearables_S12'),
+  # os.path.join(experiments_dir, '2023-10-13_experiment_S12', '2023-10-13_17-17-32_actionNet-wearables_S12'),
+  # os.path.join(experiments_dir, '2023-10-13_experiment_S13', '2023-10-13_18-01-27_actionNet-wearables_S13'),
+  # os.path.join(experiments_dir, '2023-10-13_experiment_S13', '2023-10-13_18-15-33_actionNet-wearables_S13'),
+  # os.path.join(experiments_dir, '2023-10-13_experiment_S13', '2023-10-13_18-41-49_actionNet-wearables_S13'),
+  os.path.join(experiments_dir, '2024-12-20_experiment_S14', '2024-12-20_15-48-10_actionSense_S14_stir'),
+  os.path.join(experiments_dir, '2024-12-20_experiment_S14', '2024-12-20_16-27-23_actionSense_S14_scoop'),
+  os.path.join(experiments_dir, '2024-12-20_experiment_S15', '2024-12-20_17-46-00_actionSense_S15_scoop'),
+  os.path.join(experiments_dir, '2024-12-20_experiment_S15', '2024-12-20_18-11-12_actionSense_S15_stir'),
   ]
 
 for log_dir in log_dirs:

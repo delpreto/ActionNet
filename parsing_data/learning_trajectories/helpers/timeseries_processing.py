@@ -142,8 +142,8 @@ def infer_stationary_poses(time_s_byTrial, bodyPath_data_byTrial, use_variance, 
       stationary_position_time_s = time_s[0] + (time_s[-1] - time_s[0])*stationary_position_hardcoded_time_fraction
       stationary_position_index = time_s.searchsorted(stationary_position_time_s)
       buffer_length = Fs_hz * stationary_position_buffer_duration_s
-      buffer_start_index = round(stationary_position_index - buffer_length/2)
-      buffer_end_index = round(stationary_position_index + buffer_length/2)
+      buffer_start_index = max([0, round(stationary_position_index - buffer_length/2)])
+      buffer_end_index = min([time_s.shape[0]-1, round(stationary_position_index + buffer_length/2)])
       body_position_stationary_buffer_m = dict([(name, position_cm[buffer_start_index:buffer_end_index, :]) for (name, position_cm) in body_position_m.items()])
       body_quaternion_wijk_stationary_buffer = dict([(name, quaternion[buffer_start_index:buffer_end_index, :]) for (name, quaternion) in body_quaternion_wijk.items()])
       stationary_pose_byTrial.append({

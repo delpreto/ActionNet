@@ -450,13 +450,14 @@ def plot_compare_distributions_motionObjectKeypoint_dynamics(feature_data_byType
     ax_jerk.grid(True, color='lightgray')
     speed_title_str = '%s Speed [m/s]%s' % (motionObjectKeypoint_name[activity_type], (': %s' % subtitle) if subtitle is not None else '')
     jerk_title_str = '%s Jerk [m/s/s/s]%s' % (motionObjectKeypoint_name[activity_type], (': %s' % subtitle) if subtitle is not None else '')
-    if len(example_types) == 2:
-      stats_results = results_speed_m_s[example_types[0]][example_types[1]]
-      p = stats_results.pvalue
-      speed_title_str += ' | Distributions are different? %s (p = %0.4f)' % ('yes' if p < 0.05 else 'no', p)
-      stats_results = results_jerk_m_s_s_s[example_types[0]][example_types[1]]
-      p = stats_results.pvalue
-      jerk_title_str += ' | Distributions are different? %s (p = %0.4f)' % ('yes' if p < 0.05 else 'no', p)
+    # if len(example_types) == 2:
+    #   print(example_types[0], example_types[1])
+    #   stats_results = results_speed_m_s[example_types[0]][example_types[1]]
+    #   p = stats_results.pvalue
+    #   speed_title_str += ' | Distributions are different? %s (p = %0.4f)' % ('yes' if p < 0.05 else 'no', p)
+    #   stats_results = results_jerk_m_s_s_s[example_types[0]][example_types[1]]
+    #   p = stats_results.pvalue
+    #   jerk_title_str += ' | Distributions are different? %s (p = %0.4f)' % ('yes' if p < 0.05 else 'no', p)
     ax_speed.set_title(speed_title_str)
     ax_jerk.title.set_text(jerk_title_str)
     ax_speed.legend()

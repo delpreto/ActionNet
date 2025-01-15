@@ -536,17 +536,20 @@ class DataLogger:
     if self._hdf5_file is not None:
       self._log_status('Closing HDF5 writer')
       for (streamer_index, streamer) in enumerate(self._streamers):
-        for (device_name, streams_info) in streamer.get_all_stream_infos().items():
-          for (stream_name, stream_info) in streams_info.items():
-            try:
-              stream_group = self._hdf5_file['/'.join([device_name, stream_name])]
-            except KeyError: # a dataset was not created for this stream
-              continue
-            starting_index = self._next_data_indexes_hdf5[streamer_index][device_name][stream_name]
-            ending_index = starting_index - 1
-            for data_key in streamer.get_stream_data_keys(device_name, stream_name):
-              dataset = stream_group[data_key]
-              dataset.resize((ending_index+1, *dataset.shape[1:]))
+        try:
+          for (device_name, streams_info) in streamer.get_all_stream_infos().items():
+            for (stream_name, stream_info) in streams_info.items():
+              try:
+                stream_group = self._hdf5_file['/'.join([device_name, stream_name])]
+              except KeyError: # a dataset was not created for this stream
+                continue
+              starting_index = self._next_data_indexes_hdf5[streamer_index][device_name][stream_name]
+              ending_index = starting_index - 1
+              for data_key in streamer.get_stream_data_keys(device_name, stream_name):
+                dataset = stream_group[data_key]
+                dataset.resize((ending_index+1, *dataset.shape[1:]))
+        except BrokenPipeError:
+          print('XXXX Could not close dataset for streamer index %d' % streamer_index)
       self._hdf5_file.close()
       self._hdf5_file = None
 
@@ -590,7 +593,10 @@ class DataLogger:
     self._streamLogging = False
     if self._streamLog_thread is not None and self._streamLog_thread.is_alive():
       self._log_debug('DataLogger joining stream-logging thread')
-      self._streamLog_thread.join()
+      try:
+        self._streamLog_thread.join()
+      except:
+        print('XXX Error joining the streamLog thread')
     # Log metadata
     self._log_metadata()
     # Flush/close all files
@@ -727,7 +733,10 @@ class DataLogger:
                   dumping_data = self._dump_csv or self._dump_hdf5
                 can_clear_data = logged_data and (not dumping_data)
                 if self._clear_logged_data_from_memory and can_clear_data:
-                  streamer.clear_data(device_name, stream_name, first_index_to_keep=next_starting_index)
+                  try:
+                    streamer.clear_data(device_name, stream_name, first_index_to_keep=next_starting_index)
+                  except EOFError:
+                    print('XXX Error trying to clear data from streamer [%s]' % stream_name)
                   next_starting_index = 0
                 self._next_data_indexes[streamer_index][device_name][stream_name] = next_starting_index
                 self._log_debug('Logged %d new entries for stream %s.%s' % (num_new_entries, device_name, stream_name))
@@ -793,12 +802,18 @@ class DataLogger:
       return
     # Tell each streamer to stop external recording if supported.
     #  Do ones that require user action last, so automatic ones aren't recording in the meantime.
-    for streamer in self._streamers:
+    for (streamer_index, streamer) in enumerate(self._streamers):
       if not streamer.external_data_recording_requires_user():
-        streamer.stop_external_data_recording()
-    for streamer in self._streamers:
+        try:
+          streamer.stop_external_data_recording()
+        except:
+          print('XXX Error trying to stop external data recording for streamer index %d' % streamer_index)
+    for (streamer_index, streamer) in enumerate(self._streamers):
       if streamer.external_data_recording_requires_user():
-        streamer.stop_external_data_recording()
+        try:
+          streamer.stop_external_data_recording()
+        except:
+          print('XXX Error trying to stop external data recording for streamer index %d' % streamer_index)
         
   # Merge logged data with recordings from sensor-specific software.
   @staticmethod

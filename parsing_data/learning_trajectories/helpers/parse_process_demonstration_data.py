@@ -139,6 +139,8 @@ def transform_bodyPath_data_personFrame(time_s_byTrial, bodyPath_data_byTrial, a
   else:
     return_single_trial = False
   
+  bodyPath_origin_xyz_m_byTrial = []
+  
   # Shift to a coordinate frame with the origin between the hips and at the table height.
   starting_positions_m = {}
   for trial_index in range(len(bodyPath_data_byTrial)):
@@ -148,6 +150,7 @@ def transform_bodyPath_data_personFrame(time_s_byTrial, bodyPath_data_byTrial, a
     origin_m = np.mean(np.array(
           [bodyPath_data_byTrial[trial_index]['position_m']['RightUpperLeg'][0, :],
            bodyPath_data_byTrial[trial_index]['position_m']['LeftUpperLeg'][0, :]]), axis=0)
+    bodyPath_origin_xyz_m_byTrial.append(origin_m)
     # Use the table as the z origin.
     origin_m[2] = table_height_cm/100
     # Adjust all coordinates for the new origin.
@@ -233,9 +236,9 @@ def transform_bodyPath_data_personFrame(time_s_byTrial, bodyPath_data_byTrial, a
   
   # Return the transformed body path data.
   if return_single_trial:
-    return (time_s_byTrial[0], bodyPath_data_byTrial[0])
+    return (time_s_byTrial[0], bodyPath_data_byTrial[0], bodyPath_origin_xyz_m_byTrial[0])
   else:
-    return (time_s_byTrial, bodyPath_data_byTrial)
+    return (time_s_byTrial, bodyPath_data_byTrial, bodyPath_origin_xyz_m_byTrial)
 
 #===========================================================
 # Shift the trials upwards if they are too low for the reference object during the stationary window.

@@ -60,7 +60,7 @@ save_eye_videos = False # save the eye-tracking video for each trial
 save_table_videos = False # save the third-person table video for each trial
 save_animation_videos = False
 save_composite_videos = False # save the eye-tracking video and animated plot for each trial
-save_results_data = False
+save_results_data = True
 infer_pitcher_holding_angle = False
 plot_pitcher_angle_distance_metrics = False
 save_plot_pitcher_angle_distance_metrics = False
@@ -137,7 +137,10 @@ def main_processing(subject_id_toProcess, experiments_dir):
       tableVideo_filepaths.setdefault(subject_id, [])
       hdf5_filepaths[subject_id].append(os.path.join(subdir, hdf5_filepath[0]))
       eyeVideo_filepaths[subject_id].append(os.path.join(subdir, eyeVideo_filepath[0]))
-      tableVideo_filepaths[subject_id].append(os.path.join(subdir, tableVideo_filepath[0]))
+      if len(tableVideo_filepath) > 0:
+        tableVideo_filepaths[subject_id].append(os.path.join(subdir, tableVideo_filepath[0]))
+      else:
+        tableVideo_filepaths[subject_id].append(None)
   
   # Loop through experiment files to extract trajectories for each action instance.
   print()
@@ -146,6 +149,7 @@ def main_processing(subject_id_toProcess, experiments_dir):
   allPaths_subplot_index = 0
   time_s_byTrial_bySubject = OrderedDict()
   bodyPath_data_byTrial_bySubject = OrderedDict()
+  bodyPath_origin_xyz_m_byTrial_bySubject = OrderedDict()
   stationary_time_s_byTrial_bySubject = OrderedDict()
   stationary_pose_byTrial_bySubject = OrderedDict()
   referenceObject_position_m_byTrial_bySubject = OrderedDict()
@@ -155,6 +159,7 @@ def main_processing(subject_id_toProcess, experiments_dir):
     print('Processing subject %02d' % subject_id)
     time_s_byTrial_bySubject.setdefault(subject_id, [])
     bodyPath_data_byTrial_bySubject.setdefault(subject_id, [])
+    bodyPath_origin_xyz_m_byTrial_bySubject.setdefault(subject_id, [])
     stationary_time_s_byTrial_bySubject.setdefault(subject_id, [])
     stationary_pose_byTrial_bySubject.setdefault(subject_id, [])
     referenceObject_position_m_byTrial_bySubject.setdefault(subject_id, [])
@@ -194,7 +199,7 @@ def main_processing(subject_id_toProcess, experiments_dir):
       print('    Getting body path data')
       (time_s_byTrial, bodyPath_data_byTrial) = get_bodyPath_data_byTrial(h5_file, activities_start_times_s, activities_end_times_s)
       print('    Transforming body path data')
-      (time_s_byTrial, bodyPath_data_byTrial) = transform_bodyPath_data_personFrame(time_s_byTrial, bodyPath_data_byTrial, activity_to_process)
+      (time_s_byTrial, bodyPath_data_byTrial, bodyPath_origin_xyz_m_byTrial) = transform_bodyPath_data_personFrame(time_s_byTrial, bodyPath_data_byTrial, activity_to_process)
       print('    Resampling body path data')
       (time_s_byTrial, bodyPath_data_byTrial) = resample_bodyPath_data(time_s_byTrial, bodyPath_data_byTrial)
       # Infer the hand position while being relatively stationary
@@ -262,6 +267,7 @@ def main_processing(subject_id_toProcess, experiments_dir):
       # Store the results
       time_s_byTrial_bySubject[subject_id].extend(time_s_byTrial)
       bodyPath_data_byTrial_bySubject[subject_id].extend(bodyPath_data_byTrial)
+      bodyPath_origin_xyz_m_byTrial_bySubject[subject_id].extend(bodyPath_origin_xyz_m_byTrial)
       stationary_time_s_byTrial_bySubject[subject_id].extend(stationary_time_s_byTrial)
       stationary_pose_byTrial_bySubject[subject_id].extend(stationary_pose_byTrial)
       referenceObject_position_m_byTrial_bySubject[subject_id].extend(referenceObject_position_m_byTrial)
@@ -341,7 +347,7 @@ def main_processing(subject_id_toProcess, experiments_dir):
   if save_results_data:
     print('    Exporting data to HDF5 file')
     export_path_data(subject_id_toProcess,
-                     time_s_byTrial_bySubject, bodyPath_data_byTrial_bySubject,
+                     time_s_byTrial_bySubject, bodyPath_data_byTrial_bySubject, bodyPath_origin_xyz_m_byTrial_bySubject,
                      stationary_time_s_byTrial_bySubject, stationary_pose_byTrial_bySubject,
                      referenceObject_position_m_byTrial_bySubject,
                      hand_to_motionObject_angles_rad_byTrial_bySubject)
@@ -535,7 +541,8 @@ def save_trial_tableVideos(h5_file, tableVideo_filepath, times_s, subject_id, tr
 # Helpers to save processed data
 ###################################################################
 
-def export_path_data(subject_id_for_filename, time_s_byTrial_bySubject, bodyPath_data_byTrial_bySubject,
+def export_path_data(subject_id_for_filename, time_s_byTrial_bySubject,
+                     bodyPath_data_byTrial_bySubject, bodyPath_origin_xyz_m_byTrial_bySubject,
                      stationary_time_s_byTrial_bySubject, stationary_pose_byTrial_bySubject,
                      referenceObject_position_m_byTrial_bySubject,
                      hand_to_motionObject_angles_rad_byTrial_bySubject):
@@ -573,6 +580,10 @@ def export_path_data(subject_id_for_filename, time_s_byTrial_bySubject, bodyPath
       data = np.stack(data, axis=0)
       data = np.moveaxis(data, 0, 1) # convert from [segment][time][xyz] to [time][segment][xyz]
       trial_group.create_dataset('body_segment_position_m', data=data)
+      
+      # Add the original origin position before transforming frames.
+      data = bodyPath_origin_xyz_m_byTrial_bySubject[subject_id][trial_index]
+      trial_group.create_dataset('body_segment_origin_xyz_m', data=data)
       
       # Add body segment orientation data
       data_segmentDict = bodyPath_data_byTrial_bySubject[subject_id][trial_index]['quaternion_wijk']

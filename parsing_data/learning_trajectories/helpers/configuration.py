@@ -29,13 +29,13 @@ from scipy.spatial.transform import Rotation
 
 # Specify the task.
 # activity_to_process = 'pouring'
-# activity_to_process = 'scooping'
-activity_to_process = 'scoopingPowder'
+activity_to_process = 'scoopingPepper'
+# activity_to_process = 'scoopingPowder'
 # activity_to_process = 'stirring'
 
 # Specify the subjects to consider.
-# subject_ids_toProcess = ['S00', 'S11', 'S10'] # S00, S10, S11, ted_S00, S14, S15
-subject_ids_toProcess = ['S14', 'S15'] # S00, S10, S11, ted_S00, S14, S15
+subject_ids_toProcess = ['S00', 'S11', 'S10'] # S00, S10, S11, ted_S00, S14, S15
+# subject_ids_toProcess = ['S14', 'S15'] # S00, S10, S11, ted_S00, S14, S15
 
 resampled_fs_hz = 50
 

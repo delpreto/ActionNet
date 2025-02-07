@@ -29,13 +29,13 @@ from scipy.spatial.transform import Rotation
 
 # Specify the task.
 # activity_to_process = 'pouring'
-activity_to_process = 'scoopingPepper'
+# activity_to_process = 'scoopingPepper'
 # activity_to_process = 'scoopingPowder'
-# activity_to_process = 'stirring'
+activity_to_process = 'stirring'
 
 # Specify the subjects to consider.
-subject_ids_toProcess = ['S00', 'S11', 'S10'] # S00, S10, S11, ted_S00, S14, S15
-# subject_ids_toProcess = ['S14', 'S15'] # S00, S10, S11, ted_S00, S14, S15
+# subject_ids_toProcess = ['S00', 'S11', 'S10'] # S00, S10, S11, ted_S00, S14, S15
+subject_ids_toProcess = ['S14', 'S15'] # S00, S10, S11, ted_S00, S14, S15
 
 resampled_fs_hz = 50
 
@@ -47,7 +47,7 @@ start_offsets_s = {
     'S11': 0,
     'S10': 0,
   },
-  'scooping': {
+  'scoopingPepper': {
     'S00': 0,
     'S11': 0,
     'S10': 0,
@@ -67,7 +67,7 @@ end_offsets_s = {
     'S11': 0,
     'S10': 0,
   },
-  'scooping': {
+  'scoopingPepper': {
     'S00': 0,
     'S11': 0,
     'S10': 0,
@@ -84,7 +84,7 @@ end_offsets_s = {
 
 stationary_position_use_variance = {
   'pouring': True,
-  'scooping': False,
+  'scoopingPepper': False,
   'scoopingPowder': False,
   'stirring': False,
 }
@@ -93,33 +93,33 @@ stationary_position_min_ratio = 0.10
 stationary_position_max_ratio = 0.90
 stationary_position_hardcoded_time_fraction = {
   'pouring': None,
-  'scooping': 0.3,
+  'scoopingPepper': 0.3,
   'scoopingPowder': 0.3,
   'stirring': 0.4,
 }
 
 motionObject_name = {
   'pouring': 'Pitcher',
-  'scooping': 'Spoon',
+  'scoopingPepper': 'Spoon',
   'scoopingPowder': 'Spoon',
   'stirring': 'Spoon',
 }
 referenceObject_name = {
   'pouring': 'Glass',
-  'scooping': 'Plate',
+  'scoopingPepper': 'Plate',
   'scoopingPowder': 'Bowl',
   'stirring': 'Pitcher',
 }
 motionObjectKeypoint_name = {
   'pouring': 'Spout',
-  'scooping': 'Ladle',
+  'scoopingPepper': 'Ladle',
   'scoopingPowder': 'Ladle',
   'stirring': 'Ladle',
 }
 hand_box_dimensions_cm = np.array([4.8, 3, 1.3]) # np.array([2, 9, 18]) # open hand
 motionObject_shape_dimensions_cm = {
   'pouring': np.array([23, 23, 10.8]), # [height, top length, width]
-  'scooping': np.array([7, 32.5, 2]), # [width, top length, height]
+  'scoopingPepper': np.array([7, 32.5, 2]), # [width, top length, height]
   'scoopingPowder': np.array([7, 32.5, 2]), # [width, top length, height]
   'stirring': np.array([7, 32.5, 2]), # [width, top length, height]
 }
@@ -128,7 +128,7 @@ hand_to_motionObject_angles_rad = {
                        np.radians(0),  # tilt down/up (positive/negative)
                        np.radians(0)   # tilt inward/outward (positive/negative)
                        ]),
-  'scooping': np.array([np.radians(15), # around knuckle axis (positive down)
+  'scoopingPepper': np.array([np.radians(15), # around knuckle axis (positive down)
                         np.radians(0), # around forearm axis (positive CCW)
                         np.radians(30) # around vertical axis (positive CCW looking down)
                        ]),
@@ -144,13 +144,13 @@ hand_to_motionObject_angles_rad = {
 hand_to_motionObject_rotation = dict([(k, Rotation.from_rotvec(v)) for (k, v) in hand_to_motionObject_angles_rad.items()])
 corner_indexes_forTilt = { # keypointside and handside on the left, to connect for tilting estimate
   'pouring': [4, 6],
-  'scooping': [5, 7],
+  'scoopingPepper': [5, 7],
   'scoopingPowder': [3, 1],
   'stirring': [3, 1],
 }
 corner_indexes_forKeypoint = { # front top two points, to average for the keypoint position
   'pouring': [4, 5],
-  'scooping': [1, 5],
+  'scoopingPepper': [1, 5],
   'scoopingPowder': [2, 6], # 0 2 underside left (0 hand), 1 3 topside left (1 hand)
   'stirring': [2, 6], # 0 2 underside left (0 hand), 1 3 topside left (1 hand)
   
@@ -166,7 +166,7 @@ hand_to_motionObject_offset_cm = {
               -(0+motionObject_shape_dimensions_cm['pouring'][1]/2),
               2
              ]),
-  'scooping': np.array([
+  'scoopingPepper': np.array([
               0,
               -(0+motionObject_shape_dimensions_cm['pouring'][1]/2),
               -2-4, # estimate sensor to hand top then hand top to spoon
@@ -187,50 +187,50 @@ hand_to_motionObject_offset_cm = {
 table_height_cm = 88.7 + 0.5 # Table height plus foam board thickness
 target_starting_height_cm = {
   'pouring': {'RightHand': np.mean([19.4132, 11.3471])}, # average of medians for S00-S11, which seems to match measurements on the pitcher (note S10 was average 10.60645)
-  'scooping': None,
+  'scoopingPepper': None,
   'scoopingPowder': None,
   'stirring': None,
 }
 
 infer_motionObjectKeypoint_position_m_fn = {
   'pouring': 'infer_motionObjectKeypoint_position_m',
-  'scooping': 'infer_motionObjectKeypoint_position_m',
+  'scoopingPepper': 'infer_motionObjectKeypoint_position_m',
   'scoopingPowder': 'infer_motionObjectKeypoint_position_m',
   'stirring': 'infer_motionObjectKeypoint_position_m',
 }
 motionObject_bodySegment_name = {
   'pouring': 'RightHand',
-  'scooping': 'RightHand',
+  'scoopingPepper': 'RightHand',
   'scoopingPowder': 'LeftHand',
   'stirring': 'LeftHand',
 }
 referenceObject_bodySegment_name = {
   'pouring': 'LeftHand', # will actually use motion object keypoint instead (see below)
-  'scooping': 'LeftHand',
+  'scoopingPepper': 'LeftHand',
   'scoopingPowder': 'LeftHand', # will actually use motion object keypoint instead  (see below)
   'stirring': 'RightHand', # will actually use motion object keypoint instead  (see below)
 }
 motionObject_rightOrLeftArm = {
   'pouring': 'Right',
-  'scooping': 'Right',
+  'scoopingPepper': 'Right',
   'scoopingPowder': 'Left',
   'stirring': 'Left',
 }
 referenceObject_use_motionObjectKeypoint_position_xy = {
   'pouring': True,
-  'scooping': False,
+  'scoopingPepper': False,
   'scoopingPowder': True,
   'stirring': True,
 }
 referenceObject_diameter_cm = {
   'pouring': 7.3, # glass top 7.3 bottom 6.3
-  'scooping': 20 ,
+  'scoopingPepper': 20 ,
   'scoopingPowder': 20 ,
   'stirring': 20 ,
 }
 referenceObject_height_cm = {
   'pouring': 15.8,
-  'scooping': 1, # roughly to interior surface of plate
+  'scoopingPepper': 1, # roughly to interior surface of plate
   'scoopingPowder': 1, # roughly to interior surface of plate
   'stirring': 15.8,
 }
@@ -242,13 +242,13 @@ hand_to_referenceObject_top_cm = {
 }
 referenceObject_offset_cm = {
   'pouring': np.array([hand_to_referenceObject_top_cm['pouring'], 8, -4]), # [up along thumb, out along forearm axis, out from back of hand]
-  'scooping': np.array([15, 10, -2]), # [left/right, in/out, up/down not used?]
+  'scoopingPepper': np.array([15, 10, -2]), # [left/right, in/out, up/down not used?]
   'scoopingPowder': np.array([15, 10, -2]), # [left/right, in/out, up/down not used?]
   'stirring': np.array([15, 10, -2]), # [left/right, in/out, up/down not used?]
 }
 raise_bodyPath_data_above_referenceObjectHeight = {
   'pouring': True,
-  'scooping': False,
+  'scoopingPepper': False,
   'scoopingPowder': False,
   'stirring': False,
 }

@@ -42,7 +42,7 @@ from learning_trajectories.helpers.plot_animations import *
 ###################################################################
 
 # Choose the activity to process.
-activity_mode = 'pouring' # 'pouring', 'scooping'
+activity_mode = 'pouring' # 'pouring', 'scoopingPepper'
 
 # Specify the subjects to consider.
 subject_ids_toProcess = ['S00', 'S10', 'S11'] # S00, S10, S11, ted_S00

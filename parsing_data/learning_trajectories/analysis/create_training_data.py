@@ -40,7 +40,7 @@ def create_training_data(
                     references_combined = np.array(ref['pos_world_to_glass_rim_W'])
 
                 # For the scooping task
-                elif 'scooping' in dataset_name:
+                elif 'scoopingPepper' in dataset_name:
                     references_combined = np.concatenate([
                         np.array(ref['pos_world_to_pan_W']), 
                         np.array(ref['pos_world_to_plate_W']),

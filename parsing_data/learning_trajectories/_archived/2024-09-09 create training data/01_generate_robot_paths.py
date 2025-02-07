@@ -42,9 +42,9 @@ data_dir = os.path.realpath(os.path.join(script_dir, '..', '..', 'results', 'lea
 # data_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'results', 'learning_trajectories', 'S00'))
 # data_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'results', 'learning_trajectories', 'S11'))
 # Specify the input file of extracted trajectory data.
-trajectory_data_filepath_humans = os.path.join(data_dir, '%s_paths_humans_%s.hdf5' % ('pouring' if configure_for_pouring else 'scooping', subject_id_toProcess))
+trajectory_data_filepath_humans = os.path.join(data_dir, '%s_paths_humans_%s.hdf5' % ('pouring' if configure_for_pouring else 'scoopingPepper', subject_id_toProcess))
 # Specify the output file for robot trajectory data.
-trajectory_data_filepath_robots = os.path.join(data_dir, '%s_paths_robots_%s.hdf5' % ('pouring' if configure_for_pouring else 'scooping', subject_id_toProcess))
+trajectory_data_filepath_robots = os.path.join(data_dir, '%s_paths_robots_%s.hdf5' % ('pouring' if configure_for_pouring else 'scoopingPepper', subject_id_toProcess))
 
 show_plot_human_and_robot_hand_paths = False
 save_plot_human_and_robot_hand_paths = False
@@ -210,7 +210,7 @@ for group_name in data_file_humans.keys():
         plt.show()
       if save_plot_human_and_robot_hand_paths:
         output_filepath = os.path.join(data_dir, '%s_paths_humanRobot_S%02d_%02d.jpg' %
-                                       ('pouring'if configure_for_pouring else 'scooping',
+                                       ('pouring'if configure_for_pouring else 'scoopingPepper',
                                         subject_id, trial_id))
         plt.savefig(output_filepath, dpi=300)
 

@@ -87,7 +87,7 @@ if configure_for_pouring:
   target_activity_keyword = 'pouring'
 else:
   target_activity_label = 'Scoop from a pan to a plate'
-  target_activity_keyword = 'scooping'
+  target_activity_keyword = 'scoopingPepper'
 
 # Decide how to extract the stationary waypoint (e.g. pouring the water or scooping from the plate).
 # Can use a rolling buffer and look at hand position variance when inferring hold position,

@@ -54,7 +54,7 @@ def create_OOD_data(
 
                 if 'pouring' in dataset_name:
                     pouring = True
-                elif 'scooping' in dataset_name:
+                elif 'scoopingPepper' in dataset_name:
                     scooping = True
                 else:
                     raise ValueError('Either "scooping" or "pouring" should be in dataset name')

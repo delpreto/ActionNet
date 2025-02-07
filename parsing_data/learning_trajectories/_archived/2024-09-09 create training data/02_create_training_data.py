@@ -42,11 +42,11 @@ data_dir = os.path.realpath(os.path.join(script_dir, '..', '..', 'results', 'lea
 # data_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'results', 'learning_trajectories', 'S00'))
 # data_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'results', 'learning_trajectories', 'S11'))
 # Specify the input files of extracted trajectory data.
-trajectory_data_filepath_humans = os.path.join(data_dir, '%s_paths_humans_%s.hdf5' % ('pouring' if configure_for_pouring else 'scooping', subject_id_toProcess))
-trajectory_data_filepath_robots = os.path.join(data_dir, '%s_paths_robots_%s.hdf5' % ('pouring' if configure_for_pouring else 'scooping', subject_id_toProcess))
+trajectory_data_filepath_humans = os.path.join(data_dir, '%s_paths_humans_%s.hdf5' % ('pouring' if configure_for_pouring else 'scoopingPepper', subject_id_toProcess))
+trajectory_data_filepath_robots = os.path.join(data_dir, '%s_paths_robots_%s.hdf5' % ('pouring' if configure_for_pouring else 'scoopingPepper', subject_id_toProcess))
 # Specify the output file for the feature matrices and labels.
-training_data_filepath = os.path.join(data_dir, '%s_training_data_%s.hdf5' % ('pouring' if configure_for_pouring else 'scooping', subject_id_toProcess)) # None to not save
-referenceOjbect_positions_filepath = os.path.join(data_dir, '%s_training_referenceObject_positions_%s.hdf5' % ('pouring' if configure_for_pouring else 'scooping', subject_id_toProcess)) # None to not save
+training_data_filepath = os.path.join(data_dir, '%s_training_data_%s.hdf5' % ('pouring' if configure_for_pouring else 'scoopingPepper', subject_id_toProcess)) # None to not save
+referenceOjbect_positions_filepath = os.path.join(data_dir, '%s_training_referenceObject_positions_%s.hdf5' % ('pouring' if configure_for_pouring else 'scoopingPepper', subject_id_toProcess)) # None to not save
 
 include_robot_examples = False
 

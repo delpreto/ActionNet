@@ -27,7 +27,7 @@ from helpers.plot_metrics_distributions import *
 
 if len(sys.argv) == 1:
   # activity_type = 'pouring'
-  # activity_type = 'scooping'
+  # activity_type = 'scoopingPepper'
   # activity_type = 'scoopingPowder'
   activity_type = 'stirring'
   

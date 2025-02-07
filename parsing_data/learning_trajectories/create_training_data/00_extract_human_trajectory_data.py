@@ -74,7 +74,7 @@ os.makedirs(output_dir, exist_ok=True)
 data_dir = os.path.realpath(os.path.join(actionsense_root_dir, 'data'))
 experiments_dirs = []
 for subject_id_toProcess in subject_ids_toProcess:
-  if activity_to_process in ['pouring', 'scooping']:
+  if activity_to_process in ['pouring', 'scoopingPepper']:
     if subject_id_toProcess == 'S00':
       experiments_dirs.append(os.path.join(data_dir, 'experiments', '2023-09-10_experiment_%s' % subject_id_toProcess))
     elif subject_id_toProcess == 'S10':
@@ -98,9 +98,9 @@ for subject_id_toProcess in subject_ids_toProcess:
 if activity_to_process == 'pouring':
   target_activity_label = 'Pour water from a pitcher into a glass'
   target_activity_keyword_for_outputs = 'pouring'
-elif activity_to_process == 'scooping':
+elif activity_to_process == 'scoopingPepper':
   target_activity_label = 'Scoop from a pan to a plate'
-  target_activity_keyword_for_outputs = 'scooping'
+  target_activity_keyword_for_outputs = 'scoopingPepper'
 elif activity_to_process == 'scoopingPowder':
   target_activity_label = 'Scoop powder into pitcher'
   target_activity_keyword_for_outputs = 'scoopingPowder'

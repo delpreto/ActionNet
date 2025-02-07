@@ -11,7 +11,7 @@ The output HDF5 is reformatted to into separate groups for each trajectory
 For the scooping task, pan position is estimated based on initial conditions, and the reference object provided is the plate position
 For the pouring task, the reference object provided is the glass rim position
 
-A dataset identifying label is also given to the HDF5 file, it should contain either 'pouring' or 'scooping' depending on the task
+A dataset identifying label is also given to the HDF5 file, it should contain either 'pouring' or 'scoopingPepper' depending on the task
 """
 import os
 import h5py
@@ -99,7 +99,7 @@ def process_trajectory(
                 ref_group.create_dataset('pos_world_to_glass_rim_W', data=pos_world_to_reference_W)
 
             # Reference objects for scooping task
-            elif 'scooping' in dataset_name:
+            elif 'scoopingPepper' in dataset_name:
                 # Transforms between world frame and spoon end (scoop)
                 rot_world_to_spoon = rot_world_to_hand[0] @ ROT_HAND_TO_SPOON
                 pos_world_to_spoon_W = rot_world_to_spoon @ POS_HAND_TO_SPOON_S + pos_world_to_hand_W[0]

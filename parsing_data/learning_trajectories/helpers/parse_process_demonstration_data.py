@@ -140,6 +140,7 @@ def transform_bodyPath_data_personFrame(time_s_byTrial, bodyPath_data_byTrial, a
     return_single_trial = False
   
   bodyPath_origin_xyz_m_byTrial = []
+  bodyPath_origin_rotation_matrix_byTrial = []
   
   # Shift to a coordinate frame with the origin between the hips and at the table height.
   starting_positions_m = {}
@@ -223,6 +224,9 @@ def transform_bodyPath_data_personFrame(time_s_byTrial, bodyPath_data_byTrial, a
       starting_positions_m.setdefault(body_segment, [])
       starting_positions_m[body_segment].append(bodyPath_data_byTrial[trial_index]['position_m'][body_segment][0,:])
     
+    # Save the rotation matrix for reference.
+    bodyPath_origin_rotation_matrix_byTrial.append(alignment_rotation_matrix)
+    
   print('      %s hand starting positions after correcting for a z offset of %0.3f cm and rotating for the hip axis:' % (motionObject_rightOrLeftArm[activity_to_process], 100*z_offset_m))
   print('        medn', 100*np.median(starting_positions_m['%sHand' % motionObject_rightOrLeftArm[activity_to_process]], axis=0))
   print('        std ', 100*np.std(starting_positions_m['%sHand' % motionObject_rightOrLeftArm[activity_to_process]], axis=0))
@@ -236,9 +240,9 @@ def transform_bodyPath_data_personFrame(time_s_byTrial, bodyPath_data_byTrial, a
   
   # Return the transformed body path data.
   if return_single_trial:
-    return (time_s_byTrial[0], bodyPath_data_byTrial[0], bodyPath_origin_xyz_m_byTrial[0])
+    return (time_s_byTrial[0], bodyPath_data_byTrial[0], bodyPath_origin_xyz_m_byTrial[0], bodyPath_origin_rotation_matrix_byTrial[0])
   else:
-    return (time_s_byTrial, bodyPath_data_byTrial, bodyPath_origin_xyz_m_byTrial)
+    return (time_s_byTrial, bodyPath_data_byTrial, bodyPath_origin_xyz_m_byTrial, bodyPath_origin_rotation_matrix_byTrial)
 
 #===========================================================
 # Shift the trials upwards if they are too low for the reference object during the stationary window.

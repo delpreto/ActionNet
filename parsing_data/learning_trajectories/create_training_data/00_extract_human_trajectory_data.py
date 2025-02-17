@@ -150,6 +150,7 @@ def main_processing(subject_id_toProcess, experiments_dir):
   time_s_byTrial_bySubject = OrderedDict()
   bodyPath_data_byTrial_bySubject = OrderedDict()
   bodyPath_origin_xyz_m_byTrial_bySubject = OrderedDict()
+  bodyPath_origin_rotation_matrix_byTrial_bySubject = OrderedDict()
   stationary_time_s_byTrial_bySubject = OrderedDict()
   stationary_pose_byTrial_bySubject = OrderedDict()
   referenceObject_position_m_byTrial_bySubject = OrderedDict()
@@ -160,6 +161,7 @@ def main_processing(subject_id_toProcess, experiments_dir):
     time_s_byTrial_bySubject.setdefault(subject_id, [])
     bodyPath_data_byTrial_bySubject.setdefault(subject_id, [])
     bodyPath_origin_xyz_m_byTrial_bySubject.setdefault(subject_id, [])
+    bodyPath_origin_rotation_matrix_byTrial_bySubject.setdefault(subject_id, [])
     stationary_time_s_byTrial_bySubject.setdefault(subject_id, [])
     stationary_pose_byTrial_bySubject.setdefault(subject_id, [])
     referenceObject_position_m_byTrial_bySubject.setdefault(subject_id, [])
@@ -199,7 +201,8 @@ def main_processing(subject_id_toProcess, experiments_dir):
       print('    Getting body path data')
       (time_s_byTrial, bodyPath_data_byTrial) = get_bodyPath_data_byTrial(h5_file, activities_start_times_s, activities_end_times_s)
       print('    Transforming body path data')
-      (time_s_byTrial, bodyPath_data_byTrial, bodyPath_origin_xyz_m_byTrial) = transform_bodyPath_data_personFrame(time_s_byTrial, bodyPath_data_byTrial, activity_to_process)
+      (time_s_byTrial, bodyPath_data_byTrial,
+       bodyPath_origin_xyz_m_byTrial, bodyPath_origin_rotation_matrix_byTrial) = transform_bodyPath_data_personFrame(time_s_byTrial, bodyPath_data_byTrial, activity_to_process)
       print('    Resampling body path data')
       (time_s_byTrial, bodyPath_data_byTrial) = resample_bodyPath_data(time_s_byTrial, bodyPath_data_byTrial)
       # Infer the hand position while being relatively stationary
@@ -268,6 +271,7 @@ def main_processing(subject_id_toProcess, experiments_dir):
       time_s_byTrial_bySubject[subject_id].extend(time_s_byTrial)
       bodyPath_data_byTrial_bySubject[subject_id].extend(bodyPath_data_byTrial)
       bodyPath_origin_xyz_m_byTrial_bySubject[subject_id].extend(bodyPath_origin_xyz_m_byTrial)
+      bodyPath_origin_rotation_matrix_byTrial_bySubject[subject_id].extend(bodyPath_origin_rotation_matrix_byTrial)
       stationary_time_s_byTrial_bySubject[subject_id].extend(stationary_time_s_byTrial)
       stationary_pose_byTrial_bySubject[subject_id].extend(stationary_pose_byTrial)
       referenceObject_position_m_byTrial_bySubject[subject_id].extend(referenceObject_position_m_byTrial)
@@ -347,7 +351,8 @@ def main_processing(subject_id_toProcess, experiments_dir):
   if save_results_data:
     print('    Exporting data to HDF5 file')
     export_path_data(subject_id_toProcess,
-                     time_s_byTrial_bySubject, bodyPath_data_byTrial_bySubject, bodyPath_origin_xyz_m_byTrial_bySubject,
+                     time_s_byTrial_bySubject, bodyPath_data_byTrial_bySubject,
+                     bodyPath_origin_xyz_m_byTrial_bySubject, bodyPath_origin_rotation_matrix_byTrial_bySubject,
                      stationary_time_s_byTrial_bySubject, stationary_pose_byTrial_bySubject,
                      referenceObject_position_m_byTrial_bySubject,
                      hand_to_motionObject_angles_rad_byTrial_bySubject)
@@ -542,7 +547,8 @@ def save_trial_tableVideos(h5_file, tableVideo_filepath, times_s, subject_id, tr
 ###################################################################
 
 def export_path_data(subject_id_for_filename, time_s_byTrial_bySubject,
-                     bodyPath_data_byTrial_bySubject, bodyPath_origin_xyz_m_byTrial_bySubject,
+                     bodyPath_data_byTrial_bySubject,
+                     bodyPath_origin_xyz_m_byTrial_bySubject, bodyPath_origin_rotation_matrix_byTrial_bySubject,
                      stationary_time_s_byTrial_bySubject, stationary_pose_byTrial_bySubject,
                      referenceObject_position_m_byTrial_bySubject,
                      hand_to_motionObject_angles_rad_byTrial_bySubject):
@@ -584,6 +590,9 @@ def export_path_data(subject_id_for_filename, time_s_byTrial_bySubject,
       # Add the original origin position before transforming frames.
       data = bodyPath_origin_xyz_m_byTrial_bySubject[subject_id][trial_index]
       trial_group.create_dataset('body_segment_origin_xyz_m', data=data)
+      # Add the rotation matrix used to transform frames.
+      data = bodyPath_origin_rotation_matrix_byTrial_bySubject[subject_id][trial_index]
+      trial_group.create_dataset('body_segment_frame_rotation_matrix', data=data)
       
       # Add body segment orientation data
       data_segmentDict = bodyPath_data_byTrial_bySubject[subject_id][trial_index]['quaternion_wijk']

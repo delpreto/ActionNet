@@ -116,7 +116,7 @@ for subject_index in range(len(subject_ids_toProcess)):
   # Helper to create a feature matrix from the processed trajectory data.
   def add_training_segment(time_s, body_segment_position_m, body_segment_quaternion_wijk,
                            joint_angle_eulerZXY_xyz_rad, joint_angle_eulerXZY_xyz_rad,
-                           body_segment_origin_xyz_m,
+                           body_segment_origin_xyz_m, body_segment_frame_rotation_matrix,
                            referenceObject_position_m, hand_to_motionObject_angles_rad, stationary_time_s,
                            is_human, subject_id=-1, trial_id=-1):
     
@@ -184,6 +184,8 @@ for subject_index in range(len(subject_ids_toProcess)):
     
     # Add the global origin before the data was transformed.
     features['body_segment_origin_xyz_m'] = np.atleast_2d(body_segment_origin_xyz_m)
+    # Add the rotation matrix used for frame transformation.
+    features['body_segment_frame_rotation_matrix'] = np.atleast_2d(body_segment_frame_rotation_matrix)
     
     # Add the motionObject holding angle.
     features['hand_to_motionObject_angles_rad'] = np.atleast_2d(hand_to_motionObject_angles_rad)
@@ -252,6 +254,8 @@ for subject_index in range(len(subject_ids_toProcess)):
       
       # Get the global origin for this trial before the data was transformed.
       body_segment_origin_xyz_m = np.squeeze(np.array(trial_group_human['body_segment_origin_xyz_m']))
+      # Get the rotation matrix used for transforming this trial.
+      body_segment_frame_rotation_matrix = np.squeeze(np.array(trial_group_human['body_segment_frame_rotation_matrix']))
       
       # Get the global xyz position of each body segment for the human demonstration.
       # It is a Tx23x3 matrix, indexed as [timestep][body_segment_index][xyz].
@@ -277,7 +281,7 @@ for subject_index in range(len(subject_ids_toProcess)):
       # Add a labeled feature matrix for this trial.
       add_training_segment(time_s, body_segment_position_m, body_segment_quaternion_wijk,
                            body_joint_angle_eulerZXY_xyz_rad, body_joint_angle_eulerXZY_xyz_rad,
-                           body_segment_origin_xyz_m,
+                           body_segment_origin_xyz_m, body_segment_frame_rotation_matrix,
                            referenceObject_position_m, hand_to_motionObject_angles_rad, stationary_time_s,
                            is_human=True, subject_id=subject_id, trial_id=trial_name)
       

@@ -60,6 +60,7 @@ class VideoVisualizer(Visualizer):
     if self._print_debug: print('VideoVisualizer initializing for %s %s' % (device_name, stream_name))
 
     # Get the plotting options.
+    self._visualizer_options.setdefault('rotate_ccw_deg', 0)
     frame_size = stream_info['sample_size']
     fps = stream_info['sampling_rate_hz']
     if fps is None:
@@ -92,11 +93,22 @@ class VideoVisualizer(Visualizer):
   def update(self, new_data, visualizing_all_data):
     # Get the most recent frame.
     self._latest_frame = new_data['data'][-1]
+    # Rotate the frame if desired.
+    if self._visualizer_options['rotate_ccw_deg'] == 90:
+      self._latest_frame = cv2.rotate(self._latest_frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
+    elif self._visualizer_options['rotate_ccw_deg'] == 180:
+      self._latest_frame = cv2.rotate(self._latest_frame, cv2.ROTATE_180)
+    elif self._visualizer_options['rotate_ccw_deg'] == 270:
+      self._latest_frame = cv2.rotate(self._latest_frame, cv2.ROTATE_90_CLOCKWISE)
+    elif self._visualizer_options['rotate_ccw_deg'] != 0:
+      print('x'*20)
+      print('Unsupported rotation option: %s' % self._visualizer_options['rotate_ccw_deg'])
+      print('Only rotations of 90, 180, 270, or 0 degrees are supported')
     # Update the layout if one was provided.
     if self._is_sub_layout:
       self._plot_image_item.setImage(
           cv2.rotate(cv2.cvtColor(self._latest_frame, cv2.COLOR_BGR2RGB),
-                     cv2.cv2.ROTATE_90_CLOCKWISE)
+                     cv2.ROTATE_90_CLOCKWISE)
       )
     # Show the image if appropriate.
     elif not self._hidden:

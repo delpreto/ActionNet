@@ -32,6 +32,7 @@ from collections import OrderedDict
 import os
 import h5py
 import cv2
+import decord
 import numpy as np
 import traceback
 
@@ -398,8 +399,10 @@ class SensorStreamer(ABC):
           video_reader = self._video_readers[device_name][stream_name]
           video_time_s_group = self._video_time_s_stream_groups[device_name][stream_name]
           for index in range(starting_index, ending_index):
-            video_reader.set(cv2.CAP_PROP_POS_FRAMES, index)
-            success, frame = video_reader.read()
+            try:
+              frame = cv2.cvtColor(video_reader[index].asnumpy(), cv2.COLOR_RGB2BGR)
+            except:
+              continue
             time_s = video_time_s_group['time_s'][index][0]
             res['data'].append(frame)
             res['time_s'].append(time_s)
@@ -590,15 +593,14 @@ class SensorStreamer(ABC):
       self._video_time_s_stream_groups[device_name] = {}
       for (stream_name, video_info) in device_videos_info.items():
         # Open a video reader to extract frames.
-        video_reader = cv2.VideoCapture(video_info['video_filepath'])
+        video_reader = decord.VideoReader(video_info['video_filepath'])
         self._video_readers[device_name][stream_name] = video_reader
         # Extract information about the video.
-        success, video_frame = video_reader.read()
-        video_reader.set(cv2.CAP_PROP_POS_FRAMES, 0) # go back to the beginning
+        video_frame = cv2.cvtColor(video_reader[0].asnumpy(), cv2.COLOR_RGB2BGR)
         data_type = str(video_frame.dtype)
         sample_size = video_frame.shape
-        sampling_rate_hz = video_reader.get(cv2.CAP_PROP_FPS)
-        frame_count = video_reader.get(cv2.CAP_PROP_FRAME_COUNT)
+        sampling_rate_hz = video_reader.get_avg_fps()
+        frame_count = len(video_reader)
         # Create streams for the video.
         self.add_stream(device_name, stream_name,
                           data_type, sample_size, sampling_rate_hz,
@@ -751,7 +753,7 @@ class SensorStreamer(ABC):
           for (stream_name, video_reader) in device_video_readers.items():
             next_index = next_indexes[device_name][stream_name]
             # Check if all data has been streamed yet for this stream.
-            if next_index >= video_reader.get(cv2.CAP_PROP_FRAME_COUNT):
+            if next_index >= len(video_reader):
               continue
             all_streams_complete = False
             # See if the next timestamp has been reached yet (if replaying in real time).
@@ -759,8 +761,7 @@ class SensorStreamer(ABC):
             if log_time_s() >= time_s_stream_group['time_s'][next_index] \
                 or (not self._log_player_options['pause_to_replay_in_realtime']):
               # Get the desired video frame and its original timestamp.
-              video_reader.set(cv2.CAP_PROP_POS_FRAMES, next_index)
-              success, frame = video_reader.read()
+              frame = cv2.cvtColor(video_reader[next_index].asnumpy(), cv2.COLOR_RGB2BGR)
               time_s = time_s_stream_group['time_s'][next_index][0]
               # Append the data!
               self.append_data(device_name, stream_name, time_s, frame)

@@ -28,6 +28,7 @@ from sensor_streamers.SensorStreamer import SensorStreamer
 from visualizers.VideoVisualizer import VideoVisualizer
 
 import cv2
+import decord
 import numpy as np
 import msgpack
 from utils.zmq_tools import *
@@ -660,7 +661,7 @@ class EyeStreamer(SensorStreamer):
     if (world_video_filepath is not None and os.path.exists(world_video_filepath)) \
         and os.path.exists(world_video_timestamps_filepath) \
         and 'eye-tracking-gaze' in hdf5_file_toUpdate:
-      video_reader = cv2.VideoCapture(world_video_filepath)
+      video_reader = decord.VideoReader(world_video_filepath)
       video_times_s = np.load(world_video_timestamps_filepath)
       gaze_positions = hdf5_file_toUpdate['eye-tracking-gaze']['position']['data']
       gaze_times_s = np.asarray(hdf5_file_toUpdate['eye-tracking-gaze']['timestamp']['data']) # use Pupil Core time instead of system time (['eye-tracking-gaze']['position']['time_s']) to align more precisely with the video frame timestamps copied above
@@ -676,13 +677,12 @@ class EyeStreamer(SensorStreamer):
       self._log_debug(' Creating world-gaze video based on %s' % world_video_filepath)
       self._log_debug(' Will output synthesized video to   %s' % worldGaze_filepath)
       # Extract information about the video input and create a video writer for the output.
-      success, video_frame = video_reader.read()
-      video_reader.set(cv2.CAP_PROP_POS_FRAMES, 0) # go back to the beginning
+      video_frame = cv2.cvtColor(video_reader[0].asnumpy(), cv2.COLOR_RGB2BGR)
       frame_height = video_frame.shape[0]
       frame_width = video_frame.shape[1]
       data_type = str(video_frame.dtype)
-      sampling_rate_hz = video_reader.get(cv2.CAP_PROP_FPS)
-      frame_count = int(video_reader.get(cv2.CAP_PROP_FRAME_COUNT))
+      sampling_rate_hz = video_reader.get_avg_fps()
+      frame_count = len(video_reader)
       fourcc = 'MJPG'
       video_writer = cv2.VideoWriter(worldGaze_filepath,
                                      cv2.VideoWriter_fourcc(*fourcc),
@@ -693,7 +693,7 @@ class EyeStreamer(SensorStreamer):
       for i in range(frame_count):
         # Get the next video frame, and the gaze estimate closest to it in time.
         try:
-          success, video_frame = video_reader.read()
+          video_frame = cv2.cvtColor(video_reader[i].asnumpy(), cv2.COLOR_RGB2BGR)
           previous_video_frame_noGaze = video_frame
           video_time_s = video_times_s[i]
           gaze_index = (np.abs(gaze_times_s - video_time_s)).argmin()
@@ -726,7 +726,7 @@ class EyeStreamer(SensorStreamer):
         if self._print_debug and (((i+1) % int(frame_count/10)) == 0 or (i+1) == frame_count):
           self._log_debug('  Processed %6d/%d frames (%0.1f%%)' % ((i+1), frame_count, 100*(i+1)/frame_count))
       video_writer.release()
-      video_reader.release()
+      del video_reader
 
   #####################
   ###### RUNNING ######
@@ -762,7 +762,7 @@ class EyeStreamer(SensorStreamer):
     processed_options = {
       'eye-tracking-video-worldGaze': {'frame': {'class': VideoVisualizer}},
       'eye-tracking-video-world':     {'frame': {'class': None}},
-      'eye-tracking-video-eye':       {'frame': {'class': None}},
+      'eye-tracking-video-eye':       {'frame': {'class': VideoVisualizer, 'rotate_ccw_deg': 180}},
     }
     # Override with any provided options.
     if isinstance(visualization_options, dict):

@@ -78,6 +78,8 @@ if __name__ == '__main__':
      'activities': [ # TODO: Enter your activities that you want to label
        'Scoop powder into pitcher',
        'Stir pitcher with spoon',
+       'Scoop from a pan to a plate',
+       'Pour water from a pitcher into a glass',
      ],
      'print_debug': print_debug, 'print_status': print_status
      },
@@ -123,7 +125,7 @@ if __name__ == '__main__':
     # Stream from one or more cameras.
     {'class': 'CameraStreamer',
      'cameras_to_stream': { # map camera names (usable as device names in the HDF5 file) to capture device indexes
-       'table-camera': 1,
+       'table-camera': 0,
      },
      'print_debug': print_debug, 'print_status': print_status
     },
@@ -144,10 +146,10 @@ if __name__ == '__main__':
   if enable_data_logging:
     script_dir = os.path.dirname(os.path.realpath(__file__))
     (log_time_str, log_time_s) = get_time_str(return_time_s=True)
-    log_tag = 'actionSense_S15'
+    log_tag = 'actionSense_S11'
     log_dir_root = os.path.join(script_dir, '..', '..', '..', 'data',
                                 'experiments', # recommend 'tests' and 'experiments' for testing vs "real" data
-                                '%s_experiment_S15' % get_time_str(format='%Y-%m-%d'))
+                                '%s_experiment_S11' % get_time_str(format='%Y-%m-%d'))
     log_subdir = '%s_%s' % (log_time_str, log_tag)
     log_dir = os.path.join(log_dir_root, log_subdir)
     datalogging_options = {

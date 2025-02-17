@@ -46,6 +46,7 @@ from utils.print_utils import *
 from utils.time_utils import *
 from utils.angle_utils import *
 
+from matplotlib import pyplot as plt
 
 ################################################
 ################################################
@@ -1378,13 +1379,40 @@ class XsensStreamer(SensorStreamer):
 
     # Check that the timestamps monotonically increase.
     if np.any(np.diff(times_s) < 0):
-      print_var(times_str, 'times_str')
       msg = '\n'*2
       msg += 'x'*75
       msg += 'XsensStreamer aborting merge due to incorrect timestamps in the MVNX file (they are not monotonically increasing)'
       msg += 'x'*75
       msg = '\n'*2
       print(msg)
+      print()
+      input('Press enter to print and copy times_s')
+      print()
+      print_var(times_s, 'times_s')
+      try:
+        import pyperclip
+        pyperclip.copy(str(times_s))
+      except:
+        pass
+      print()
+      input('Press enter to print and copy times_str')
+      print()
+      print_var(times_str, 'times_str')
+      try:
+        import pyperclip
+        pyperclip.copy(str(times_str))
+      except:
+        pass
+      print()
+      input('Press enter to continue and plot the time differences')
+      print()
+      plt.figure()
+      plt.plot(np.diff(times_s))
+      plt.grid(True, color='lightgray')
+      plt.title('Consecutive timestamp differences')
+      plt.xlabel('Sample index')
+      plt.ylabel('Time difference [s]')
+      plt.show()
       return
 
     # A helper to get a matrix of data from all frames for a given tag, such as 'position'.

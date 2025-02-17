@@ -61,6 +61,7 @@ save_table_videos = False # save the third-person table video for each trial
 save_animation_videos = False
 save_composite_videos = False # save the eye-tracking video and animated plot for each trial
 save_results_data = True
+save_activity_startEnd_times = True
 infer_pitcher_holding_angle = False
 plot_pitcher_angle_distance_metrics = False
 save_plot_pitcher_angle_distance_metrics = False
@@ -81,6 +82,8 @@ for subject_id_toProcess in subject_ids_toProcess:
       experiments_dirs.append(os.path.join(data_dir, 'experiments', '2023-08-18_experiment_%s' % subject_id_toProcess))
     elif subject_id_toProcess == 'S11':
       experiments_dirs.append(os.path.join(data_dir, 'experiments', '2023-09-10_experiment_%s' % subject_id_toProcess))
+    elif subject_id_toProcess == 'S11-2':
+      experiments_dirs.append(os.path.join(data_dir, 'experiments', '2025-02-14_experiment_S11'))
     elif subject_id_toProcess == 'ted_S00':
       experiments_dirs.append(os.path.join(data_dir, 'experiments', '2024-03-04_experiment_S00_selectedRun'))
   elif activity_to_process == 'scoopingPowder':
@@ -147,6 +150,8 @@ def main_processing(subject_id_toProcess, experiments_dir):
   num_subjects = len(hdf5_filepaths)
   handles_allPaths = None
   allPaths_subplot_index = 0
+  activities_start_times_s_bySubject = OrderedDict()
+  activities_end_times_s_bySubject = OrderedDict()
   time_s_byTrial_bySubject = OrderedDict()
   bodyPath_data_byTrial_bySubject = OrderedDict()
   bodyPath_origin_xyz_m_byTrial_bySubject = OrderedDict()
@@ -158,6 +163,8 @@ def main_processing(subject_id_toProcess, experiments_dir):
   for subject_id, subject_hdf5_filepaths in hdf5_filepaths.items():
     print('='*75)
     print('Processing subject %02d' % subject_id)
+    activities_start_times_s_bySubject.setdefault(subject_id, [])
+    activities_end_times_s_bySubject.setdefault(subject_id, [])
     time_s_byTrial_bySubject.setdefault(subject_id, [])
     bodyPath_data_byTrial_bySubject.setdefault(subject_id, [])
     bodyPath_origin_xyz_m_byTrial_bySubject.setdefault(subject_id, [])
@@ -186,6 +193,8 @@ def main_processing(subject_id_toProcess, experiments_dir):
       if activities_labels is None:
         continue
       num_trials_inFile = len(activities_labels)
+      activities_start_times_s_bySubject[subject_id].extend(activities_start_times_s)
+      activities_end_times_s_bySubject[subject_id].extend(activities_end_times_s)
       # if use_manual_startEnd_times:
       #   (activities_labels, activities_start_times_s, activities_end_times_s) = \
       #     get_manual_pouring_startEnd_times_s(subject_id)
@@ -356,7 +365,14 @@ def main_processing(subject_id_toProcess, experiments_dir):
                      stationary_time_s_byTrial_bySubject, stationary_pose_byTrial_bySubject,
                      referenceObject_position_m_byTrial_bySubject,
                      hand_to_motionObject_angles_rad_byTrial_bySubject)
-    
+  
+  # Save activity times if desired.
+  if save_activity_startEnd_times:
+    print('    Exporting activity start/end times to HDF5 file')
+    export_activity_times(subject_id_toProcess,
+                          activities_start_times_s_bySubject,
+                          activities_end_times_s_bySubject)
+  
   # Show the final plot
   if animate_trajectory_plots or plot_all_trajectories or plot_pitcher_angle_distance_metrics:
     print('    Close the plots to continue')
@@ -572,7 +588,7 @@ def export_path_data(subject_id_for_filename, time_s_byTrial_bySubject,
     num_trials = len(bodyPath_data_byTrial_bySubject[subject_id])
     subject_group = hdf5_file.create_group('subject_%02d' % subject_id)
     for trial_index in range(num_trials):
-      trial_group = subject_group.create_group('trial_%02d' % trial_index)
+      trial_group = subject_group.create_group('trial_%03d' % trial_index)
       # Add timestamps
       time_s = time_s_byTrial_bySubject[subject_id][trial_index]
       time_s = time_s - time_s[0]
@@ -656,6 +672,29 @@ def export_path_data(subject_id_for_filename, time_s_byTrial_bySubject,
 
   # Close the output file
   hdf5_file.close()
+
+def export_activity_times(subject_id_forFilename,
+                          activities_start_times_s_bySubject, activities_end_times_s_bySubject):
+  # Open the output HDF5 file
+  npy_output_filepath = os.path.join(output_dir, '%s_activity_times_%s.npy' % (target_activity_keyword_for_outputs, subject_id_forFilename))
+  if os.path.exists(npy_output_filepath):
+    print()
+    print('Output file exists at [%s]' % npy_output_filepath)
+    print('  Overwrite the file? [y/N] ', end='')
+    overwrite_file = input()
+    # overwrite_file = 'y'
+    if overwrite_file.lower().strip() != 'y':
+      print('  Aborting')
+      return
+  
+  activities_start_times_s = []
+  activities_end_times_s = []
+  for subject_id in activities_start_times_s_bySubject:
+    activities_start_times_s.extend(activities_start_times_s_bySubject[subject_id])
+    activities_end_times_s.extend(activities_end_times_s_bySubject[subject_id])
+  activities_startEnd_times_s = np.stack([activities_start_times_s, activities_end_times_s], axis=1)
+  np.save(npy_output_filepath, activities_startEnd_times_s)
+  
 
 ###################################################################
 # Various helpers

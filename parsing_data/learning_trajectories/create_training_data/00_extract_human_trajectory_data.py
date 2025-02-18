@@ -68,7 +68,7 @@ save_plot_pitcher_angle_distance_metrics = False
 
 # Specify the output folder.
 output_dir = os.path.realpath(os.path.join(actionsense_root_dir,
-                                           'results', 'learning_trajectories', 'humans'))
+                                           'results', 'learning_trajectories', 'humans', 'trials_with_eeg'))
 os.makedirs(output_dir, exist_ok=True)
 
 # Specify the folder of experiments to parse.

@@ -169,7 +169,10 @@ def get_feature_data_for_trial(parsed_feature_data, trial_indexes):
       return x[trial_indexes]
     if isinstance(x, dict):
       for (key, data) in x.items():
-        x[key] = extract_trials(x[key])
+        try:
+          x[key] = extract_trials(x[key])
+        except:
+          pass
       return x
   return extract_trials(copy.deepcopy(parsed_feature_data))
   

@@ -26,10 +26,10 @@ from helpers.plot_metrics_distributions import *
 ##################################################################
 
 if len(sys.argv) == 1:
-  # activity_type = 'pouring'
+  activity_type = 'pouring'
   # activity_type = 'scoopingPepper'
   # activity_type = 'scoopingPowder'
-  activity_type = 'stirring'
+  # activity_type = 'stirring'
   
   actionsense_root_dir = script_dir
   while os.path.split(actionsense_root_dir)[-1] != 'ActionSense':
@@ -53,14 +53,15 @@ if len(sys.argv) == 1:
     # 'S00': os.path.join(data_dir_humans, '%s_trainingData_S00.hdf5' % activity_type),
     # 'S10': os.path.join(data_dir_humans, '%s_trainingData_S10.hdf5' % activity_type),
     # 'S11': os.path.join(data_dir_humans, '%s_trainingData_S11.hdf5' % activity_type),
-    'S14': os.path.join(data_dir_humans, '%s_trainingData_S14.hdf5' % activity_type),
-    'S15': os.path.join(data_dir_humans, '%s_trainingData_S15.hdf5' % activity_type),
+    # 'S14': os.path.join(data_dir_humans, '%s_trainingData_S14.hdf5' % activity_type),
+    # 'S15': os.path.join(data_dir_humans, '%s_trainingData_S15.hdf5' % activity_type),
+    'S11-2': os.path.join(data_dir_humans, '%s_trainingData_S11-2.hdf5' % activity_type),
     # 'Model': os.path.join(data_dir_model, 'pouring_modelData.hdf5'),
   }
   # Specify where outputs should be saved.
   # Can be None to not save any outputs.
   # output_dir = None
-  output_dir = os.path.join(data_dir_humans, '%s_evaluation_outputs' % activity_type)
+  output_dir = os.path.join(data_dir_humans, 'trials_with_eeg', '%s_evaluation_outputs' % activity_type)
   # output_dir = os.path.join(data_dir_model, 'only model - new animation limits')
   
   plot_exports_extension = 'png' # jpg png pdf
@@ -154,7 +155,10 @@ for (example_type, feature_data_filepath) in feature_data_filepaths_byType.items
     if labels is not None:
       example_indices_toUse = [i for (i, label) in enumerate(labels) if label == 'human']
       for key in feature_data_byType[example_type]:
-        feature_data_byType[example_type][key] = feature_data_byType[example_type][key][example_indices_toUse]
+        try:
+          feature_data_byType[example_type][key] = feature_data_byType[example_type][key][example_indices_toUse]
+        except:
+          pass
       for key in truth_data_byType[example_type]:
         truth_data_byType[example_type][key] = truth_data_byType[example_type][key][example_indices_toUse]
     
@@ -193,7 +197,10 @@ if save_trajectory_animations_compositeTypes or save_trajectory_animations_eachT
       else:
         feature_data_byType_forTrial[example_type] = {}
         for key in feature_data_byType[example_type]:
-          feature_data_byType_forTrial[example_type][key] = np.squeeze(feature_data_byType[example_type][key][trial_index])
+          try:
+            feature_data_byType_forTrial[example_type][key] = np.squeeze(feature_data_byType[example_type][key][trial_index])
+          except:
+            pass
         feature_data_byType_forTrial[example_type] = parse_feature_data(feature_data_byType_forTrial[example_type])
         
     # Animate the trajectory; press enter to advance to the next timestep.

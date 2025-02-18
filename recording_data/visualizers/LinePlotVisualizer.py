@@ -88,11 +88,19 @@ class LinePlotVisualizer(Visualizer):
     self._visualizer_options.setdefault('single_graph', True)
     self._visualizer_options.setdefault('downsample_factor', 1)
     self._visualizer_options.setdefault('plot_duration_s', 30)
+    self._visualizer_options.setdefault('channel_indexes', None) # an tested option
+    self._visualizer_options.setdefault('line_width', 2)
+    self._visualizer_options.setdefault('show_yaxis_labels', False)
     # Get the plotting options.
     single_graph = self._visualizer_options['single_graph']
+    show_yaxis_labels = self._visualizer_options['show_yaxis_labels']
     plot_duration_s = self._visualizer_options['plot_duration_s']
+    channel_indexes = self._visualizer_options['channel_indexes']
+    line_width = self._visualizer_options['line_width']
     downsample_factor = self._visualizer_options['downsample_factor']
-    sample_size = stream_info['sample_size']
+    sample_size = list(stream_info['sample_size'])
+    if channel_indexes is not None:
+      sample_size[-1] = len(channel_indexes)
     sampling_rate_hz = stream_info['sampling_rate_hz']
     if sampling_rate_hz is not None:
       plot_length = int(plot_duration_s*sampling_rate_hz) + 1
@@ -110,6 +118,8 @@ class LinePlotVisualizer(Visualizer):
         screen_height = self._app.primaryScreen().size().height()
         figure_width = int(screen_width*0.5)
         figure_height = int(figure_width/1.5)
+        if sample_size[-1] > 10 and not single_graph:
+          figure_height = int(figure_width*1.75)
         figure_size = (figure_width, figure_height)
       else:
         figure_size = self._layout_size
@@ -240,7 +250,7 @@ class LinePlotVisualizer(Visualizer):
           for (index, axis_data) in enumerate(axis_datas):
             axis_data_downsampled = axis_data[0::downsample_factor]
             color = pyqtgraph.intColor(index, hues=max(9, len(axis_datas)))
-            plot_kwargs = {'pen': pyqtgraph.mkPen(color=color, width=2),
+            plot_kwargs = {'pen': pyqtgraph.mkPen(color=color, width=line_width),
                            'symbol': None, # 'o'
                            'symbolPen': pyqtgraph.mkPen(color=color, width=2),
                            'symbolBrush': color}
@@ -289,20 +299,26 @@ class LinePlotVisualizer(Visualizer):
       axis_tick_font = QtGui.QFont('arial', pointSize=10)
       for row in range(num_rows):
         for column in range(num_columns):
+          plot = self._plots[row][column]
           for axis_side in ['left', 'bottom', 'top']:
-            plot = self._plots[row][column].getAxis(axis_side)
-            plot.setPen('k')
-            plot.setGrid(grid=True)
-            plot.setTickFont(axis_tick_font)
-          self._plots[row][column].showGrid(x=True, y=True, alpha=0.8)
+            ax = plot.getAxis(axis_side)
+            ax.setPen('k')
+            ax.setGrid(grid=True)
+            ax.setTickFont(axis_tick_font)
+            ax.setStyle(showValues=False)
+            ax.enableAutoSIPrefix(False)
+          plot.showGrid(x=True, y=True, alpha=0.8)
           if row == 0:
-            self._plots[row][column].setTitle('%s: %s' % (device_name, stream_name),  size='10pt')
+            plot.setTitle('%s: %s' % (device_name, stream_name),  size='10pt')
           if row == (num_rows-1):
             labelStyle = {'color': '#000', 'font-size': '10pt'}
-            # self._plots[row][column].setLabel('bottom', 'Time [s]', **labelStyle)
+            # plot.setLabel('bottom', 'Time [s]', **labelStyle)
           else:
-            self._plots[row][column].hideAxis('bottom')
+            plot.hideAxis('bottom')
           self._layout.setWindowTitle('%s: %s' % (device_name, stream_name))
+          # Label the y axes if desired.
+          if show_yaxis_labels:
+            plot.setLabel('left', line_titles[row])
       # Update the plot window (yes, this works)
       if not self._hidden:
         cv2.waitKey(1)
@@ -311,6 +327,7 @@ class LinePlotVisualizer(Visualizer):
     self._plot_length = plot_length
     self._plot_length_downsampled = plot_length_downsampled
     self._downsample_factor = downsample_factor
+    self._channel_indexes = channel_indexes
     self._time_s = time_s
     self._data = data
     self._h_lines = h_lines
@@ -346,6 +363,8 @@ class LinePlotVisualizer(Visualizer):
     # For each subplot, add the relevant portion of the new data.
     # Also trim data to be the appropriate length for the plot.
     new_data_data = np.atleast_1d(np.array(new_data['data']))
+    if self._channel_indexes is not None:
+      new_data_data = new_data_data[..., self._channel_indexes]
     num_rows = self._axs.shape[0] if use_matplotlib else self._plots.shape[0]
     num_columns = self._axs.shape[1] if use_matplotlib else self._plots.shape[1]
     for row in range(num_rows):

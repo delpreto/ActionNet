@@ -70,7 +70,7 @@ class DataVisualizer:
     if not isinstance(sensor_streamers, (list, tuple)):
       sensor_streamers = [sensor_streamers]
     if len(sensor_streamers) == 0:
-      raise AssertionError('At least one SensorStreamer must be provided to DataLogger')
+      raise AssertionError('At least one SensorStreamer must be provided to DataVisualizer')
     self._streamers = list(sensor_streamers)
 
     # Record the configuration options.
@@ -236,6 +236,13 @@ class DataVisualizer:
         self._visualizers[streamer_index][device_name] = OrderedDict()
         for (stream_name, stream_info) in streams_info.items():
           visualizer_options = streamer.get_visualization_options(device_name, stream_name)
+          if self._use_composite_video:
+            for (row_index, row_layout) in enumerate(self._composite_video_layout):
+              for (column_index, tile_info) in enumerate(row_layout):
+                if tile_info['device_name'] == device_name and tile_info['stream_name'] == stream_name:
+                  if 'visualizer_options' in tile_info:
+                    for k, v in tile_info['visualizer_options'].items():
+                      visualizer_options[k] = v
           if callable(visualizer_options['class']):
             try:
               composite_visualizer_layout = self._composite_visualizer_layouts[device_name][stream_name]

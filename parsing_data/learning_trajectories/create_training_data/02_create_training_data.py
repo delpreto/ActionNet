@@ -56,6 +56,7 @@ plot_hand_path_features = False
 
 # Specify how to standardize training data segment times and lengths.
 num_resampled_timesteps = 100
+num_resampled_timesteps_eeg = 5000
 normalize_time = False
 
 ###################################################################
@@ -118,7 +119,8 @@ for subject_index in range(len(subject_ids_toProcess)):
                            joint_angle_eulerZXY_xyz_rad, joint_angle_eulerXZY_xyz_rad,
                            body_segment_origin_xyz_m, body_segment_frame_rotation_matrix,
                            referenceObject_position_m, hand_to_motionObject_angles_rad, stationary_time_s,
-                           is_human, subject_id=-1, trial_id=-1):
+                           is_human, subject_id=-1, trial_id=-1,
+                           eeg_data=None):
     
     # Collect position and orientation features.
     features = OrderedDict()
@@ -193,6 +195,26 @@ for subject_index in range(len(subject_ids_toProcess)):
     # Add the stationary index.
     stationary_index = np.squeeze(features['time_s']).searchsorted(stationary_time_s)
     features['stationary_index'] = np.atleast_2d(stationary_index)
+    
+    # Add EEG data.
+    if eeg_data is not None:
+      # Resample the EEG data.
+      features['eeg'] = copy.deepcopy(eeg_data)
+      time_s = features['eeg']['time_s']
+      time_s = time_s - time_s[0]
+      if normalize_time:
+        time_s = time_s/time_s[-1]
+      features['eeg']['time_s'] = time_s
+      target_timestamps = np.linspace(time_s[0], time_s[-1], num_resampled_timesteps_eeg)
+      for (key, data) in features['eeg'].items():
+        fn_interpolate_data = interpolate.interp1d(
+            time_s,         # x values
+            data,           # y values
+            axis=0,         # axis of the data along which to interpolate
+            kind='linear',  # interpolation method, such as 'linear', 'zero', 'nearest', 'quadratic', 'cubic', etc.
+            fill_value='extrapolate' # how to handle x values outside the original range
+        )
+        features['eeg'][key] = fn_interpolate_data(target_timestamps)
     
     # Add to the main lists.
     for (key, data) in features.items():
@@ -278,12 +300,22 @@ for subject_index in range(len(subject_ids_toProcess)):
       # Get the motionObject holding angle.
       hand_to_motionObject_angles_rad = np.array(trial_group_human['hand_to_motionObject_angles_rad'])
       
+      # Get the EEG data.
+      if 'eeg' in trial_group_human:
+        eeg_data = {}
+        eeg_data['all_channels'] = np.squeeze(trial_group_human['eeg']['all_channels'])
+        eeg_data['all_channels_filtered'] = np.squeeze(trial_group_human['eeg']['all_channels_filtered'])
+        eeg_data['time_s'] = np.squeeze(trial_group_human['eeg']['time_s'])
+      else:
+        eeg_data = None
+      
       # Add a labeled feature matrix for this trial.
       add_training_segment(time_s, body_segment_position_m, body_segment_quaternion_wijk,
                            body_joint_angle_eulerZXY_xyz_rad, body_joint_angle_eulerXZY_xyz_rad,
                            body_segment_origin_xyz_m, body_segment_frame_rotation_matrix,
                            referenceObject_position_m, hand_to_motionObject_angles_rad, stationary_time_s,
-                           is_human=True, subject_id=subject_id, trial_id=trial_name)
+                           is_human=True, subject_id=subject_id, trial_id=trial_name,
+                           eeg_data=eeg_data)
       
       # # Do the same for the robot path based on this trial.
       # if include_robot_examples:

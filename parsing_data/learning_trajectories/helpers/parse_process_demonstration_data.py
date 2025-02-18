@@ -129,6 +129,29 @@ def get_bodyPath_data_byTrial(h5_file, start_times_s, end_times_s):
   
   return (time_s_byTrial, bodyPath_data_byTrial)
 
+# Extract EEG data for specified activities.
+def get_eeg_data_byTrial(h5_file, start_times_s, end_times_s):
+  if 'eeg' not in h5_file:
+    return None
+  # Get EEG data throughout the whole experiment.
+  time_s = np.squeeze(h5_file['eeg']['all_channels']['time_s'])
+  all_channels = np.squeeze(h5_file['eeg']['all_channels']['data'])
+  all_channels_filtered = np.squeeze(h5_file['eeg']['all_channels_filtered']['data'])
+  
+  eeg_data_byTrial = []
+  # Extract each desired activity.
+  for time_index in range(len(start_times_s)):
+    start_time_s = start_times_s[time_index]
+    end_time_s = end_times_s[time_index]
+    indexes_forTrial = np.where((time_s >= start_time_s) & (time_s <= end_time_s))[0]
+    if indexes_forTrial.size > 0:
+      eeg_data_byTrial.append(OrderedDict())
+      eeg_data_byTrial[-1]['time_s'] = time_s[indexes_forTrial]
+      eeg_data_byTrial[-1]['all_channels'] = all_channels[indexes_forTrial, :]
+      eeg_data_byTrial[-1]['all_channels_filtered'] = all_channels_filtered[indexes_forTrial, :]
+  
+  return eeg_data_byTrial
+
 #===========================================================
 # Shift and rotate body path data to a person-centric coordinate frame.
 def transform_bodyPath_data_personFrame(time_s_byTrial, bodyPath_data_byTrial, activity_type=None):

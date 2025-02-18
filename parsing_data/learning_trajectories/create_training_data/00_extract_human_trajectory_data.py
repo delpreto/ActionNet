@@ -160,6 +160,7 @@ def main_processing(subject_id_toProcess, experiments_dir):
   stationary_pose_byTrial_bySubject = OrderedDict()
   referenceObject_position_m_byTrial_bySubject = OrderedDict()
   hand_to_motionObject_angles_rad_byTrial_bySubject = OrderedDict()
+  eeg_data_byTrial_bySubject = OrderedDict()
   for subject_id, subject_hdf5_filepaths in hdf5_filepaths.items():
     print('='*75)
     print('Processing subject %02d' % subject_id)
@@ -173,6 +174,7 @@ def main_processing(subject_id_toProcess, experiments_dir):
     stationary_pose_byTrial_bySubject.setdefault(subject_id, [])
     referenceObject_position_m_byTrial_bySubject.setdefault(subject_id, [])
     hand_to_motionObject_angles_rad_byTrial_bySubject.setdefault(subject_id, [])
+    eeg_data_byTrial_bySubject.setdefault(subject_id, [])
     targetActivity_trial_index_start = 0
     for (filepath_index, hdf5_filepath) in enumerate(subject_hdf5_filepaths):
       print(' ', hdf5_filepath)
@@ -275,7 +277,10 @@ def main_processing(subject_id_toProcess, experiments_dir):
             dpi=300)
       else:
         hand_to_motionObject_angles_rad_byTrial = [hand_to_motionObject_angles_rad[activity_to_process]]*len(bodyPath_data_byTrial)
-  
+      
+      # Get the EEG data for this trial.
+      eeg_data_byTrial = get_eeg_data_byTrial(h5_file, activities_start_times_s, activities_end_times_s)
+      
       # Store the results
       time_s_byTrial_bySubject[subject_id].extend(time_s_byTrial)
       bodyPath_data_byTrial_bySubject[subject_id].extend(bodyPath_data_byTrial)
@@ -285,6 +290,7 @@ def main_processing(subject_id_toProcess, experiments_dir):
       stationary_pose_byTrial_bySubject[subject_id].extend(stationary_pose_byTrial)
       referenceObject_position_m_byTrial_bySubject[subject_id].extend(referenceObject_position_m_byTrial)
       hand_to_motionObject_angles_rad_byTrial_bySubject[subject_id].extend(hand_to_motionObject_angles_rad_byTrial)
+      eeg_data_byTrial_bySubject[subject_id].extend(eeg_data_byTrial)
       
       # Plot the paths.
       if animate_trajectory_plots:
@@ -364,7 +370,8 @@ def main_processing(subject_id_toProcess, experiments_dir):
                      bodyPath_origin_xyz_m_byTrial_bySubject, bodyPath_origin_rotation_matrix_byTrial_bySubject,
                      stationary_time_s_byTrial_bySubject, stationary_pose_byTrial_bySubject,
                      referenceObject_position_m_byTrial_bySubject,
-                     hand_to_motionObject_angles_rad_byTrial_bySubject)
+                     hand_to_motionObject_angles_rad_byTrial_bySubject,
+                     eeg_data_byTrial_bySubject)
   
   # Save activity times if desired.
   if save_activity_startEnd_times:
@@ -567,7 +574,8 @@ def export_path_data(subject_id_for_filename, time_s_byTrial_bySubject,
                      bodyPath_origin_xyz_m_byTrial_bySubject, bodyPath_origin_rotation_matrix_byTrial_bySubject,
                      stationary_time_s_byTrial_bySubject, stationary_pose_byTrial_bySubject,
                      referenceObject_position_m_byTrial_bySubject,
-                     hand_to_motionObject_angles_rad_byTrial_bySubject):
+                     hand_to_motionObject_angles_rad_byTrial_bySubject,
+                     eeg_data_byTrial_bySubject=None):
   # Open the output HDF5 file
   hdf5_output_filepath = os.path.join(output_dir, '%s_paths_humans_%s.hdf5' % (target_activity_keyword_for_outputs, subject_id_for_filename))
   if os.path.exists(hdf5_output_filepath):
@@ -664,6 +672,13 @@ def export_path_data(subject_id_for_filename, time_s_byTrial_bySubject,
       else:
         assert body_segment_names_forTrial == body_segment_names
         assert body_joint_names_forTrial == body_joint_names
+      
+      # Store EEG data.
+      if eeg_data_byTrial_bySubject is not None:
+        eeg_group = trial_group.create_group('eeg')
+        eeg_group.create_dataset('all_channels', data=eeg_data_byTrial_bySubject[subject_id][trial_index]['all_channels'])
+        eeg_group.create_dataset('all_channels_filtered', data=eeg_data_byTrial_bySubject[subject_id][trial_index]['all_channels_filtered'])
+        eeg_group.create_dataset('time_s', data=eeg_data_byTrial_bySubject[subject_id][trial_index]['time_s'])
   
   # Add segment names
   hdf5_file.create_dataset('body_segment_names', data=body_segment_names)

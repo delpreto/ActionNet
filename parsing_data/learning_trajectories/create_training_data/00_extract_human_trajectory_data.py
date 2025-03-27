@@ -65,10 +65,16 @@ save_activity_startEnd_times = True
 infer_pitcher_holding_angle = False
 plot_pitcher_angle_distance_metrics = False
 save_plot_pitcher_angle_distance_metrics = False
+debug_plot_hand_quaternion = False
+
+overwrite_videos_if_file_exists = True
 
 # Specify the output folder.
 output_dir = os.path.realpath(os.path.join(actionsense_root_dir,
-                                           'results', 'learning_trajectories', 'humans', 'trials_with_eeg'))
+                                           'results', 'learning_trajectories',
+                                           # 'humans', 'trials_with_eeg'
+                                           'humans',
+                                           ))
 os.makedirs(output_dir, exist_ok=True)
 
 # Specify the folder of experiments to parse.
@@ -129,11 +135,12 @@ def main_processing(subject_id_toProcess, experiments_dir):
     tableVideo_filepath = [filename for filename in filenames if 'table-camera_frame.avi' in filename]
     log_filepath = [filename for filename in filenames if 'log_history.txt' in filename]
     try:
-      subject_id = int(re.search(r'_S(\d{2})', os.path.split(subdir)[-1]).group(1))
+      subject_id_fromDirName = int(re.search(r'_S(\d{2})', os.path.split(subdir)[-1]).group(1))
     except:
-      subject_id = None
+      subject_id_fromDirName = None
+    subject_id = subject_id_toProcess
     is_a_root_log_folder = len(hdf5_filepath) == 1 and len(eyeVideo_filepath) == 1 \
-                           and len(log_filepath) == 1 and subject_id is not None
+                           and len(log_filepath) == 1 and subject_id_fromDirName is not None
     if is_a_root_log_folder:
       hdf5_filepaths.setdefault(subject_id, [])
       eyeVideo_filepaths.setdefault(subject_id, [])
@@ -163,7 +170,7 @@ def main_processing(subject_id_toProcess, experiments_dir):
   eeg_data_byTrial_bySubject = OrderedDict()
   for subject_id, subject_hdf5_filepaths in hdf5_filepaths.items():
     print('='*75)
-    print('Processing subject %02d' % subject_id)
+    print('Processing subject %s' % subject_id)
     activities_start_times_s_bySubject.setdefault(subject_id, [])
     activities_end_times_s_bySubject.setdefault(subject_id, [])
     time_s_byTrial_bySubject.setdefault(subject_id, [])
@@ -184,7 +191,7 @@ def main_processing(subject_id_toProcess, experiments_dir):
       h5_file = h5py.File(hdf5_filepath, 'r')
       
       # Determine the start/end times of each hand path.
-      subject_id_str = 'S%02d' % subject_id
+      subject_id_str = '%s' % subject_id
       start_offset_s = start_offsets_s[activity_to_process][subject_id_str]
       end_offset_s = end_offsets_s[activity_to_process][subject_id_str]
       print('  Getting activity start/end times | start offset %g s | end offste %g s' % (start_offset_s, end_offset_s))
@@ -211,11 +218,32 @@ def main_processing(subject_id_toProcess, experiments_dir):
       # Get the hand paths.
       print('    Getting body path data')
       (time_s_byTrial, bodyPath_data_byTrial) = get_bodyPath_data_byTrial(h5_file, activities_start_times_s, activities_end_times_s)
+      if debug_plot_hand_quaternion:
+        plt.figure()
+        plt.plot(time_s_byTrial[0], bodyPath_data_byTrial[0]['quaternion_wijk']['LeftHand'])
+        plt.plot(time_s_byTrial[10], bodyPath_data_byTrial[10]['quaternion_wijk']['LeftHand'])
+        plt.plot(time_s_byTrial[20], bodyPath_data_byTrial[20]['quaternion_wijk']['LeftHand'])
+        plt.plot(time_s_byTrial[30], bodyPath_data_byTrial[30]['quaternion_wijk']['LeftHand'])
+        plt.title('Original data')
       print('    Transforming body path data')
       (time_s_byTrial, bodyPath_data_byTrial,
        bodyPath_origin_xyz_m_byTrial, bodyPath_origin_rotation_matrix_byTrial) = transform_bodyPath_data_personFrame(time_s_byTrial, bodyPath_data_byTrial, activity_to_process)
+      if debug_plot_hand_quaternion:
+        plt.figure()
+        plt.plot(time_s_byTrial[0], bodyPath_data_byTrial[0]['quaternion_wijk']['LeftHand'])
+        plt.plot(time_s_byTrial[10], bodyPath_data_byTrial[10]['quaternion_wijk']['LeftHand'])
+        plt.plot(time_s_byTrial[20], bodyPath_data_byTrial[20]['quaternion_wijk']['LeftHand'])
+        plt.plot(time_s_byTrial[30], bodyPath_data_byTrial[30]['quaternion_wijk']['LeftHand'])
+        plt.title('Transformed data')
       print('    Resampling body path data')
       (time_s_byTrial, bodyPath_data_byTrial) = resample_bodyPath_data(time_s_byTrial, bodyPath_data_byTrial)
+      if debug_plot_hand_quaternion:
+        plt.figure()
+        plt.plot(time_s_byTrial[0], bodyPath_data_byTrial[0]['quaternion_wijk']['LeftHand'])
+        plt.plot(time_s_byTrial[10], bodyPath_data_byTrial[10]['quaternion_wijk']['LeftHand'])
+        plt.plot(time_s_byTrial[20], bodyPath_data_byTrial[20]['quaternion_wijk']['LeftHand'])
+        plt.plot(time_s_byTrial[30], bodyPath_data_byTrial[30]['quaternion_wijk']['LeftHand'])
+        plt.title('Resampled data')
       # Infer the hand position while being relatively stationary
       print('    Inferring stationary poses')
       (stationary_time_s_byTrial, stationary_pose_byTrial) = infer_stationary_poses(
@@ -242,6 +270,13 @@ def main_processing(subject_id_toProcess, experiments_dir):
         bodyPath_data_byTrial = transform_bodyPath_data_referenceObjectHeight(
           bodyPath_data_byTrial, stationary_pose_byTrial, referenceObject_position_m_byTrial,
           activity_to_process)
+        if debug_plot_hand_quaternion:
+          plt.figure()
+          plt.plot(time_s_byTrial[0], bodyPath_data_byTrial[0]['quaternion_wijk']['LeftHand'])
+          plt.plot(time_s_byTrial[10], bodyPath_data_byTrial[10]['quaternion_wijk']['LeftHand'])
+          plt.plot(time_s_byTrial[20], bodyPath_data_byTrial[20]['quaternion_wijk']['LeftHand'])
+          plt.plot(time_s_byTrial[30], bodyPath_data_byTrial[30]['quaternion_wijk']['LeftHand'])
+          plt.title('Corrected height data')
       # Infer the hand position while being relatively stationary
       print('    Inferring stationary poses again')
       (stationary_time_s_byTrial, stationary_pose_byTrial) = infer_stationary_poses(
@@ -290,7 +325,10 @@ def main_processing(subject_id_toProcess, experiments_dir):
       stationary_pose_byTrial_bySubject[subject_id].extend(stationary_pose_byTrial)
       referenceObject_position_m_byTrial_bySubject[subject_id].extend(referenceObject_position_m_byTrial)
       hand_to_motionObject_angles_rad_byTrial_bySubject[subject_id].extend(hand_to_motionObject_angles_rad_byTrial)
-      eeg_data_byTrial_bySubject[subject_id].extend(eeg_data_byTrial)
+      if eeg_data_byTrial is not None:
+        eeg_data_byTrial_bySubject[subject_id].extend(eeg_data_byTrial)
+      else:
+        eeg_data_byTrial_bySubject[subject_id].extend([None]*len(time_s_byTrial))
       
       # Plot the paths.
       if animate_trajectory_plots:
@@ -343,6 +381,9 @@ def main_processing(subject_id_toProcess, experiments_dir):
                                        referenceObject_position_m_byTrial,
                                        subject_id, trial_indexes_filter=None,
                                        trial_start_index_offset=targetActivity_trial_index_start)
+      if debug_plot_hand_quaternion:
+        plt.show()
+      
       # Close the HDF5 file.
       h5_file.close()
   
@@ -400,7 +441,7 @@ def save_trial_eyeVideos(h5_file, eyeVideo_filepath, times_s, subject_id, trial_
   
   for trial_index, time_s in enumerate(times_s):
     trial_index_withOffset = trial_index+trial_start_index_offset
-    print('    Saving eye video for Subject S%02d trial %02d' % (subject_id, trial_index_withOffset))
+    print('    Saving eye video for Subject %s trial %02d' % (subject_id, trial_index_withOffset))
     if trial_indexes_filter is not None and trial_index not in trial_indexes_filter:
       continue
     start_time_s = min(time_s)
@@ -411,7 +452,10 @@ def save_trial_eyeVideos(h5_file, eyeVideo_filepath, times_s, subject_id, trial_
     video_reader = cv2.VideoCapture(eyeVideo_filepath)
     eyeVideo_output_dir = os.path.join(output_dir, '%s_eyeVideos' % target_activity_keyword_for_outputs)
     os.makedirs(eyeVideo_output_dir, exist_ok=True)
-    video_writer = cv2.VideoWriter(os.path.join(eyeVideo_output_dir, '%s_eyeVideo_S%02d_%02d.mp4' % (target_activity_keyword_for_outputs, subject_id, trial_index_withOffset)),
+    video_filepath = os.path.join(eyeVideo_output_dir, '%s_eyeVideo_%s_%02d.mp4' % (target_activity_keyword_for_outputs, subject_id, trial_index_withOffset))
+    if os.path.exists(video_filepath) and not overwrite_videos_if_file_exists:
+      continue
+    video_writer = cv2.VideoWriter(video_filepath,
                                    cv2.VideoWriter_fourcc(*'MP4V'),  # for AVI: cv2.VideoWriter_fourcc(*'MJPG'),
                                    video_reader.get(cv2.CAP_PROP_FPS),
                                    (int(video_reader.get(cv2.CAP_PROP_FRAME_WIDTH)), int(video_reader.get(cv2.CAP_PROP_FRAME_HEIGHT)))
@@ -435,7 +479,7 @@ def save_activity_composite_videos(h5_file, eyeVideo_filepath,
   
   for (trial_index, time_s) in enumerate(time_s_byTrial):
     trial_index_withOffset = trial_index + trial_start_index_offset
-    print('    Saving composite video for Subject S%02d trial %02d' % (subject_id, trial_index_withOffset))
+    print('    Saving composite video for Subject %s trial %02d' % (subject_id, trial_index_withOffset))
     if trial_indexes_filter is not None and trial_index not in trial_indexes_filter:
       continue
     start_time_s = time_s[0]
@@ -478,7 +522,10 @@ def save_activity_composite_videos(h5_file, eyeVideo_filepath,
       if video_writer is None:
         composite_output_dir = os.path.join(output_dir, '%s_composites' % target_activity_keyword_for_outputs)
         os.makedirs(composite_output_dir, exist_ok=True)
-        video_writer = cv2.VideoWriter(os.path.join(composite_output_dir, '%s_composite_S%02d_%02d.mp4' % (target_activity_keyword_for_outputs, subject_id, trial_index_withOffset)),
+        video_filepath = os.path.join(composite_output_dir, '%s_composite_%s_%02d.mp4' % (target_activity_keyword_for_outputs, subject_id, trial_index_withOffset))
+        if os.path.exists(video_filepath) and not overwrite_videos_if_file_exists:
+          break
+        video_writer = cv2.VideoWriter(video_filepath,
                                        cv2.VideoWriter_fourcc(*'MP4V'),  # for AVI: cv2.VideoWriter_fourcc(*'MJPG'),
                                        video_reader.get(cv2.CAP_PROP_FPS),
                                        (composite_frame.shape[1], composite_frame.shape[0])
@@ -494,7 +541,7 @@ def save_activity_animation_videos(time_s_byTrial, bodyPath_data_byTrial, activi
   
   for (trial_index, time_s) in enumerate(time_s_byTrial):
     trial_index_withOffset = trial_index + trial_start_index_offset
-    print('Saving animation video for Subject S%02d trial %02d' % (subject_id, trial_index_withOffset))
+    print('Saving animation video for Subject %s trial %02d' % (subject_id, trial_index_withOffset))
     if trial_indexes_filter is not None and trial_index not in trial_indexes_filter:
       continue
     start_time_s = time_s[0]
@@ -527,7 +574,10 @@ def save_activity_animation_videos(time_s_byTrial, bodyPath_data_byTrial, activi
       if video_writer is None:
         animation_output_dir = os.path.join(output_dir, '%s_animations' % target_activity_keyword_for_outputs)
         os.makedirs(animation_output_dir, exist_ok=True)
-        video_writer = cv2.VideoWriter(os.path.join(animation_output_dir, '%s_animation_S%02d_%02d.mp4' % (target_activity_keyword_for_outputs, subject_id, trial_index_withOffset)),
+        video_filepath = os.path.join(animation_output_dir, '%s_animation_%s_%02d.mp4' % (target_activity_keyword_for_outputs, subject_id, trial_index_withOffset))
+        if os.path.exists(video_filepath) and not overwrite_videos_if_file_exists:
+          break
+        video_writer = cv2.VideoWriter(video_filepath,
                                        cv2.VideoWriter_fourcc(*'MP4V'),  # for AVI: cv2.VideoWriter_fourcc(*'MJPG'),
                                        fps,
                                        (plot_img.shape[1], plot_img.shape[0])
@@ -538,11 +588,13 @@ def save_activity_animation_videos(time_s_byTrial, bodyPath_data_byTrial, activi
 def save_trial_tableVideos(h5_file, tableVideo_filepath, times_s, subject_id, trial_indexes_filter=None, trial_start_index_offset=0):
   device_name = 'table-camera'
   stream_name = 'frame_timestamp'
+  if device_name not in h5_file:
+    return
   frames_time_s = h5_file[device_name][stream_name]['data']
   
   for trial_index, time_s in enumerate(times_s):
     trial_index_withOffset = trial_index+trial_start_index_offset
-    print('    Saving table video for Subject S%02d trial %02d' % (subject_id, trial_index_withOffset))
+    print('    Saving table video for Subject %s trial %02d' % (subject_id, trial_index_withOffset))
     if trial_indexes_filter is not None and trial_index not in trial_indexes_filter:
       continue
     start_time_s = min(time_s)
@@ -553,7 +605,10 @@ def save_trial_tableVideos(h5_file, tableVideo_filepath, times_s, subject_id, tr
     video_reader = cv2.VideoCapture(tableVideo_filepath)
     tableVideo_output_dir = os.path.join(output_dir, '%s_tableVideos' % target_activity_keyword_for_outputs)
     os.makedirs(tableVideo_output_dir, exist_ok=True)
-    video_writer = cv2.VideoWriter(os.path.join(tableVideo_output_dir, '%s_tableVideo_S%02d_%02d.mp4' % (target_activity_keyword_for_outputs, subject_id, trial_index_withOffset)),
+    video_filepath = os.path.join(tableVideo_output_dir, '%s_tableVideo_%s_%02d.mp4' % (target_activity_keyword_for_outputs, subject_id, trial_index_withOffset))
+    if os.path.exists(video_filepath) and not overwrite_videos_if_file_exists:
+      continue
+    video_writer = cv2.VideoWriter(video_filepath,
                                    cv2.VideoWriter_fourcc(*'MP4V'),  # for AVI: cv2.VideoWriter_fourcc(*'MJPG'),
                                    video_reader.get(cv2.CAP_PROP_FPS),
                                    (int(video_reader.get(cv2.CAP_PROP_FRAME_WIDTH)), int(video_reader.get(cv2.CAP_PROP_FRAME_HEIGHT)))
@@ -674,7 +729,7 @@ def export_path_data(subject_id_for_filename, time_s_byTrial_bySubject,
         assert body_joint_names_forTrial == body_joint_names
       
       # Store EEG data.
-      if eeg_data_byTrial_bySubject is not None:
+      if eeg_data_byTrial_bySubject is not None and eeg_data_byTrial_bySubject[subject_id][trial_index] is not None:
         eeg_group = trial_group.create_group('eeg')
         eeg_group.create_dataset('all_channels', data=eeg_data_byTrial_bySubject[subject_id][trial_index]['all_channels'])
         eeg_group.create_dataset('all_channels_filtered', data=eeg_data_byTrial_bySubject[subject_id][trial_index]['all_channels_filtered'])

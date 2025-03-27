@@ -817,7 +817,7 @@ class DataLogger:
         
   # Merge logged data with recordings from sensor-specific software.
   @staticmethod
-  def merge_external_data(log_dir, print_status=False, print_debug=False):
+  def merge_external_data(log_dir, streamer_class_names_to_process=None, print_status=False, print_debug=False):
     import glob
     import importlib
     hdf5_filepaths = glob.glob(os.path.join(log_dir, '*.hdf5'))
@@ -842,6 +842,8 @@ class DataLogger:
       if 'SensorStreamer class name' not in metadata:
         continue
       class_name = metadata['SensorStreamer class name']
+      if streamer_class_names_to_process is not None and class_name not in streamer_class_names_to_process:
+        continue
       if class_name not in class_names:
         class_module = importlib.import_module('sensor_streamers.%s' % class_name, class_name)
         class_type = getattr(class_module, class_name)

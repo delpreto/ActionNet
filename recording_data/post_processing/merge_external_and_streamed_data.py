@@ -47,6 +47,11 @@ log_dir_root = os.path.realpath(os.path.join(actionsense_root_dir, 'data',
                                              'experiments', 'for_merging'))
 iterate_log_subdirs_depth = 2 # 0 if log_dir_root is a log folder directly (e.g. contains an HDF5 file), then add 1 for each level up
 
+# Specify the specific streamer classes that should merge their external data.
+#   For example, use streamer_class_names_to_process = ['XsensStreamer'] to only merge Xsens data.
+#   Specify None to use all streamers.
+streamer_class_names_to_process = None
+
 # Merge the data!
 # Process all subdirectories in the provided log directory,
 #   or treat it as the main log directory.
@@ -76,7 +81,8 @@ for log_dir in log_dirs:
     print('\n\n' + '='*75)
     print('Merging external data for log directory %s\n' % log_dir)
     try:
-      DataLogger.merge_external_data(log_dir, print_status=True, print_debug=True)
+      DataLogger.merge_external_data(log_dir, streamer_class_names_to_process=streamer_class_names_to_process,
+                                     print_status=True, print_debug=True)
     except:
       print('\n'*5)
       print('x'*50)

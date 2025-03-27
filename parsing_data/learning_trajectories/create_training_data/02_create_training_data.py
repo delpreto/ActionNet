@@ -239,7 +239,7 @@ for subject_index in range(len(subject_ids_toProcess)):
       ax.set_xlabel('X [cm]')
       ax.set_ylabel('Y [cm]')
       ax.set_zlabel('Z [cm]')
-      hand_path_cm = 100*features['hand_position_m']
+      hand_path_cm = 100*features[motionObject_rightOrLeftArm[activity_to_process]]['hand_position_m']
       ax.plot3D(hand_path_cm[:, 0], hand_path_cm[:, 1], hand_path_cm[:, 2], alpha=1)
       ax.set_box_aspect([ub - lb for lb, ub in (ax.get_xlim(), ax.get_ylim(), ax.get_zlim())])
       ax.set_title('Hand Path Features: '

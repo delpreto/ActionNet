@@ -27,16 +27,16 @@
 import numpy as np
 from scipy.spatial.transform import Rotation
 
-# Specify the task.
+# Specify the task and the subjects.
 activity_to_process = 'pouring'
+subject_ids_toProcess = ['S11-2'] # S00, S10, S11, ted_S00, S14, S15
+# subject_ids_toProcess = ['S00', 'S11', 'S10', 'S11-2'] # S00, S10, S11, ted_S00, S14, S15
 # activity_to_process = 'scoopingPepper'
-# activity_to_process = 'scoopingPowder'
-# activity_to_process = 'stirring'
-
-# Specify the subjects to consider.
 # subject_ids_toProcess = ['S00', 'S11', 'S10'] # S00, S10, S11, ted_S00, S14, S15
+# activity_to_process = 'scoopingPowder'
 # subject_ids_toProcess = ['S14', 'S15'] # S00, S10, S11, ted_S00, S14, S15
-subject_ids_toProcess = ['S11-2']
+# activity_to_process = 'stirring'
+# subject_ids_toProcess = ['S14', 'S15'] # S00, S10, S11, ted_S00, S14, S15
 
 resampled_fs_hz = 50
 
@@ -47,11 +47,13 @@ start_offsets_s = {
     'S00': -0.5,
     'S11': 0,
     'S10': 0,
+    'S11-2': 0,
   },
   'scoopingPepper': {
     'S00': 0,
     'S11': 0,
     'S10': 0,
+    'S11-2': 0,
   },
   'scoopingPowder': {
     'S14': 0,
@@ -67,11 +69,13 @@ end_offsets_s = {
     'S00': 0,
     'S11': 0,
     'S10': 0,
+    'S11-2': 0,
   },
   'scoopingPepper': {
     'S00': 0,
     'S11': 0,
     'S10': 0,
+    'S11-2': 0,
   },
   'scoopingPowder': {
     'S14': 0,

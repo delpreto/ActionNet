@@ -1335,7 +1335,7 @@ class XsensStreamer(SensorStreamer):
     self._log_status('XsensStreamer merging streamed data with Xsens MVNX data')
     
     # Read and parse the MVNX file as an XML file.
-    self._log_debug('Reading and parsing the MVNX file')
+    self._log_debug('Reading and parsing the MVNX file: %s' % mvnx_filepath)
     with open(mvnx_filepath, 'r') as fin:
       mvnx_contents = fin.read()
     mvnx_xml = BeautifulSoup(mvnx_contents, 'xml')

@@ -32,6 +32,11 @@ print()
 print('Number of data headings: ', len(data_headings))
 print('Size of the unwrapped data matrix: ', acceleration_cm_ss.shape)
 
+print()
+print('Note that a description of Xsens segment and joint names can be found here for reference:')
+print('https://base.movella.com/s/article/Xsens-Biomechanical-Model?language=en_US')
+print()
+
 # Close the HDF5 file.
 h5_file.close()
 

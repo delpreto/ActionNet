@@ -44,8 +44,8 @@ while os.path.split(actionsense_root_dir)[-1] != 'ActionSense':
 #           # 'experiments', '2024-03-04_experiment_S00_selectedRun', # contains a few log directories (see iteration depth setting below)
 #           ))
 log_dir_root = os.path.realpath(os.path.join(actionsense_root_dir, 'data',
-                                             'experiments', 'for_merging'))
-iterate_log_subdirs_depth = 2 # 0 if log_dir_root is a log folder directly (e.g. contains an HDF5 file), then add 1 for each level up
+                                             'tests', 'for_merging'))
+iterate_log_subdirs_depth = 1 # 0 if log_dir_root is a log folder directly (e.g. contains an HDF5 file), then add 1 for each level up
 
 # Specify the specific streamer classes that should merge their external data.
 #   For example, use streamer_class_names_to_process = ['XsensStreamer'] to only merge Xsens data.

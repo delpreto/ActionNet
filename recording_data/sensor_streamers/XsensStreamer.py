@@ -74,6 +74,7 @@ class XsensStreamer(SensorStreamer):
 
   def __init__(self, streams_info=None,
                 log_player_options=None, visualization_options=None,
+                prop_hand_for_visualization='right',
                 print_status=True, print_debug=False, log_history_filepath=None):
     SensorStreamer.__init__(self, streams_info,
                               log_player_options=log_player_options,
@@ -85,9 +86,10 @@ class XsensStreamer(SensorStreamer):
     
     # Initialize counts of segments/joints/fingers.
     # These will be updated automatically later based on initial streaming data.
-    self._num_segments = None # will be set to 23 for the full body
+    self._num_body_segments = None # will be set to 23 for the full body
     self._num_fingers = None  # will be set to 0 or 40 depending on whether fingers are enabled
-    self._num_joints = None # will be set to 28 = 22 regular joints + 6 ergonomic joints
+    self._num_body_joints = None # will be set to 28 = 22 regular joints + 6 ergonomic joints
+    self._num_prop_segments = None # will be set to 0-4 depending on size of messages received
     # Specify message types that might be received.
     self._xsens_msg_types = {
       'pose_euler':      1,
@@ -108,8 +110,8 @@ class XsensStreamer(SensorStreamer):
     self._xsens_msg_start_code = b'MXTP'
     # Note that the buffer read size must be large enough to receive a full Xsens message.
     #  The longest message is currently from the stream "Position + Orientation (Quaternion)"
-    #  which has a message length of 2040 when finger data is enabled.
-    self._buffer_read_size = 2048
+    #  which has a message length of 2040 when finger data is enabled (and no prop).
+    self._buffer_read_size = 2100
     self._buffer_max_size = self._buffer_read_size * 16
     
     # Post-processing configuration for merging Xsens recordings with streamed data.
@@ -126,7 +128,8 @@ class XsensStreamer(SensorStreamer):
     # Look in all HDF5 files to determine which streams were active
     #  and how many segments/fingers there were.
     if self._replaying_data_logs:
-      self._num_segments = 23
+      self._num_body_segments = 23
+      self._num_prop_segments = 0
       for file in os.listdir(self._log_player_options['log_dir']):
         if file.endswith('.hdf5'):
           hdf5_filepath = os.path.join(self._log_player_options['log_dir'], file)
@@ -137,32 +140,47 @@ class XsensStreamer(SensorStreamer):
           if 'xsens-joints' in hdf5_file:
             self._xsens_is_streaming[self._xsens_msg_types['joint_angle']] = True
             if 'child' in hdf5_file['xsens-joints']:
-              self._num_joints = hdf5_file['xsens-joints']['child']['data'].shape[1]
+              self._num_body_joints = hdf5_file['xsens-joints']['child']['data'].shape[1]
             else:
-              self._num_joints = hdf5_file['xsens-joints']['body_joint_angles_eulerXZY_xyz_rad']['data'].shape[1]
+              self._num_body_joints = hdf5_file['xsens-joints']['body_joint_angles_eulerXZY_xyz_rad']['data'].shape[1]
           if 'xsens-time' in hdf5_file:
             self._xsens_is_streaming[self._xsens_msg_types['time_code_str']] = True
           if 'xsens-segments' in hdf5_file:
+            num_segments = 0
             if 'orientation_euler_deg' in hdf5_file['xsens-segments']:
               self._xsens_is_streaming[self._xsens_msg_types['pose_euler']] = True
               num_segments = hdf5_file['xsens-segments']['orientation_euler_deg']['data'].shape[1]
-              self._num_fingers = num_segments - self._num_segments
             if 'orientation_quaternion' in hdf5_file['xsens-segments']:
               self._xsens_is_streaming[self._xsens_msg_types['pose_quaternion']] = True
               num_segments = hdf5_file['xsens-segments']['orientation_quaternion']['data'].shape[1]
-              self._num_fingers = num_segments - self._num_segments
             if 'body_acceleration_xyz_m_ss' in hdf5_file['xsens-segments']:
               num_segments = hdf5_file['xsens-segments']['body_acceleration_xyz_m_ss']['data'].shape[1]
-              self._num_fingers = num_segments - self._num_segments
+            # Determine whether props and/or fingers were used.
+            if num_segments == self._num_body_segments:
+              self._num_fingers = 0
+              self._num_prop_segments = 0
+            elif num_segments > self._num_body_segments and num_segments <= self._num_body_segments+4: # up to 4 prop sensors supported
+              self._num_fingers = 0
+              self._num_prop_segments = num_segments - self._num_body_segments
+            elif num_segments > self._num_body_segments+40:
+              self._num_prop_segments = num_segments - 40 - self._num_body_segments
+              self._num_fingers = num_segments - self._num_prop_segments - self._num_body_segments
+              assert self._num_fingers == 40
+              assert self._num_prop_segments > 0 and self._num_prop_segments <= 4
+            else:
+              self._num_prop_segments = 0
+              self._num_fingers = num_segments - self._num_body_segments
           hdf5_file.close()
       if self._print_debug:
         debug_msg  = 'Got Xsens state from past data logs:\n'
-        debug_msg += '  num segments: %s\n' % self._num_segments
+        debug_msg += '  num segments: %s\n' % self._num_body_segments
         debug_msg += '  num fingers : %s\n' % self._num_fingers
-        debug_msg += '  num joints  : %s\n' % self._num_joints
+        debug_msg += '  num joints  : %s\n' % self._num_body_joints
         debug_msg += '  active streams: %s\n' % get_dict_str(self._xsens_is_streaming)
         self._log_debug(debug_msg.strip())
-
+    
+    # Store any visualization options.
+    self._prop_hand_for_visualization = prop_hand_for_visualization
 
   # Set up streams associated with an Xsens message.
   # Streams will be set up when its message type is first receieved,
@@ -186,7 +204,7 @@ class XsensStreamer(SensorStreamer):
       self.add_stream(device_name='xsens-segments',
                       stream_name='position_cm',
                       data_type='float32',
-                      sample_size=(self._num_segments + self._num_fingers, 3),
+                      sample_size=(self._num_body_segments + self._num_prop_segments + self._num_fingers, 3),
                       sampling_rate_hz=None,
                       extra_data_info=extra_data_info,
                       data_notes=self._data_notes_stream['xsens-segments']['position_cm'])
@@ -194,7 +212,7 @@ class XsensStreamer(SensorStreamer):
       self.add_stream(device_name='xsens-segments',
                       stream_name='orientation_euler_deg',
                       data_type='float32',
-                      sample_size=(self._num_segments + self._num_fingers, 3),
+                      sample_size=(self._num_body_segments + self._num_prop_segments + self._num_fingers, 3),
                       sampling_rate_hz=None,
                       extra_data_info=extra_data_info,
                       data_notes=self._data_notes_stream['xsens-segments']['orientation_euler_deg'])
@@ -202,7 +220,7 @@ class XsensStreamer(SensorStreamer):
       self.add_stream(device_name='xsens-segments',
                       stream_name='orientation_quaternion',
                       data_type='float32',
-                      sample_size=(self._num_segments + self._num_fingers, 4),
+                      sample_size=(self._num_body_segments + self._num_prop_segments + self._num_fingers, 4),
                       sampling_rate_hz=None,
                       extra_data_info=extra_data_info,
                       data_notes=self._data_notes_stream['xsens-segments']['orientation_quaternion'])
@@ -212,21 +230,21 @@ class XsensStreamer(SensorStreamer):
       self.add_stream(device_name='xsens-joints',
                       stream_name='rotation_deg',
                       data_type='float32',
-                      sample_size=(self._num_joints, 3),
+                      sample_size=(self._num_body_joints, 3),
                       sampling_rate_hz=None,
                       extra_data_info=extra_data_info,
                       data_notes=self._data_notes_stream['xsens-joints']['rotation_deg'])
       self.add_stream(device_name='xsens-joints',
                       stream_name='parent',
                       data_type='float32',
-                      sample_size=(self._num_joints),
+                      sample_size=(self._num_body_joints),
                       sampling_rate_hz=None,
                       extra_data_info=extra_data_info,
                       data_notes=self._data_notes_stream['xsens-joints']['parent'])
       self.add_stream(device_name='xsens-joints',
                       stream_name='child',
                       data_type='float32',
-                      sample_size=(self._num_joints),
+                      sample_size=(self._num_body_joints),
                       sampling_rate_hz=None,
                       extra_data_info=extra_data_info,
                       data_notes=self._data_notes_stream['xsens-joints']['child'])
@@ -296,8 +314,8 @@ class XsensStreamer(SensorStreamer):
     self.clear_data_all()
     self._print_status = print_status
     self._print_debug = print_debug
-    self._log_debug('Found the following stream states (keys are Xsens message types):')
-    self._log_debug(get_dict_str(self._xsens_is_streaming))
+    self._log_status('Found the following stream states (keys are Xsens message types):')
+    self._log_status(get_dict_str(self._xsens_is_streaming))
     self._log_status('Done connecting')
 
     return True
@@ -339,7 +357,7 @@ class XsensStreamer(SensorStreamer):
     num_items,        next_index = self._read_bytes(message, next_index, 1)
     time_code,        next_index = self._read_bytes(message, next_index, 4)
     char_id,          next_index = self._read_bytes(message, next_index, 1)
-    num_segments,     next_index = self._read_bytes(message, next_index, 1)
+    num_body_segments,     next_index = self._read_bytes(message, next_index, 1)
     num_props,        next_index = self._read_bytes(message, next_index, 1)
     num_fingers,      next_index = self._read_bytes(message, next_index, 1)
     reserved,         next_index = self._read_bytes(message, next_index, 2)
@@ -354,9 +372,9 @@ class XsensStreamer(SensorStreamer):
       time_code = int.from_bytes(time_code, byteorder='big', signed=False) # ms since the start of recording
       char_id = int.from_bytes(char_id, byteorder='big', signed=False) # id of the tracker person (if multiple)
       num_items = int.from_bytes(num_items, byteorder='big', signed=False) # number of points in this message
-      num_segments = int.from_bytes(num_segments, byteorder='big', signed=False) # we always have 23 body segments
-      num_fingers = int.from_bytes(num_fingers, byteorder='big', signed=False) # number of finger track segments
+      num_body_segments = int.from_bytes(num_body_segments, byteorder='big', signed=False) # we always have 23 body segments
       num_props = int.from_bytes(num_props, byteorder='big', signed=False) # number of props (swords etc)
+      num_fingers = int.from_bytes(num_fingers, byteorder='big', signed=False) # number of finger track segments
       reserved = int.from_bytes(reserved, byteorder='big', signed=False)
       assert datagram_counter == (1 << 7), 'Not a single last message' # We did not implement datagram splitting
       assert char_id == 0, 'We only support a single person (a single character).'
@@ -386,26 +404,29 @@ class XsensStreamer(SensorStreamer):
             'num_items': num_items,
             'time_since_start_s': time_code/1000.0,
             'char_id': char_id,
-            'num_segments': num_segments,
+            'num_segments': num_body_segments,
             'num_props': num_props,
             'num_fingers': num_fingers,
             'reserved': reserved,
             'payload_size': payload_size,
         }
     # Validate that the number of segments/joints/fingers remains the same
-    if self._num_segments is not None and self._num_segments != num_segments:
-      self._log_error('ERROR: The number of Xsens segments changed from %d to %d' % (self._num_segments, num_segments))
+    if self._num_body_segments is not None and self._num_body_segments != num_body_segments:
+      self._log_error('ERROR: The number of Xsens segments changed from %d to %d' % (self._num_body_segments, num_body_segments))
+    if self._num_prop_segments is not None and self._num_prop_segments != num_props and message_type in [self._xsens_msg_types['pose_euler'], self._xsens_msg_types['pose_quaternion']]:
+      self._log_error('ERROR: The number of Xsens props changed from %d to %d' % (self._num_prop_segments, num_props))
     if self._num_fingers is not None and self._num_fingers != num_fingers and message_type in [self._xsens_msg_types['pose_euler'], self._xsens_msg_types['pose_quaternion']]:
       self._log_error('ERROR: The number of Xsens fingers changed from %d to %d' % (self._num_fingers, num_fingers))
-    if self._num_joints is not None and self._num_joints != num_items and message_type == self._xsens_msg_types['joint_angle']:
-      self._log_error('ERROR: The number of Xsens joints changed from %d to %d' % (self._num_joints, num_items))
+    if self._num_body_joints is not None and self._num_body_joints != num_items and message_type == self._xsens_msg_types['joint_angle']:
+      self._log_error('ERROR: The number of Xsens joints changed from %d to %d' % (self._num_body_joints, num_items))
 
     # Store the number of segments/joints/fingers if needed
-    self._num_segments = num_segments # note that this field is correct even if the message is not segment-based
+    self._num_body_segments = num_body_segments # note that this field is correct even if the message is not segment-based
     if message_type in [self._xsens_msg_types['pose_euler'], self._xsens_msg_types['pose_quaternion']]:
       self._num_fingers = num_fingers
+      self._num_prop_segments = num_props
     if message_type == self._xsens_msg_types['joint_angle']:
-      self._num_joints = num_items
+      self._num_body_joints = num_items
 
     # Read the payload, and check that it is fully present
     payload, payload_end_index = self._read_bytes(message, next_index, payload_size)
@@ -449,10 +470,10 @@ class XsensStreamer(SensorStreamer):
       else:
         num_rotation_elements = 4
         rotation_stream_name = 'orientation_quaternion'
-      segment_positions_cm = np.zeros((num_segments + num_fingers, 3), dtype=np.float32)
-      segment_rotations = np.zeros((num_segments + num_fingers, num_rotation_elements), dtype=np.float32)
+      segment_positions_cm = np.zeros((num_body_segments + num_props + num_fingers, 3), dtype=np.float32)
+      segment_rotations = np.zeros((num_body_segments + num_props + num_fingers, num_rotation_elements), dtype=np.float32)
       # Read the position and rotation of each segment
-      for segment_index in range(num_segments + num_fingers):
+      for segment_index in range(num_body_segments + num_props + num_fingers):
         segment_id, next_index = self._read_bytes(message, next_index, 4)
         segment_position_cm, next_index = self._read_bytes(message, next_index, 3*4) # read x/y/z at once - each is 4 bytes
         segment_rotation, next_index = self._read_bytes(message, next_index, num_rotation_elements*4) # read x/y/z at once - each is 4 bytes
@@ -667,10 +688,12 @@ class XsensStreamer(SensorStreamer):
     options['xsens-segments']['position_cm'] = {
       'class': XsensSkeletonVisualizer,
       'position_units': 'cm',
+      'prop_hand_for_visualization': self._prop_hand_for_visualization,
     }
     options['xsens-segments']['body_position_xyz_m'] = {
       'class': XsensSkeletonVisualizer,
       'position_units': 'm',
+      'prop_hand_for_visualization': self._prop_hand_for_visualization,
     }
 
     # Don't visualize the other devices/streams.
@@ -1217,7 +1240,10 @@ class XsensStreamer(SensorStreamer):
     # Extract joint metadata for the main skeleton.
     body_joint_segment_connections = OrderedDict()
     for joint_xml in mvnx_xml.find('joints').find_all('joint'):
-      body_joint_segment_connections[joint_xml.get('label')[1:]] = [ # trim the initial 'j' from the label
+      joint_label = joint_xml.get('label')
+      if joint_label[0] == 'j':
+        joint_label = joint_label[1:] # trim the initial 'j' from the label
+      body_joint_segment_connections[joint_label] = [ 
         joint_xml.find('connector1').contents[0],
         joint_xml.find('connector2').contents[0],
         ]
@@ -1277,6 +1303,8 @@ class XsensStreamer(SensorStreamer):
       ('LeftKnee',        ('Abduction/Adduction',              'Internal/External Rotation', 'Flexion/Extension')),
       ('LeftAnkle',       ('Abduction/Adduction',              'Internal/External Rotation', 'Dorsiflexion/Plantarflexion')),
       ('LeftBallFoot',    ('Abduction/Adduction',              'Internal/External Rotation', 'Flexion/Extension')),
+      ('RightHandSwordOrigin', ('?', '?', '?')),
+      ('LeftHandSwordOrigin', ('?', '?', '?')),
     ])
     body_joint_rotation_type_ordering = [(key, body_joint_rotation_type_ordering_raw[key]) for key in body_joint_labels]
     fingerLeft_joint_rotation_type_ordering = OrderedDict([
@@ -1347,7 +1375,7 @@ class XsensStreamer(SensorStreamer):
     metadata_com = dict([(key, value) for (key, value) in metadata.items() if 'segment' not in key and 'joint' not in key and 'sensor' not in key and 'contact' not in key])
     metadata_sensors = dict([(key, value) for (key, value) in metadata.items() if 'segment' not in key and 'joint' not in key and 'contact' not in key])
     metadata_footContacts = dict([(key, value) for (key, value) in metadata.items() if 'segment' not in key and 'joint' not in key and 'sensor' not in key])
-    
+
     have_fingers_left = 'segment_names_fingers_left' in metadata
     have_fingers_right = 'segment_names_fingers_right' in metadata
     # print_var(metadata, 'metadata')
@@ -1803,14 +1831,14 @@ class XsensStreamer(SensorStreamer):
       ('Units', 'cm'),
       ('Coordinate frame', 'A Y-up right-handed frame if Euler data is streamed, otherwise a Z-up right-handed frame'),
       ('Matrix ordering', 'To align with data headings, unwrap a frame\'s matrix as data[frame_index][0][0], data[frame_index][0][1], data[frame_index][0][2], data[frame_index][1][0], ...' \
-       + '   | And if no fingers were included in the data, only use the first 69 data headings (the first 23 segments)'),
+       + '   | And if no fingers were included in the data, only use the first 69 data headings (the first 23 segments) plus the number of props'),
       (SensorStreamer.metadata_data_headings_key, self._headings['xsens-segments']['position_cm'])
     ])
     self._data_notes_stream['xsens-segments']['orientation_euler_deg'] = OrderedDict([
       ('Units', 'degrees'),
       ('Coordinate frame', 'A Y-Up, right-handed coordinate system'),
       ('Matrix ordering', 'To align with data headings, unwrap a frame\'s matrix as data[frame_index][0][0], data[frame_index][0][1], data[frame_index][0][2], data[frame_index][1][0], ...' \
-       + '   | And if no fingers were included in the data, only use the first 69 data headings (the first 23 segments)'),
+       + '   | And if no fingers were included in the data, only use the first 69 data headings (the first 23 segments) plus the number of props'),
       (SensorStreamer.metadata_data_headings_key, self._headings['xsens-segments']['orientation_euler_deg']),
       # ('Developer note', 'Streamed data did not seem to match Excel data exported from Xsens; on recent tests it was close, while on older tests it seemed very different.'),
     ])
@@ -1818,7 +1846,7 @@ class XsensStreamer(SensorStreamer):
       ('Coordinate frame', 'A Z-Up, right-handed coordinate system'),
       ('Normalization', 'Normalized but not necessarily positive-definite'),
       ('Matrix ordering', 'To align with data headings, unwrap a frame\'s matrix as data[frame_index][0][0], data[frame_index][0][1], data[frame_index][0][2], data[frame_index][0][3], data[frame_index][1][0], ...' \
-       + '   | And if no fingers were included in the data, only use the first 92 data headings (the first 23 segments)'),
+       + '   | And if no fingers were included in the data, only use the first 92 data headings (the first 23 segments) plus the number of props'),
       (SensorStreamer.metadata_data_headings_key, self._headings['xsens-segments']['orientation_quaternion'])
     ])
     # Joints
@@ -1987,6 +2015,9 @@ class XsensStreamer(SensorStreamer):
       'Left Upper Leg',  'Left Lower Leg',  'Left Foot',     'Left Toe',
       ]
       # Note: props 1-4 would be between body and fingers here if there are any
+    segment_names_props = [
+      'Prop %d' % prop_id for prop_id in range(self._num_prop_segments)
+    ]
     segment_names_fingers = [
       # Fingers of left hand
       'Left Carpus',            'Left First Metacarpal',         'Left First Proximal Phalange', 'Left First Distal Phalange',
@@ -2001,7 +2032,7 @@ class XsensStreamer(SensorStreamer):
       'Right Fourth Metacarpal', 'Right Fourth Proximal Phalange', 'Right Fourth Middle Phalange',  'Right Fourth Distal Phalange',
       'Right Fifth Metacarpal',  'Right Fifth Proximal Phalange',  'Right Fifth Middle Phalange',   'Right Fifth Distal Phalange',
     ]
-    sensor_names = segment_names_body[0:1] + segment_names_body[4:5] + segment_names_body[6:18] + segment_names_body[19:22]
+    sensor_names = segment_names_body[0:1] + segment_names_body[4:5] + segment_names_body[6:18] + segment_names_body[19:22] + segment_names_props
     joint_rotation_names_body = [
       'L5S1 Lateral Bending',    'L5S1 Axial Bending',     'L5S1 Flexion/Extension',
       'L4L3 Lateral Bending',    'L4L3 Axial Rotation',    'L4L3 Flexion/Extension',
@@ -2157,19 +2188,19 @@ class XsensStreamer(SensorStreamer):
     self._headings.setdefault('xsens-segments', {})
     quaternion_elements = ['q0_re', 'q1_i', 'q2_j', 'q3_k']
     self._headings['xsens-segments']['orientation_quaternion'] = \
-      ['%s (%s)' % (name, element) for name in (segment_names_body + segment_names_fingers)
+      ['%s (%s)' % (name, element) for name in (segment_names_body + segment_names_props + segment_names_fingers)
                                    for element in quaternion_elements]
     # Segment orientation - Euler
     self._headings.setdefault('xsens-segments', {})
     euler_elements = ['x', 'y', 'z']
     self._headings['xsens-segments']['orientation_euler_deg'] = \
-      ['%s (%s)' % (name, element) for name in (segment_names_body + segment_names_fingers)
+      ['%s (%s)' % (name, element) for name in (segment_names_body + segment_names_props + segment_names_fingers)
                                    for element in euler_elements]
     # Segment positions
     self._headings.setdefault('xsens-segments', {})
     position_elements = ['x', 'y', 'z']
     self._headings['xsens-segments']['position_cm'] = \
-      ['%s (%s)' % (name, element) for name in (segment_names_body + segment_names_fingers)
+      ['%s (%s)' % (name, element) for name in (segment_names_body + segment_names_props + segment_names_fingers)
                                    for element in position_elements]
     # Sensors
     self._headings.setdefault('xsens-sensors', {})

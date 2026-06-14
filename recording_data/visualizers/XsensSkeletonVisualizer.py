@@ -72,8 +72,11 @@ class XsensSkeletonVisualizer(Visualizer):
       self._figure_size = None
     
     self._position_units = 'cm'
+    self.prop_hand_for_visualization = 'right'
     if 'position_units' in self._visualizer_options:
       self._position_units = self._visualizer_options['position_units']
+    if 'prop_hand_for_visualization' in self._visualizer_options:
+      self._prop_hand_for_visualization = self._visualizer_options['prop_hand_for_visualization']
     
     # Map segment indexes to labels.
     # See page 137 of MVN_User_Manual and page 18 of MVN_real-time_network_streaming_protocol_specification
@@ -101,6 +104,7 @@ class XsensSkeletonVisualizer(Visualizer):
       'Left Lower Leg',
       'Left Foot',
       'Left Toe',
+      'Prop 1',
     ]
     # Define how to visualize the person by connecting segment positions.
     self._segment_chains_labels_toPlot = {
@@ -111,6 +115,17 @@ class XsensSkeletonVisualizer(Visualizer):
       'Shoulders': ['Left Upper Arm', 'Left Shoulder', 'Right Shoulder', 'Right Upper Arm'],
       'Left Arm':  ['Left Upper Arm', 'Left Forearm', 'Left Hand'],
       'Right Arm': ['Right Upper Arm', 'Right Forearm', 'Right Hand'],
+      'Prop 1':    ['Right Hand' if self._prop_hand_for_visualization == 'right' else 'Left Hand', 'Prop 1'],
+    }
+    self._segment_chains_colors_rgba = {
+      'Left Leg':  (1,0,0,1),
+      'Right Leg': (1,0,0,1),
+      'Spine':     (1,0,0,1),
+      'Hip':       (1,0,0,1),
+      'Shoulders': (1,0,0,1),
+      'Left Arm':  (1,0,0,1),
+      'Right Arm': (1,0,0,1),
+      'Prop 1':    (0,0,1,1),
     }
     self._segment_chains_indexes_toPlot = dict()
     for (chain_name, chain_labels) in self._segment_chains_labels_toPlot.items():
@@ -263,6 +278,17 @@ class XsensSkeletonVisualizer(Visualizer):
     segment_positions_cm = np.array(new_data['data'][-1])
     if self._position_units == 'm':
       segment_positions_cm = 100*segment_positions_cm
+    hand_position_cm = segment_positions_cm[self._segment_labels.index(
+      'Right Hand' if self._prop_hand_for_visualization == 'right' else 'Left Hand'
+    ), :]
+    prop_position_cm = segment_positions_cm[-1, :]
+    
+    # # If no prop is included, draw it as a dummy at the hand.
+    # if segment_positions_cm.shape[0] == self._segment_labels - 1:
+    #   hand_position_cm = segment_positions_cm[self._segment_labels.index(
+    #     'Right Hand' if self._prop_hand_for_visualization == 'right' else 'Left Hand'
+    #   ), :]
+    #   segment_positions_cm = np.vstack([segment_positions_cm, hand_position_cm])
     
     if use_matplotlib:
       plot_x_bounds = np.array([1000, -1000])
@@ -272,7 +298,13 @@ class XsensSkeletonVisualizer(Visualizer):
       # Draw each connected chain of segments.
       for (chain_index, chain_name) in enumerate(self._segment_chains_indexes_toPlot.keys()):
         segment_indexes = self._segment_chains_indexes_toPlot[chain_name]
-        segment_xyz_cm = segment_positions_cm[segment_indexes, :]
+        try:
+          segment_xyz_cm = segment_positions_cm[segment_indexes, :]
+        except IndexError:
+          if 'prop' in chain_name.lower():
+            continue # skip the prop if it is not being streamed        
+          else:
+            raise
         # Reorder them to make adjusting the plot view angle easier.
         plot_x = segment_xyz_cm[:, 2]
         plot_y = segment_xyz_cm[:, 0]
@@ -281,7 +313,7 @@ class XsensSkeletonVisualizer(Visualizer):
         if not visualizing_all_data:
           ax_lines[chain_index].set_data_3d(plot_x, plot_y, plot_z)
         else:
-          self._ax.plot(plot_x, plot_y, plot_z, 'r-o', markersize=5)
+          self._ax.plot(plot_x, plot_y, plot_z, '-o', color=self._segment_chains_colors_rgba[chain_name][0:3], markersize=5)
         # Update axis bounds.
         plot_x_bounds = np.array([min(plot_x_bounds[0], min(plot_x)), max(plot_x_bounds[1], max(plot_x))])
         plot_y_bounds = np.array([min(plot_y_bounds[0], min(plot_y)), max(plot_y_bounds[1], max(plot_y))])
@@ -307,6 +339,13 @@ class XsensSkeletonVisualizer(Visualizer):
       plot_xyz_cm_all = np.zeros(shape=(0,3))
       for (chain_index, chain_name) in enumerate(self._segment_chains_indexes_toPlot.keys()):
         segment_indexes = self._segment_chains_indexes_toPlot[chain_name]
+        try:
+          segment_xyz_cm = segment_positions_cm[segment_indexes, :]
+        except IndexError:
+          if 'prop' in chain_name.lower():
+            continue # skip the prop if it is not being streamed        
+          else:
+            raise
         segment_xyz_cm = segment_positions_cm[segment_indexes, :]
         # Negate the x and y coordinates since the floor was visualized in the negative quadrant.
         plot_xyz_cm = segment_xyz_cm * np.array([-1, -1, 1])
@@ -314,11 +353,11 @@ class XsensSkeletonVisualizer(Visualizer):
         # Create a fresh plot or update existing data.
         if self._chain_lines[chain_index] is None or visualizing_all_data:
           self._chain_lines[chain_index] = gl.GLLinePlotItem(
-                  pos=plot_xyz_cm, color=(1,0,0,1),
+                  pos=plot_xyz_cm, color=self._segment_chains_colors_rgba[chain_name],
                   width=3, antialias=True)
           self._glWidget.addItem(self._chain_lines[chain_index])
           self._chain_scatters[chain_index] = gl.GLScatterPlotItem(
-                  pos=plot_xyz_cm, color=(1,0,0,1),
+                  pos=plot_xyz_cm, color=self._segment_chains_colors_rgba[chain_name],
                   size=5, pxMode=False)
           self._chain_scatters[chain_index].setGLOptions('translucent')
           self._glWidget.addItem(self._chain_scatters[chain_index])

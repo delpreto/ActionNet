@@ -235,13 +235,7 @@ class DataVisualizer:
       for (device_name, streams_info) in streamer.get_all_stream_infos().items():
         self._visualizers[streamer_index][device_name] = OrderedDict()
         for (stream_name, stream_info) in streams_info.items():
-          try:
-            visualizer_options = streamer.get_visualization_options(device_name, stream_name)
-          except:
-            print('OPTIONS ERROR')
-            print(device_name)
-            print(stream_name)
-            raise
+          visualizer_options = streamer.get_visualization_options(device_name, stream_name)
           if self._use_composite_video:
             for (row_index, row_layout) in enumerate(self._composite_video_layout):
               for (column_index, tile_info) in enumerate(row_layout):

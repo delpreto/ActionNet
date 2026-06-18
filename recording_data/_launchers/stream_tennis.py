@@ -64,7 +64,7 @@ if __name__ == '__main__':
     # Sensors!
     ('MyoStreamer',        True),  # One or more Myo EMG/IMU armbands
     ('TouchStreamer',      False),  # Custom tactile sensors streaming via an Arduino
-    ('XsensStreamer',      True),  # The Xsens body tracking system (includes the Manus finger-tracking gloves if connected to Xsens)
+    ('XsensStreamer',      False),  # The Xsens body tracking system (includes the Manus finger-tracking gloves if connected to Xsens)
     ('EyeStreamer',        False),  # The Pupil Labs eye-tracking headset
     ('MoticonStreamer',    False),  # Moticon insole pressure sensors
     ('ScaleStreamer',      False),  # The Dymo M25 digital postal scale
@@ -106,7 +106,7 @@ if __name__ == '__main__':
      },
     # Stream from the Myo device including EMG, IMU, and gestures.
     {'class': 'MyoStreamer',
-     'num_myos': 2,
+     'num_myos': 1,
      'print_debug': print_debug, 'print_status': print_status
      },
     # Stream from the Pupil Labs eye tracker, including gaze and video data.

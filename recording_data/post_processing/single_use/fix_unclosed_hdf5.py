@@ -11,12 +11,6 @@ from utils.dict_utils import *
 data_root_dir = 'C:/Users/jdelp/Desktop/ActionSense/data/experiments/'
 hdf5_filepath_to_copy_metadata = r'C:\Users\jdelp\Desktop\ActionSense\data\tests\2026-06-14_tennis_S02\2026-06-14_12-47-09_tennis_S02\2026-06-14_12-47-14_streamLog_tennis_S02.hdf5'
 hdf5_filepath_to_fix = r'C:\Users\jdelp\Desktop\ActionSense\data\tests\2026-06-14_tennis_S02\2026-06-14_12-23-16_tennis_S02\2026-06-14_12-23-21_streamLog_tennis_S02.hdf5'
-# hdf5_filepath_to_copy_metadata = os.path.join(data_root_dir, '2024-12-20_experiment_S15',
-#                                     '2024-12-20_17-46-00_actionSense_S15_scoop',
-#                                     '2024-12-20_17-46-30_streamLog_actionSense_S15.hdf5')
-# hdf5_filepath_to_fix = os.path.join(data_root_dir, '2024-12-20_experiment_S15',
-#                                     '2024-12-20_18-11-12_actionSense_S15_stir',
-#                                     '2024-12-20_18-11-46_streamLog_actionSense_S15.hdf5')
 
 print('hdf5_filepath_to_copy_metadata')
 print(hdf5_filepath_to_copy_metadata)

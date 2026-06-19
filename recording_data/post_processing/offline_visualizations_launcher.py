@@ -38,21 +38,8 @@ data_dir = os.path.realpath(os.path.join(actionsense_root_dir, 'data'))
 experiments_dir = os.path.join(data_dir, 'experiments')
 
 log_dirs = [
-  # os.path.join(experiments_dir, '2023-08-18_experiment_S10', '2023-08-18_19-49-19_actionNet-wearables_S10'),
-  # os.path.join(experiments_dir, '2023-08-18_experiment_S10', '2023-08-18_20-50-18_actionNet-wearables_S10'),
-  # os.path.join(experiments_dir, '2023-10-13_experiment_S07', '2023-10-13_15-35-30_actionNet-wearables_S07'),
-  # os.path.join(experiments_dir, '2023-10-13_experiment_S12', '2023-10-13_16-54-46_actionNet-wearables_S12'),
-  # os.path.join(experiments_dir, '2023-10-13_experiment_S12', '2023-10-13_17-17-32_actionNet-wearables_S12'),
-  # os.path.join(experiments_dir, '2023-10-13_experiment_S13', '2023-10-13_18-01-27_actionNet-wearables_S13'),
-  # os.path.join(experiments_dir, '2023-10-13_experiment_S13', '2023-10-13_18-15-33_actionNet-wearables_S13'),
-  # os.path.join(experiments_dir, '2023-10-13_experiment_S13', '2023-10-13_18-41-49_actionNet-wearables_S13'),
-  # os.path.join(experiments_dir, '2024-12-20_experiment_S14', '2024-12-20_15-48-10_actionSense_S14_stir'),
-  # os.path.join(experiments_dir, '2024-12-20_experiment_S14', '2024-12-20_16-27-23_actionSense_S14_scoop'),
-  # os.path.join(experiments_dir, '2024-12-20_experiment_S15', '2024-12-20_17-46-00_actionSense_S15_scoop'),
-  # os.path.join(experiments_dir, '2024-12-20_experiment_S15', '2024-12-20_18-11-12_actionSense_S15_stir'),
-  os.path.join(experiments_dir, '2025-02-14_experiment_S11', '2025-02-14_14-52-51_actionSense_S11'),
-  os.path.join(experiments_dir, '2025-02-14_experiment_S11', '2025-02-14_15-11-46_actionSense_S11'),
-  os.path.join(experiments_dir, '2025-02-14_experiment_S11', '2025-02-14_15-34-50_actionSense_S11'),
+  os.path.join(experiments_dir, 'my_set_of_experiments_1', 'my_experiment_folder'),
+  os.path.join(experiments_dir, 'my_set_of_experiments_2', 'my_experiment_folder'),
   ]
 
 for log_dir in log_dirs:

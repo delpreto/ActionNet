@@ -1405,15 +1405,18 @@ class XsensStreamer(SensorStreamer):
     times_s = [float(frame.get('ms'))/1000.0 for frame in frames]
     times_str = [get_time_str(time_s, '%Y-%m-%d %H:%M:%S.%f') for time_s in times_s]
 
+    # Specify start/end indexes to use in case there are corrupt sections.
+    start_index = 0
+    end_index = len(times_s)-1
+
     # Check that the timestamps monotonically increase.
-    if np.any(np.diff(times_s) < 0):
+    if np.any((np.diff(times_s) < 0) | (np.diff(times_s) > 1)):
       msg = '\n'*2
-      msg += 'x'*75
-      msg += 'XsensStreamer aborting merge due to incorrect timestamps in the MVNX file (they are not monotonically increasing)'
-      msg += 'x'*75
-      msg = '\n'*2
-      print(msg)
-      print()
+      msg += '.'*75
+      msg += '\n'
+      msg += 'XsensStreamer detected incorrect timestamps in the MVNX file (they are not monotonically increasing or have large gaps)'
+      msg += '\n'
+      print(msg, end='')
       input('Press enter to print and copy times_s')
       print()
       print_var(times_s, 'times_s')
@@ -1440,12 +1443,34 @@ class XsensStreamer(SensorStreamer):
       plt.title('Consecutive timestamp differences')
       plt.xlabel('Sample index')
       plt.ylabel('Time difference [s]')
+      plt.figure()
+      plt.plot(np.array(times_s) - times_s[0], '.-')
+      plt.grid(True, color='lightgray')
+      plt.title('Original timestamps')
+      plt.xlabel('Sample index')
+      plt.ylabel('Time Since Start [s]')
       plt.show()
-      return
+      print('Length of time vector: %d' % len(times_s))
+      start_index = input('Enter starting index to extract, or blank to exit: ').strip()
+      if len(start_index) == 0:
+        return
+      start_index = int(start_index)
+      end_index =   input('Enter ending index to extract, or blank to exit  : ').strip()
+      if len(end_index) == 0:
+        return
+      end_index = int(end_index)
+
+    # Extract desired segment from metadata arrays.
+    num_frames = end_index - start_index + 1
+    frame_indexes = frame_indexes[start_index:end_index+1]
+    times_since_start_s = times_since_start_s[start_index:end_index+1]
+    times_s = times_s[start_index:end_index+1]
+    times_str = times_str[start_index:end_index+1]
+    times_utc_str = times_utc_str[start_index:end_index+1]
 
     # A helper to get a matrix of data from all frames for a given tag, such as 'position'.
     def get_tagged_data(tag):
-      datas = [frame.find(tag) for frame in frames]
+      datas = [frame.find(tag) for frame in frames[start_index:end_index+1]]
       data = np.array([[round(float(x), 6) for x in data.contents[0].split()] for data in datas])
       return data
 
@@ -1523,7 +1548,10 @@ class XsensStreamer(SensorStreamer):
     for sensor_index in range(metadata['num_sensors']):
       for frame_index in range(num_frames):
         quat_wijk = sensor_orientations_quaternion_wijk[frame_index, (sensor_index*4):(sensor_index*4+4)]
-        eulers_rad = euler_from_quaternion(w=quat_wijk[0], x=quat_wijk[1], y=quat_wijk[2], z=quat_wijk[3], euler_sequence='ZXY', degrees=False)
+        try:
+          eulers_rad = euler_from_quaternion(w=quat_wijk[0], x=quat_wijk[1], y=quat_wijk[2], z=quat_wijk[3], euler_sequence='ZXY', degrees=False)
+        except ValueError: # maybe corrupt quaternion (ex saw error about zero norm quaternion)
+          eulers_rad = np.array([np.nan, np.nan, np.nan])
         sensor_orientations_eulerZXY_xyz_rad[frame_index, (sensor_index*3):(sensor_index*3+3)] = eulers_rad
     
     

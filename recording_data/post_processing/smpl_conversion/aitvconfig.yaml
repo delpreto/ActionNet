@@ -1,0 +1,4 @@
+smplx_models: "../../../smpl_models"
+device: "cpu"
+z_up: true
+window_type: "pyglet"

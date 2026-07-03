@@ -11,6 +11,7 @@
 *.npy
 *.csv
 *.json
+*.pkl
 *.png
 *.jpg
 *.jpeg
@@ -20,12 +21,15 @@
 *.avi
 *.ppt
 *.pptx
+*.ini
 data/
 parsing_data/learning_trajectories/**/create_models_diffuser/denoising_diffusion_pytorch/utils/models/
 
 parsing_data/learning_trajectories/**/from_diffuser_git/
 
 !robot_control/offline_baxter_planning/config/default.json
+
+.conda_envs/
 
 # Archived and notes
 ###################################

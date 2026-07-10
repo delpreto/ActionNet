@@ -1,0 +1,13 @@
+name: wearativity-smpl-conversion
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pip
+  - h5py
+  - numpy
+  - scipy
+  - trimesh
+  - pyqt6
+  - pip:
+      - aitviewer

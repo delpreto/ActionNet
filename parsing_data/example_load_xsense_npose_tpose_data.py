@@ -28,7 +28,7 @@
 import h5py
 import numpy as np
 
-hdf5_filepath = '2022-06-14_16-38-43_streamLog_actionNet-wearables_S04.hdf5'
+hdf5_filepath = '2026-07-10_16-38-58_streamLog_tennis_S16.hdf5'
 
 # A helper to extract and format timestamped activity label data.
 # This can be used for experimental activities or calibration activities, since both have the same format.
@@ -101,7 +101,7 @@ activities_info = get_labeled_activity_times(
 )
 print()
 print('See the following experimental activities and their start/end times since the recording started:')
-recording_start_time_s = np.squeeze(h5_file['xsens-segments']['orientation_quaternion']['time_s'])[0]
+recording_start_time_s = np.squeeze(h5_file['xsens-segments']['body_orientation_quaternion_wijk']['time_s'])[0]
 for activity_index in range(len(activities_info['labels'])):
   print('  Activity index %2d | time bounds [%7.2f, %7.2f] | %s' % (
     activity_index, 
@@ -120,7 +120,7 @@ calibrations_info = get_labeled_activity_times(
 )
 print()
 print('See the following body calibrations and their start/end times since the recording started:')
-recording_start_time_s = np.squeeze(h5_file['xsens-segments']['orientation_quaternion']['time_s'])[0]
+recording_start_time_s = np.squeeze(h5_file['xsens-segments']['body_orientation_quaternion_wijk']['time_s'])[0]
 for activity_index in range(len(calibrations_info['labels'])):
   print('  Activity index %2d | time bounds [%7.2f, %7.2f] | %s | %s' % (
     activity_index, 
@@ -135,26 +135,30 @@ for activity_index in range(len(calibrations_info['labels'])):
 ##########################################################
 print()
 print('Loading all Xsens data')
+
 # Get Xsens data for all times.
-xsens_times_s = np.squeeze(h5_file['xsens-joints']['rotation_xzy_deg']['time_s'])
-body_joint_angles_eulerXZY_xyz_rad = np.deg2rad(np.squeeze(h5_file['xsens-joints']['rotation_xzy_deg']['data']))
-body_joint_angles_eulerZXY_xyz_rad = np.deg2rad(np.squeeze(h5_file['xsens-joints']['rotation_zxy_deg']['data']))
-body_acceleration_xyz_m_ss = np.squeeze(h5_file['xsens-segments']['acceleration_cm_ss']['data'])/100
-body_angular_acceleration_xyz_rad_ss =  np.deg2rad(np.squeeze(h5_file['xsens-segments']['angular_acceleration_deg_ss']['data']))
-body_angular_velocity_xyz_rad_s =  np.deg2rad(np.squeeze(h5_file['xsens-segments']['angular_velocity_deg_s']['data']))
-body_orientation_eulerZXY_xyz_rad = np.deg2rad(np.squeeze(h5_file['xsens-segments']['orientation_euler_deg']['data']))
-body_orientation_quaternion_wijk = np.squeeze(h5_file['xsens-segments']['orientation_quaternion']['data'])
-body_position_xyz_m = np.squeeze(h5_file['xsens-segments']['position_cm']['data'])/100
-body_velocity_xyz_m_s = np.squeeze(h5_file['xsens-segments']['velocity_cm_s']['data'])/100
-# assert np.array_equal(np.squeeze(h5_file['xsens-joints']['rotation_xzy_deg']['time_s']), xsens_times_s)
-# assert np.array_equal(np.squeeze(h5_file['xsens-joints']['rotation_zxy_deg']['time_s']), xsens_times_s)
-# assert np.array_equal(np.squeeze(h5_file['xsens-segments']['angular_acceleration_deg_ss']['time_s']), xsens_times_s)
-# assert np.array_equal(np.squeeze(h5_file['xsens-segments']['angular_velocity_deg_s']['time_s']), xsens_times_s)
-# assert np.array_equal(np.squeeze(h5_file['xsens-segments']['orientation_euler_deg']['time_s']), xsens_times_s)
-# assert np.array_equal(np.squeeze(h5_file['xsens-segments']['orientation_quaternion']['time_s']), xsens_times_s)
-# assert np.array_equal(np.squeeze(h5_file['xsens-segments']['position_cm']['time_s']), xsens_times_s)
-# assert np.array_equal(np.squeeze(h5_file['xsens-segments']['velocity_cm_s']['time_s']), xsens_times_s)
-# Trim the data for each calibration period.
+xsens_times_s = np.squeeze(h5_file['xsens-joints']['body_joint_angles_eulerXZY_xyz_rad']['time_s'])
+body_joint_angles_eulerXZY_xyz_rad = np.squeeze(h5_file['xsens-joints']['body_joint_angles_eulerXZY_xyz_rad']['data'])
+body_joint_angles_eulerZXY_xyz_rad = np.squeeze(h5_file['xsens-joints']['body_joint_angles_eulerZXY_xyz_rad']['data'])
+body_acceleration_xyz_m_ss = np.squeeze(h5_file['xsens-segments']['body_acceleration_xyz_m_ss']['data'])
+body_angular_acceleration_xyz_rad_ss =  np.squeeze(h5_file['xsens-segments']['body_angular_acceleration_xyz_rad_ss']['data'])
+body_angular_velocity_xyz_rad_s = np.squeeze(h5_file['xsens-segments']['body_angular_velocity_xyz_rad_s']['data'])
+body_orientation_eulerZXY_xyz_rad = np.squeeze(h5_file['xsens-segments']['body_orientation_eulerZXY_xyz_rad']['data'])
+body_orientation_quaternion_wijk = np.squeeze(h5_file['xsens-segments']['body_orientation_quaternion_wijk']['data'])
+body_position_xyz_m = np.squeeze(h5_file['xsens-segments']['body_position_xyz_m']['data'])
+body_velocity_xyz_m_s = np.squeeze(h5_file['xsens-segments']['body_velocity_xyz_m_s']['data'])
+
+# Demonstrate that all streams have the same timestamps.
+assert np.array_equal(np.squeeze(h5_file['xsens-joints']['body_joint_angles_eulerXZY_xyz_rad']['time_s']), xsens_times_s)
+assert np.array_equal(np.squeeze(h5_file['xsens-joints']['body_joint_angles_eulerZXY_xyz_rad']['time_s']), xsens_times_s)
+assert np.array_equal(np.squeeze(h5_file['xsens-segments']['body_angular_acceleration_xyz_rad_ss']['time_s']), xsens_times_s)
+assert np.array_equal(np.squeeze(h5_file['xsens-segments']['body_angular_velocity_xyz_rad_s']['time_s']), xsens_times_s)
+assert np.array_equal(np.squeeze(h5_file['xsens-segments']['body_orientation_eulerZXY_xyz_rad']['time_s']), xsens_times_s)
+assert np.array_equal(np.squeeze(h5_file['xsens-segments']['body_orientation_quaternion_wijk']['time_s']), xsens_times_s)
+assert np.array_equal(np.squeeze(h5_file['xsens-segments']['body_position_xyz_m']['time_s']), xsens_times_s)
+assert np.array_equal(np.squeeze(h5_file['xsens-segments']['body_velocity_xyz_m_s']['time_s']), xsens_times_s)
+
+# Extract data from each calibration pose period.
 print('Getting Xsens data during N and T poses')
 for activity_index in range(len(calibrations_info['labels'])):
   is_n_pose = calibrations_info['calibration_fields'][activity_index][-1] == 'N-Pose'
@@ -174,6 +178,18 @@ for activity_index in range(len(calibrations_info['labels'])):
   calibration_body_orientation_quaternion_wijk = body_orientation_quaternion_wijk[start_index:end_index+1, ...]
   calibration_body_position_xyz_m = body_position_xyz_m[start_index:end_index+1, ...]
   calibration_body_velocity_xyz_m_s = body_velocity_xyz_m_s[start_index:end_index+1, ...]
+
+# Load data of a synthetic T-Pose that the Xsens computes.
+# Load T-Pose data (standing with legs neutral, looking straight ahead, arms outstetched horizontally at the sides to form a T).
+# This is used by some programs for calibration and whatnot.
+xsens_synthetic_tpose = {
+   'body_orientation_TposeISB_quaternion_wijk': np.array(h5_file['xsens-segments-tpose']['body_orientation_TposeISB_quaternion_wijk']),
+   'body_orientation_Tpose_quaternion_wijk': np.array(h5_file['xsens-segments-tpose']['body_orientation_Tpose_quaternion_wijk']),
+   'body_orientation_identity_quaternion_wijk': np.array(h5_file['xsens-segments-tpose']['body_orientation_identity_quaternion_wijk']),
+   'body_position_TposeISB_xyz_m': np.array(h5_file['xsens-segments-tpose']['body_position_TposeISB_xyz_m']),
+   'body_position_Tpose_xyz_m': np.array(h5_file['xsens-segments-tpose']['body_position_Tpose_xyz_m']),
+   'body_position_identity_xyz_m': np.array(h5_file['xsens-segments-tpose']['body_position_identity_xyz_m']),
+}
 
 ##########################################################
 # Clean up.

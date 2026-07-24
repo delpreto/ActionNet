@@ -42,10 +42,10 @@ if __name__ == '__main__':
   
   if len(sys.argv) <= 1:
     # Define the log(s) to replay.
-    data_dir = os.path.realpath(os.path.join(script_dir, '..', '..', 'data'))
+    data_dir = os.path.realpath(os.path.join(script_dir, '..', '..', '..', 'data'))
     experiments_dir = os.path.join(data_dir, 'tests')
     log_dirs = [
-      os.path.join(experiments_dir, 'my_set_of_experiments', 'my_experiment_folder'),
+      os.path.join(experiments_dir, '2026-07-17_tennis_S00', '2026-07-17_15-12-38_tennis_S00'),
     ]
   else:
     log_dirs = sys.argv[1:]
@@ -89,29 +89,39 @@ if __name__ == '__main__':
     sensor_manager.connect()
 
     # Visualize!
-    frame_size = (1520, 2560) # height, width # (760, 1280) (1800, 3000) (1140, 1920)
+    frame_size = (1800, 3000) # height, width # (760, 1280) (1800, 3000) (1140, 1920) (1520, 2560) (900, 1500)
     composite_col_width = int(frame_size[1] / 3)
-    composite_row_height = int(frame_size[0] / 3)
+    composite_row_height = int(frame_size[0] / 2)
     visualizer = DataVisualizer(sensor_streamers=sensor_manager.get_streamers(),
                                 update_period_s = 0.1,
                                 use_composite_video=True,
                                 composite_video_layout = [
-                                [ # row 0
-                                  # {'device_name':'tactile-glove-left', 'stream_name':'tactile_data',    'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
-                                  {'device_name':'eye-tracking-video-worldGaze', 'stream_name':'frame', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
-                                  {'device_name':'table-camera', 'stream_name':'frame',    'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
-                                  {'device_name':'eeg', 'stream_name':'all_channels_filtered', 'rowspan':3, 'colspan':1, 'width':composite_col_width, 'height': 3*composite_row_height, 'visualizer_options': {'line_width': 1}},
+                                [ # row  0
+                                  {'device_name':'myo-left',        'stream_name':'emg',          'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
+                                  {'device_name':'xsens-segments',  'stream_name':'body_position_xyz_m',  'rowspan':2, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height*2},
+                                  {'device_name':'myo-right',       'stream_name':'emg',          'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
                                 ],
                                 [ # row  1
-                                  {'device_name':'eye-tracking-video-eye', 'stream_name':'frame',   'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
-                                  {'device_name':'xsens-segments', 'stream_name':'body_position_xyz_m', 'rowspan':2, 'colspan':1, 'width':composite_col_width, 'height': 2*composite_row_height},
-                                  {'device_name':None, 'stream_name':None,                    'rowspan':0, 'colspan':0, 'width':        0,           'height':          0},
+                                  {'device_name':'myo-left',  'stream_name':'acceleration_g',  'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height': composite_row_height},
+                                  {'device_name':None,        'stream_name':None,              'rowspan':0, 'colspan':0, 'width':0,                   'height':0},
+                                  {'device_name':'myo-right', 'stream_name':'acceleration_g',  'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height': composite_row_height},
                                 ],
-                                [ # row 2
-                                  {'device_name':'myo-right', 'stream_name':'emg',              'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':   composite_row_height, 'visualizer_options': {'line_width': 1}},
-                                  {'device_name':None, 'stream_name':None,                    'rowspan':0, 'colspan':0, 'width':        0,           'height':          0},
-                                  {'device_name':None, 'stream_name':None,                    'rowspan':0, 'colspan':0, 'width':        0,           'height':          0},
-                                ],
+                                # [ # row 0
+                                #   # {'device_name':'tactile-glove-left', 'stream_name':'tactile_data',    'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
+                                #   {'device_name':'eye-tracking-video-worldGaze', 'stream_name':'frame', 'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
+                                #   {'device_name':'table-camera', 'stream_name':'frame',    'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
+                                #   {'device_name':'eeg', 'stream_name':'all_channels_filtered', 'rowspan':3, 'colspan':1, 'width':composite_col_width, 'height': 3*composite_row_height, 'visualizer_options': {'line_width': 1}},
+                                # ],
+                                # [ # row  1
+                                #   {'device_name':'eye-tracking-video-eye', 'stream_name':'frame',   'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
+                                #   {'device_name':'xsens-segments', 'stream_name':'body_position_xyz_m', 'rowspan':2, 'colspan':1, 'width':composite_col_width, 'height': 2*composite_row_height},
+                                #   {'device_name':None, 'stream_name':None,                    'rowspan':0, 'colspan':0, 'width':        0,           'height':          0},
+                                # ],
+                                # [ # row 2
+                                #   {'device_name':'myo-right', 'stream_name':'emg',              'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':   composite_row_height, 'visualizer_options': {'line_width': 1}},
+                                #   {'device_name':None, 'stream_name':None,                    'rowspan':0, 'colspan':0, 'width':        0,           'height':          0},
+                                #   {'device_name':None, 'stream_name':None,                    'rowspan':0, 'colspan':0, 'width':        0,           'height':          0},
+                                # ],
                                 # [ # row 0
                                 #   # {'device_name':'tactile-glove-left', 'stream_name':'tactile_data',    'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
                                 #   {'device_name':'table-camera', 'stream_name':'frame',    'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},

@@ -62,7 +62,7 @@ if __name__ == '__main__':
     ('ExperimentControlStreamer', True),  # A GUI to label activities/calibrations and enter notes
     ('NotesStreamer',             False),  # A command-line based way to submit notes during the experiment (but not label activities explicitly)
     # Sensors!
-    ('MyoStreamer',        True),  # One or more Myo EMG/IMU armbands
+    ('MyoStreamer',        False),  # One or more Myo EMG/IMU armbands
     ('TouchStreamer',      False),  # Custom tactile sensors streaming via an Arduino
     ('XsensStreamer',      True),  # The Xsens body tracking system (includes the Manus finger-tracking gloves if connected to Xsens)
     ('EyeStreamer',        False),  # The Pupil Labs eye-tracking headset
@@ -78,10 +78,12 @@ if __name__ == '__main__':
      'activities': [ # TODO: Enter your activities that you want to label
         'Forehand',
         'Backhand',
-        'Serve: Overhead',
+        'Serve',
         'Serve: Forehand',
         'Game',
-        'Running',
+        'Walk',
+        'Jog',
+        'Run',
      ],
      'print_debug': print_debug, 'print_status': print_status
      },
@@ -149,10 +151,10 @@ if __name__ == '__main__':
   if enable_data_logging:
     script_dir = os.path.dirname(os.path.realpath(__file__))
     (log_time_str, log_time_s) = get_time_str(return_time_s=True)
-    log_tag = 'tennis_S00'
+    log_tag = 'tennis_S16'
     log_dir_root = os.path.join(script_dir, '..', '..', '..', 'data',
                                 'tests', # recommend 'tests' and 'experiments' for testing vs "real" data
-                                '%s_tennis_S00' % get_time_str(format='%Y-%m-%d'))
+                                '%s_tennis_S16' % get_time_str(format='%Y-%m-%d'))
     log_subdir = '%s_%s' % (log_time_str, log_tag)
     log_dir = os.path.join(log_dir_root, log_subdir)
     datalogging_options = {

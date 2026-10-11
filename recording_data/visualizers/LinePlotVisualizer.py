@@ -68,7 +68,7 @@ class LinePlotVisualizer(Visualizer):
       self._axs = None
       self._use_blitting = False # speeds up drawing, but axis labels are fixed
     else:
-      self._app = QtGui.QApplication([])
+      self._app = QtGui.QApplication.instance() or QtGui.QApplication([])
       self._layout = parent_layout
       self._is_sub_layout = parent_layout is not None
       self._layout_size = parent_layout_size
@@ -321,7 +321,7 @@ class LinePlotVisualizer(Visualizer):
             plot.setLabel('left', line_titles[row])
       # Update the plot window (yes, this works)
       if not self._hidden:
-        cv2.waitKey(1)
+        self._app.processEvents()
 
     # Save state for future updates.
     self._plot_length = plot_length
@@ -419,7 +419,7 @@ class LinePlotVisualizer(Visualizer):
         self._fig.canvas.flush_events()
     else:
       if not self._hidden:
-        cv2.waitKey(1) # update the plot window (yes, this works)
+        self._app.processEvents()
 
   # Retrieve an image of the most updated visualization.
   # Should return a matrix in RGB format.

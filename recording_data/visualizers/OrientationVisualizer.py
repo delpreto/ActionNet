@@ -68,7 +68,7 @@ class OrientationVisualizer(Visualizer):
       self._floor_size_cm = (20, 20) # x, y
       self._floor_grid_spacing_cm = (1, 1, 1) # x, y, z
       self._arrow_length = 5
-      self._app = QtGui.QApplication([])
+      self._app = QtGui.QApplication.instance() or QtGui.QApplication([])
       self._layout = parent_layout
       self._is_sub_layout = parent_layout is not None
       self._layout_size = parent_layout_size
@@ -343,7 +343,7 @@ class OrientationVisualizer(Visualizer):
         #     size=1, pxMode=False)
         # self._indicator_scatter.setGLOptions('translucent')
         # self._glWidget.addItem(self._indicator_scatter)
-        cv2.waitKey(1) # wait for it to actually draw
+        self._app.processEvents()
         # Show or hide the figure.
         if not self._is_sub_layout:
           if not self._hidden:
@@ -371,7 +371,7 @@ class OrientationVisualizer(Visualizer):
       
       # Update the plot to see the changes.
       if not self._hidden and not self._is_sub_layout:
-        cv2.waitKey(1) # find a better way?
+        self._app.processEvents()
   
   # Retrieve an image of the most updated visualization.
   # Should return a matrix in RGB format.

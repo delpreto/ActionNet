@@ -76,6 +76,7 @@ class MyoStreamer(myo.ApiDeviceListener, SensorStreamer):
                               log_history_filepath=log_history_filepath)
 
     self._log_source_tag = 'myo'
+    self._always_run_in_main_process = True # Initialization prompts need terminal input.
     
     # Handles for the actual Myo class interface and devices
     self._myo_hub = None
@@ -112,36 +113,75 @@ class MyoStreamer(myo.ApiDeviceListener, SensorStreamer):
     self._connectAndRunThread_running = True
     self._connectAndRun_thread.start()
 
-    # Wait for connection(s)
-    num_myos = self._target_num_myos
-    self._log_status('Waiting for connection to %d %s.' % (num_myos, 'Myo' if num_myos == 1 else 'Myos'))
-    self._log_status(' Make sure Myo Connect is running and is connected to the %s.' % ('Myo' if num_myos == 1 else 'Myos'))
-    start_time_s = time.time()
-    while self.get_num_devices() < num_myos and time.time() - start_time_s < timeout_s:
-      time.sleep(0.1)
-    num_myos_connected = self.get_num_devices()
-    all_connected = num_myos_connected == num_myos
-    # Wait for each device to be synced
-    while False in [self._metadata[device_name]['arm'] is not None for device_name in self.get_device_names()] \
-        and time.time() - start_time_s < timeout_s:
-      time.sleep(0.1)
-    num_myos_synced = sum([self._metadata[device_name]['arm'] is not None for device_name in self.get_device_names()])
-    all_synced = num_myos_synced == num_myos
+    try:
+      # Wait for connection(s)
+      num_myos = self._target_num_myos
+      self._log_status('Waiting for connection to %d %s.' % (num_myos, 'Myo' if num_myos == 1 else 'Myos'))
+      self._log_status(' Make sure Myo Connect is running and is connected to the %s.' % ('Myo' if num_myos == 1 else 'Myos'))
+      start_time_s = time.time()
+      while self.get_num_devices() < num_myos and time.time() - start_time_s < timeout_s:
+        time.sleep(0.1)
+      # Wait for each device to be synced
+      while False in [self._metadata[device_name]['arm'] in ('left', 'right') for device_name in self.get_device_names()] \
+          and time.time() - start_time_s < timeout_s:
+        time.sleep(0.1)
+      num_myos_synced = sum([self._metadata[device_name]['arm'] in ('left', 'right') for device_name in self.get_device_names()])
+      num_myos_connected = self.get_num_devices()
+      all_connected = num_myos_connected == num_myos
 
-    # Stop the thread and raise an exception if connection was unsuccessful.
-    if not (all_connected and all_synced):
-      self._log_error('')
-      self._log_error('XXXXXXXXXX')
-      self._log_error('ERROR: Connected %d/%d %s and synced %d/%d %s.'
-                      % (num_myos_connected, num_myos, 'Myo' if num_myos == 1 else 'Myos',
-                         num_myos_synced, num_myos, 'Myo' if num_myos == 1 else 'Myos'))
-      self._log_error('XXXXXXXXXX')
-      self._log_error('')
-      raise AssertionError('Unsuccessful Myo connection')
+      # Stop the thread and raise an exception if connection was unsuccessful.
+      if not all_connected:
+        self._log_error('')
+        self._log_error('XXXXXXXXXX')
+        self._log_error('ERROR: Connected %d/%d %s and synced %d/%d %s.'
+                        % (num_myos_connected, num_myos, 'Myo' if num_myos == 1 else 'Myos',
+                           num_myos_synced, num_myos, 'Myo' if num_myos == 1 else 'Myos'))
+        self._log_error('XXXXXXXXXX')
+        self._log_error('')
+        raise AssertionError('Unsuccessful Myo connection')
+
+      self._initialize_device_names()
+    except BaseException:
+      self._connectAndRunThread_running = False
+      self._connectAndRun_thread.join()
+      raise
 
     # Print success
     self._log_status('Successfully connected and synced %d %s' % (num_myos, 'Myo' if num_myos == 1 else 'Myos'))
     return True
+
+  # Assign names only after all arms are known, so duplicate arms do not collide.
+  def _initialize_device_names(self):
+    with self._cond:
+      device_names = self.get_device_names()
+      arms = [self._metadata[name]['arm'] for name in device_names]
+    unknown = [name for name, arm in zip(device_names, arms) if arm not in ('left', 'right')]
+    if unknown:
+      for name in unknown:
+        self._log_userAction('Myo %s has an unknown arm. Re-sync it in Myo Connect, then Ctrl+C and restart.' % name)
+      while True:
+        if not input('Press enter to vibrate the unidentified device %s, or Ctrl+C to quit: ' % unknown[0]).strip():
+          try:
+            self.vibrate(unknown[0])
+          except Exception as error:
+            self._log_error('Could not vibrate Myo %s: %s' % (unknown[0], error))
+    num_people = max(arms.count('left'), arms.count('right'))
+    for device_name, arm in zip(device_names, arms):
+      new_device_name = 'myo-%s' % arm
+      if num_people > 1:
+        self._log_userAction('Identify Myo %s (%s arm).' % (device_name, arm))
+        while True:
+          response = input('Press enter to vibrate the device or enter a number to assign its ID: ').strip()
+          if not response:
+            self.vibrate(device_name)
+            continue
+          if response in [str(number) for number in range(1, num_people+1)]:
+            new_device_name = 'myo-%02d-%s' % (int(response), arm)
+            if new_device_name not in self._locks:
+              break
+          self._log_userAction('Enter an unused ID from 1 to %d for this arm.' % num_people)
+      with self._cond:
+        self.rename_device(device_name, new_device_name)
 
   #############################
   ###### GETTERS/SETTERS ######
@@ -190,7 +230,7 @@ class MyoStreamer(myo.ApiDeviceListener, SensorStreamer):
       self._locks[old_device_name].acquire()
     # Rename the device in Myo-specific dictionaries
     if new_device_name in self._locks:
-      raise AssertionError('ERROR: More than one Myo will have the same name. They probably think they are on the same arm, so you should re-sync them.')
+      raise AssertionError('ERROR: More than one Myo will have the name %s.' % new_device_name)
     self._locks = rename_dict_key(self._locks, old_device_name, new_device_name)
     self._deviceProxies = rename_dict_key(self._deviceProxies, old_device_name, new_device_name)
     # Rename the device in any SensorStreamer variables
@@ -202,6 +242,11 @@ class MyoStreamer(myo.ApiDeviceListener, SensorStreamer):
   ########################################
   ###### MYO SETUP/STATUS CALLBACKS ######
   ########################################
+
+  # Serialize callbacks with initialization renames to keep device lookups valid.
+  def on_event(self, event):
+    with self._cond:
+      return myo.ApiDeviceListener.on_event(self, event)
 
   def on_paired(self, event):
     pass
@@ -285,7 +330,7 @@ class MyoStreamer(myo.ApiDeviceListener, SensorStreamer):
   def on_locked(self, event):
     pass
 
-  # When the arm is synced, record the information and rename the Myo device accordingly.
+  # When the arm is synced, record its side; initialization assigns device names.
   # @param event contains:
   #   timestamp: microseconds since epoch
   #   arm
@@ -302,11 +347,6 @@ class MyoStreamer(myo.ApiDeviceListener, SensorStreamer):
       self._metadata[device_name]['x_direction'] = x_direction
       # Record that the Myo has synced.
       self.append_data(device_name, 'synced', time.time(), 1)
-      # Rename the device to include the arm if this is the first sync.
-      if is_first_sync:
-        new_device_name = 'myo-%s' % (arm)
-        self.rename_device(device_name, new_device_name, acquire_lock=False)
-        device_name = new_device_name
       # Print an update.
       self._log_status('Myo %s synced: arm %s | x_direction %s' % (device_name, arm, x_direction))
       if not is_first_sync:

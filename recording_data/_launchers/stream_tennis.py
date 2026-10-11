@@ -62,7 +62,7 @@ if __name__ == '__main__':
     ('ExperimentControlStreamer', True),  # A GUI to label activities/calibrations and enter notes
     ('NotesStreamer',             False),  # A command-line based way to submit notes during the experiment (but not label activities explicitly)
     # Sensors!
-    ('MyoStreamer',        False),  # One or more Myo EMG/IMU armbands
+    ('MyoStreamer',        True),  # One or more Myo EMG/IMU armbands
     ('TouchStreamer',      False),  # Custom tactile sensors streaming via an Arduino
     ('XsensStreamer',      True),  # The Xsens body tracking system (includes the Manus finger-tracking gloves if connected to Xsens)
     ('EyeStreamer',        False),  # The Pupil Labs eye-tracking headset
@@ -108,7 +108,7 @@ if __name__ == '__main__':
      },
     # Stream from the Myo device including EMG, IMU, and gestures.
     {'class': 'MyoStreamer',
-     'num_myos': 2 ,
+     'num_myos': 3,
      'print_debug': print_debug, 'print_status': print_status
      },
     # Stream from the Pupil Labs eye tracker, including gaze and video data.
@@ -208,8 +208,8 @@ if __name__ == '__main__':
         ],
         [ # row  1
           {'device_name':None,        'stream_name':None,              'rowspan':0, 'colspan':0, 'width':0,                   'height':0},
-          {'device_name':'myo-left',        'stream_name':'emg',          'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
-          {'device_name':'myo-right',       'stream_name':'emg',          'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
+          {'device_name':'myo-01-right',        'stream_name':'emg',          'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
+          {'device_name':'myo-02-right',       'stream_name':'emg',          'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
         ],
       ],
       # [

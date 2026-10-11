@@ -41,8 +41,11 @@ tests_dir = os.path.join(data_dir, 'tests')
 log_dirs = [
   # os.path.join(experiments_dir, 'my_set_of_experiments_1', 'my_experiment_folder'),
   # os.path.join(experiments_dir, 'my_set_of_experiments_2', 'my_experiment_folder'),
-  os.path.join(tests_dir, '2026-07-24_tennis_S16', '2026-07-24_11-19-03_tennis_S16'),
-  os.path.join(tests_dir, '2026-07-24_tennis_S16', '2026-07-24_11-52-26_tennis_S16'),
+  # os.path.join(tests_dir, '2026-07-24_tennis_S16', '2026-07-24_11-19-03_tennis_S16'),
+  # os.path.join(tests_dir, '2026-07-24_tennis_S16', '2026-07-24_11-52-26_tennis_S16'),
+  os.path.join(experiments_dir, '2026-08-18_tennis_S16', 'for_merging', '2026-08-18_12-17-07_tennis_S16'),
+  os.path.join(experiments_dir, '2026-08-18_tennis_S16', 'for_merging', '2026-08-18_12-48-40_tennis_S16_short'),
+  os.path.join(experiments_dir, '2026-08-18_tennis_S16', 'for_merging', '2026-08-18_12-51-12_tennis_S16'),
   ]
 
 for log_dir in log_dirs:

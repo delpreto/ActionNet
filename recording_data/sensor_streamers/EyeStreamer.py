@@ -542,12 +542,17 @@ class EyeStreamer(SensorStreamer):
                                               data_dir_external_original,
                                               # Archives for data no longer needed
                                               data_dir_archived,
-                                              hdf5_file_archived):
+                                              hdf5_file_archived,
+                                              # Which external data to use, if a filter is desired
+                                              external_data_postfix_to_prefer=None):
   
     self._log_status('EyeStreamer merging streamed data with Pupil Capture data')
     self._define_data_notes()
     # Will save some state that will be useful later for creating a world-gaze video.
     world_video_filepath = None
+    
+    if external_data_postfix_to_prefer is not None:
+      raise NotImplementedError('EyeStreamer does not yet support filtering external data by a postfix')
     
     # Find the Pupil Capture recording subfolder within the main external data folder.
     # Use the most recent Pupil Capture subfolder in case the folder was used more than once.

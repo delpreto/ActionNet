@@ -817,7 +817,7 @@ class DataLogger:
         
   # Merge logged data with recordings from sensor-specific software.
   @staticmethod
-  def merge_external_data(log_dir, streamer_class_names_to_process=None, print_status=False, print_debug=False):
+  def merge_external_data(log_dir, streamer_class_names_to_process=None, external_data_postfixes_to_prefer=None, print_status=False, print_debug=False):
     import glob
     import importlib
     hdf5_filepaths = glob.glob(os.path.join(log_dir, '*.hdf5'))
@@ -852,6 +852,10 @@ class DataLogger:
     
     # Tell each streamer to merge external recordings if supported.
     for streamer in streamers:
+      external_data_postfix_to_prefer = None
+      for postfix in external_data_postfixes_to_prefer:
+        if ('.%s' % postfix) in str(type(streamer)):
+          external_data_postfix_to_prefer = external_data_postfixes_to_prefer[postfix]
       streamer.merge_external_data_with_streamed_data(# Final post-processed outputs
                                                       hdf5_file_toUpdate,
                                                       data_dir_toUpdate,
@@ -860,7 +864,9 @@ class DataLogger:
                                                       data_dir_external_original,
                                                       # Archives for data no longer needed
                                                       data_dir_archived,
-                                                      hdf5_file_archived)
+                                                      hdf5_file_archived,
+                                                      # Which external data to use, if a filter is desired
+                                                      external_data_postfix_to_prefer=external_data_postfix_to_prefer)
     # Delete the original external data folder if it is now empty.
     try:
       os.rmdir(data_dir_external_original)

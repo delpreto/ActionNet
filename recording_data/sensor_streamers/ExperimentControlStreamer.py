@@ -153,6 +153,7 @@ class ExperimentControlStreamer(SensorStreamer):
                   {'label': 'Location', 'type': 'combo', 'values': self._target_names,        'name': None},
                   {'label': 'Facing',   'type': 'combo', 'values': self._target_names,        'name': None},
                   {'label': 'Pose',     'type': 'combo', 'values': [
+                    'Hand and Racket on Floor',
                     'T-Pose', 'N-Pose',
                     'T-Pose Racket Hold',  'N-Pose Racket Hold',
                     'T-Pose Racket Floor', 'N-Pose Racket Floor'], 'name': None},

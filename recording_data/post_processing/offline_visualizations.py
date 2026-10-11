@@ -89,7 +89,7 @@ if __name__ == '__main__':
     sensor_manager.connect()
 
     # Visualize!
-    frame_size = (1800, 3000) # height, width # (760, 1280) (1800, 3000) (1140, 1920) (1520, 2560) (900, 1500)
+    frame_size = (1800//2, 3000//2) # height, width # (760, 1280) (1800, 3000) (1140, 1920) (1520, 2560) (900, 1500)
     composite_col_width = int(frame_size[1] / 3)
     composite_row_height = int(frame_size[0] / 2)
     visualizer = DataVisualizer(sensor_streamers=sensor_manager.get_streamers(),

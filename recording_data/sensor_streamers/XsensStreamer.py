@@ -771,18 +771,22 @@ class XsensStreamer(SensorStreamer):
                                              data_dir_external_original,
                                              # Archives for data no longer needed
                                              data_dir_archived,
-                                             hdf5_file_archived):
+                                             hdf5_file_archived,
+                                             # Which external data to use, if a filter is desired
+                                             external_data_postfix_to_prefer=None):
   
     self._log_status('XsensStreamer merging streamed data with Xsens data')
     
     # Check if a file with a desired extension has been exported in the recording directory.
-    def get_filepath_forExportType(dir_to_check, extension):
+    def get_filepath_forExportType(dir_to_check, extension, postfix_to_prefer=None):
+      if postfix_to_prefer is None:
+        postfix_to_prefer = '_hd'
       filepaths = glob.glob(os.path.join(dir_to_check, '*.%s' % extension))
       filepaths = [x for x in filepaths if '~$' not in x.lower()]
       # See if there is one labeled 'HD' and if so use it (prefer the HD-reprocessed data).
-      filepaths_hd = [x for x in filepaths if '_hd.%s' % extension in x.lower()]
-      if len(filepaths_hd) > 0:
-        filepaths = filepaths_hd
+      filepaths_preferred = [x for x in filepaths if ('%s.%s' % (postfix_to_prefer, extension)).lower() in x.lower()]
+      if len(filepaths_preferred) > 0:
+        filepaths = filepaths_preferred
       # Check that a single file was found.
       if len(filepaths) == 0:
         error_msg = 'No exported %s file found in %s' % (extension.upper(), dir_to_check)
@@ -794,8 +798,8 @@ class XsensStreamer(SensorStreamer):
     
     # Look for an MVNX and/or Excel export.
     data_dir_external_original = os.path.join(data_dir_external_original, 'xsens')
-    (excel_filepath, error_msg_excel) = get_filepath_forExportType(data_dir_external_original, 'xlsx')
-    (mvnx_filepath, error_msg_mvnx) = get_filepath_forExportType(data_dir_external_original, 'mvnx')
+    (excel_filepath, error_msg_excel) = get_filepath_forExportType(data_dir_external_original, 'xlsx', postfix_to_prefer=external_data_postfix_to_prefer)
+    (mvnx_filepath, error_msg_mvnx) = get_filepath_forExportType(data_dir_external_original, 'mvnx', postfix_to_prefer=external_data_postfix_to_prefer)
     
     # Call the appropriate merging function.
     if mvnx_filepath is not None:

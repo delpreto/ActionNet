@@ -844,7 +844,9 @@ class SensorStreamer(ABC):
                                              data_dir_external_original,
                                              # Archives for data no longer needed
                                              data_dir_archived,
-                                             hdf5_file_archived):
+                                             hdf5_file_archived,
+                                             # Which external data to use, if a filter is desired
+                                             external_data_postfix_to_prefer=None):
     pass
 
   ##############################

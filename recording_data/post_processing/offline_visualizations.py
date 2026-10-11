@@ -98,7 +98,7 @@ if __name__ == '__main__':
                                 composite_video_layout = [
                                 [ # row  0
                                   {'device_name':'myo-left',        'stream_name':'emg',          'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
-                                  {'device_name':'xsens-segments',  'stream_name':'body_position_xyz_m',  'rowspan':2, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height*2},
+                                  {'device_name':'xsens-segments',  'stream_name':'position_allSuits_zoomed_cm',  'rowspan':2, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height*2},
                                   {'device_name':'myo-right',       'stream_name':'emg',          'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
                                 ],
                                 [ # row  1

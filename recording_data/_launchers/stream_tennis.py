@@ -62,7 +62,7 @@ if __name__ == '__main__':
     ('ExperimentControlStreamer', True),  # A GUI to label activities/calibrations and enter notes
     ('NotesStreamer',             False),  # A command-line based way to submit notes during the experiment (but not label activities explicitly)
     # Sensors!
-    ('MyoStreamer',        True),  # One or more Myo EMG/IMU armbands
+    ('MyoStreamer',        False),  # One or more Myo EMG/IMU armbands
     ('TouchStreamer',      False),  # Custom tactile sensors streaming via an Arduino
     ('XsensStreamer',      True),  # The Xsens body tracking system (includes the Manus finger-tracking gloves if connected to Xsens)
     ('EyeStreamer',        False),  # The Pupil Labs eye-tracking headset
@@ -151,10 +151,10 @@ if __name__ == '__main__':
   if enable_data_logging:
     script_dir = os.path.dirname(os.path.realpath(__file__))
     (log_time_str, log_time_s) = get_time_str(return_time_s=True)
-    log_tag = 'tennis_S16'
+    log_tag = 'test_2suits'
     log_dir_root = os.path.join(script_dir, '..', '..', '..', 'data',
-                                'experiments', # recommend 'tests' and 'experiments' for testing vs "real" data
-                                '%s_tennis_S16' % get_time_str(format='%Y-%m-%d'))
+                                'tests', # recommend 'tests' and 'experiments' for testing vs "real" data
+                                '%s_test_2suits' % get_time_str(format='%Y-%m-%d'))
     log_subdir = '%s_%s' % (log_time_str, log_tag)
     log_dir = os.path.join(log_dir_root, log_subdir)
     datalogging_options = {
@@ -202,16 +202,28 @@ if __name__ == '__main__':
     'composite_video_layout':
       [
         [ # row  0
-          {'device_name':'myo-left',        'stream_name':'emg',          'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
-          {'device_name':'xsens-segments',  'stream_name':'position_cm',  'rowspan':2, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height*2},
-          {'device_name':'myo-right',       'stream_name':'emg',          'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
+          {'device_name':'xsens-segments',  'stream_name':'position_allSuits_zoomed_cm',  'rowspan':2, 'colspan':1, 'width':composite_col_width, 'height':2*composite_row_height},
+          {'device_name':'xsens-segments',  'stream_name':'position_allSuits_global_cm',  'rowspan':1, 'colspan':2, 'width':2*composite_col_width, 'height':composite_row_height},
+          {'device_name':None,        'stream_name':None,              'rowspan':0, 'colspan':0, 'width':0,                   'height':0},
         ],
         [ # row  1
-          {'device_name':'myo-left',  'stream_name':'acceleration_g',  'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height': composite_row_height},
           {'device_name':None,        'stream_name':None,              'rowspan':0, 'colspan':0, 'width':0,                   'height':0},
-          {'device_name':'myo-right', 'stream_name':'acceleration_g',  'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height': composite_row_height},
+          {'device_name':'myo-left',        'stream_name':'emg',          'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
+          {'device_name':'myo-right',       'stream_name':'emg',          'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
         ],
       ],
+      # [
+      #   [ # row  0
+      #     {'device_name':'myo-left',        'stream_name':'emg',          'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
+      #     {'device_name':'xsens-segments',  'stream_name':'position_allSuits_zoomed_cm',  'rowspan':2, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height*2},
+      #     {'device_name':'myo-right',       'stream_name':'emg',          'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height':composite_row_height},
+      #   ],
+      #   [ # row  1
+      #     {'device_name':'myo-left',  'stream_name':'acceleration_g',  'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height': composite_row_height},
+      #     {'device_name':None,        'stream_name':None,              'rowspan':0, 'colspan':0, 'width':0,                   'height':0},
+      #     {'device_name':'myo-right', 'stream_name':'acceleration_g',  'rowspan':1, 'colspan':1, 'width':composite_col_width, 'height': composite_row_height},
+      #   ],
+      # ],
     'composite_video_filepath': os.path.join(log_dir, 'composite_visualization') if log_dir is not None else None,
   }
   

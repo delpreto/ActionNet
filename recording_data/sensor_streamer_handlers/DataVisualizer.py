@@ -93,12 +93,17 @@ class DataVisualizer:
     
     self._visualizers = []
     
+  # Visualization-only streams are excluded from the logger's stream inventory.
+  def _get_stream_infos(self, streamer):
+    return getattr(streamer, 'get_visualization_stream_infos', streamer.get_all_stream_infos)()
+
   # Initialize visualizers.
   # Will use the visualizer specified by each streamer,
   #  which may be a default visualizer defined in this file or a custom one.
   def init_visualizations(self, hide_composite=False):
     # Initialize the composite view.
     self._composite_video_writer = None
+    self._composite_widget = None
     self._composite_parent_layout = None
     self._composite_visualizer_layouts = None
     self._composite_visualizer_layout_sizes = None
@@ -107,16 +112,20 @@ class DataVisualizer:
     if self._composite_video_layout is None and self._use_composite_video:
       raise AssertionError('Automatic composite video layout is not currently supported.')
     if self._use_composite_video:
-      num_columns_perRow = np.array([len(row_layout) for row_layout in self._composite_video_layout])
-      # assert (not any(np.diff(num_columns_perRow)) != 0), 'All rows of the composite video layout must have the same number of columns'
-      heights = np.array([[tile_spec['height'] for tile_spec in row_layout if tile_spec] for row_layout in self._composite_video_layout])
-      # assert (not np.any(np.diff(heights, axis=1) != 0)), 'All images in a row of the composite video must have the same height.'
-      widths = np.array([[tile_spec['width'] for tile_spec in row_layout] for row_layout in self._composite_video_layout])
-      # assert (not np.any(np.diff(widths, axis=0) != 0)), 'All images in a column of the composite video must have the same width.'
-      
-      # Determine the overall size of the composite video frames.
-      self._composite_frame_width = np.sum(widths, axis=1)[0] # + 2*len(widths)*self._composite_video_tileBorder_width
-      self._composite_frame_height = np.sum(heights, axis=0)[0] # + 2*len(widths)*self._composite_video_tileBorder_width
+      # Infer grid cell sizes from both ordinary tiles and spanning tiles.
+      tiles = [(row, col, tile) for row, layout in enumerate(self._composite_video_layout)
+               for col, tile in enumerate(layout) if tile and tile['rowspan'] and tile['colspan']]
+      row_heights = np.zeros(max(row + tile['rowspan'] for row, col, tile in tiles))
+      col_widths = np.zeros(max(col + tile['colspan'] for row, col, tile in tiles))
+      for row, col, tile in tiles:
+        rows = slice(row, row + tile['rowspan'])
+        cols = slice(col, col + tile['colspan'])
+        row_heights[rows] = np.maximum(row_heights[rows], tile['height']/tile['rowspan'])
+        col_widths[cols] = np.maximum(col_widths[cols], tile['width']/tile['colspan'])
+      self._composite_row_offsets = np.rint(np.r_[0, np.cumsum(row_heights)]).astype(int)
+      self._composite_col_offsets = np.rint(np.r_[0, np.cumsum(col_widths)]).astype(int)
+      self._composite_frame_width = int(self._composite_col_offsets[-1])
+      self._composite_frame_height = int(self._composite_row_offsets[-1])
       
       # Configure the bottom banner that includes the timestamps and labels.
       self._composite_video_banner_height = max(20, round(1/30 * self._composite_frame_height))
@@ -167,7 +176,7 @@ class DataVisualizer:
       if not use_opencv_for_composite:
         pyqtgraph.setConfigOption('background', 'w')
         pyqtgraph.setConfigOption('foreground', 'k')
-        self._app = QtGui.QApplication([])
+        self._app = QtGui.QApplication.instance() or QtGui.QApplication([])
         # Define a top-level widget to hold everything
         self._composite_widget = QtGui.QWidget()
         if hide_composite:
@@ -232,7 +241,7 @@ class DataVisualizer:
     # Instantiate and initialize the visualizers.
     self._visualizers = [OrderedDict() for i in range(len(self._streamers))]
     for (streamer_index, streamer) in enumerate(self._streamers):
-      for (device_name, streams_info) in streamer.get_all_stream_infos().items():
+      for (device_name, streams_info) in self._get_stream_infos(streamer).items():
         self._visualizers[streamer_index][device_name] = OrderedDict()
         for (stream_name, stream_info) in streams_info.items():
           visualizer_options = streamer.get_visualization_options(device_name, stream_name)
@@ -243,7 +252,10 @@ class DataVisualizer:
                   if 'visualizer_options' in tile_info:
                     for k, v in tile_info['visualizer_options'].items():
                       visualizer_options[k] = v
-          if callable(visualizer_options['class']):
+          selected = not stream_info.get('visualization_only') or (
+            (device_name, stream_name) in streams_in_composite if self._use_composite_video
+            else stream_info.get('visualization_default', False))
+          if selected and callable(visualizer_options['class']):
             try:
               composite_visualizer_layout = self._composite_visualizer_layouts[device_name][stream_name]
               composite_visualizer_layout_size = self._composite_visualizer_layout_sizes[device_name][stream_name]
@@ -385,12 +397,17 @@ class DataVisualizer:
     # Visualize new data for each stream of each device of each streamer.
     start_update_time_s = time.time()
     for (streamer_index, streamer) in enumerate(self._streamers):
-      for (device_name, streams_info) in streamer.get_all_stream_infos().items():
+      for (device_name, streams_info) in self._get_stream_infos(streamer).items():
         if self._print_debug_extra: self._log_debug('Visualizing streams for streamer %d device %s' % (streamer_index, device_name))
         for (stream_name, stream_info) in streams_info.items():
           # Check if a visualizer is created for this stream.
           visualizer = self._visualizers[streamer_index][device_name][stream_name]
           if visualizer is None:
+            continue
+          if stream_info.get('visualization_only'):
+            new_data = streamer.get_visualization_data(device_name, stream_name, ending_time_s=ending_time_s)
+            if new_data is not None:
+              visualizer.update(new_data, visualizing_all_data=False)
             continue
           # Determine the start and end bounds for data to fetch.
           if ending_time_s is None:
@@ -463,9 +480,16 @@ class DataVisualizer:
     # Visualize all recorded data.
     self._log_status('DataVisualizer visualizing all data')
     for (streamer_index, streamer) in enumerate(self._streamers):
-      for (device_name, streams_info) in streamer.get_all_stream_infos().items():
+      for (device_name, streams_info) in self._get_stream_infos(streamer).items():
         if self._print_debug_extra: self._log_debug('Visualizing streams for streamer %d device %s' % (streamer_index, device_name))
         for (stream_name, stream_info) in streams_info.items():
+          if stream_info.get('visualization_only'):
+            visualizer = self._visualizers[streamer_index][device_name][stream_name]
+            if visualizer is not None:
+              new_data = streamer.get_visualization_data(device_name, stream_name)
+              if new_data is not None:
+                visualizer.update(new_data, visualizing_all_data=False)
+            continue
           # Fetch data starting with the first timestep,
           #  and ending at the most recent data (or back by a few timesteps
           #  if the streamer may still edit the most recent timesteps).
@@ -551,20 +575,13 @@ class DataVisualizer:
         img = cv2.copyMakeBorder(img, border_width, border_width, border_width, border_width,
                                  cv2.BORDER_CONSTANT, value=border_color)
         imgs[row_index][column_index] = img
-    # # Create the composite image.
-    # composite_row_imgs = []
-    # for (row_index, row_imgs) in enumerate(imgs):
-    #   composite_row_imgs.append(cv2.hconcat(row_imgs))
-    # composite_img = cv2.vconcat(composite_row_imgs)
-    # Create the composite image.
-    composite_column_imgs = []
-    for column_index in range(len(imgs[0])):
-      imgs_for_column = []
-      for (row_index, row_imgs) in enumerate(imgs):
-        if row_imgs[column_index] is not None:
-          imgs_for_column.append(row_imgs[column_index])
-      composite_column_imgs.append(cv2.vconcat(imgs_for_column))
-    composite_img = cv2.hconcat(composite_column_imgs)
+    # Place tiles on the grid so row/column spans can coexist.
+    composite_img = np.zeros((self._composite_frame_height, self._composite_frame_width, 3), dtype=np.uint8)
+    for row_index, row_imgs in enumerate(imgs):
+      for column_index, img in enumerate(row_imgs):
+        if img is not None:
+          y, x = self._composite_row_offsets[row_index], self._composite_col_offsets[column_index]
+          composite_img[y:y+img.shape[0], x:x+img.shape[1]] = img
     
     # Add a banner on the bottom.
     if time_s is not None or self._experimentControl_streamer is not None:
@@ -619,8 +636,21 @@ class DataVisualizer:
     
     # Display the composite image if desired.
     if not hidden:
-      cv2.imshow('Action!', composite_img)
-      cv2.waitKey(1)
+      from pyqtgraph.Qt import QtGui, QtWidgets
+      if self._composite_widget is None:
+        class CompositeImage(QtWidgets.QLabel):
+          def keyPressEvent(self, event):
+            if self.property('waiting_for_close'):
+              self.close()
+        self._app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+        self._composite_widget = CompositeImage()
+        self._composite_widget.setWindowTitle('Action!')
+        self._composite_widget.show()
+      image = QtGui.QImage(composite_img.data, composite_img.shape[1], composite_img.shape[0],
+                           composite_img.strides[0], QtGui.QImage.Format.Format_BGR888).copy()
+      self._composite_widget.setPixmap(QtGui.QPixmap.fromImage(image))
+      self._composite_widget.resize(composite_img.shape[1], composite_img.shape[0])
+      self._app.processEvents()
     # Write the composite image to a video if desired.
     if self._composite_video_writer is not None:
       self._composite_video_writer.write(composite_img)
@@ -629,7 +659,7 @@ class DataVisualizer:
     if self._print_debug_extra: self._log_debug('DataVisualizer updating the composite video using pyqtgraph')
     # Display the composite image if desired.
     if not hidden:
-      cv2.waitKey(1) # find a better way?
+      self._app.processEvents()
     # Write the composite image to a video if desired.
     if self._composite_video_writer is not None:
       composite_img = self._composite_widget.grab() # returns a QPixmap
@@ -665,11 +695,12 @@ class DataVisualizer:
       self._log_userAction('\n\n*** Close all visualization windows to exit\n\n')
     for wait_fn in waiting_functions:
       wait_fn()
-    if self._use_composite_video and not self._hide_composite:
+    if self._use_composite_video and not self._hide_composite and self._composite_widget is not None:
       if use_opencv_for_composite:
-        cv2.waitKey(0)
-      else:
-        self._app.exec()
+        self._composite_widget.setProperty('waiting_for_close', True)
+      while self._composite_widget.isVisible():
+        self._app.processEvents()
+        time.sleep(0.01)
 
   # Close line plot figures, video windows, and custom visualizers.
   def close_visualizations(self):
@@ -684,6 +715,8 @@ class DataVisualizer:
     if self._composite_video_writer is not None:
       self._composite_video_writer.release()
       time.sleep(2)
+    if self._composite_widget is not None:
+      self._composite_widget.close()
     try:
       cv2.destroyAllWindows()
     except:

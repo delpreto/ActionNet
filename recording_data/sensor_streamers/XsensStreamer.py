@@ -35,6 +35,7 @@ import traceback
 import h5py
 import os
 import copy
+import xml.etree.ElementTree as ET
 # For post-processing
 import pandas
 from bs4 import BeautifulSoup
@@ -51,7 +52,7 @@ from matplotlib import pyplot as plt
 ################################################
 ################################################
 # A class to interface with the Xsens motion trackers.
-# A full body suit and two optional gloves are supported.
+# One or two full body suits, each with optional gloves/props, are supported.
 # The following data will be streamed:
 #   Euler pose and orientation data
 #   Quaternion orientation data
@@ -67,6 +68,14 @@ from matplotlib import pyplot as plt
 ################################################
 ################################################
 class XsensStreamer(SensorStreamer):
+
+  _position_visualization_modes = {
+    'position_cm': ('zoomed', None),
+    'position_allSuits_zoomed_cm': ('zoomed', None),
+    'position_allSuits_global_cm': ('global', None),
+    'position_suit01_cm': ('zoomed', 1),
+    'position_suit02_cm': ('zoomed', 2),
+  }
 
   ########################
   ###### INITIALIZE ######
@@ -84,12 +93,8 @@ class XsensStreamer(SensorStreamer):
 
     self._log_source_tag = 'xsens'
     
-    # Initialize counts of segments/joints/fingers.
-    # These will be updated automatically later based on initial streaming data.
-    self._num_body_segments = None # will be set to 23 for the full body
-    self._num_fingers = None  # will be set to 0 or 40 depending on whether fingers are enabled
-    self._num_body_joints = None # will be set to 28 = 22 regular joints + 6 ergonomic joints
-    self._num_prop_segments = None # will be set to 0-4 depending on size of messages received
+    # Keep stream configuration and frame timing independent for each character.
+    self._characters = {}
     # Specify message types that might be received.
     self._xsens_msg_types = {
       'pose_euler':      1,
@@ -99,9 +104,6 @@ class XsensStreamer(SensorStreamer):
       'center_of_mass':  24,
       'time_code_str':   25,
     }
-    # Initialize a record of which ones are actually active.
-    # This will be automatically set later based on iniital streaming data.
-    self._xsens_is_streaming = dict([(msg_type, False) for msg_type in self._xsens_msg_types.values()])
 
     # Specify the Xsens streaming configuration.
     self._xsens_network_protocol = 'udp'
@@ -120,77 +122,77 @@ class XsensStreamer(SensorStreamer):
     # Initialize state.
     self._buffer = b''
     self._socket = None
-    self._xsens_sample_index = None # The current Xsens timestep being processed (each timestep will send multiple messages)
     self._xsens_message_start_time_s = None    # When an Xsens message was first received
-    self._xsens_timestep_receive_time_s = None # When the first Xsens message for an Xsens timestep was received
 
     # Update configuration based on existing data logs if desired.
     # Look in all HDF5 files to determine which streams were active
     #  and how many segments/fingers there were.
     if self._replaying_data_logs:
-      self._num_body_segments = 23
-      self._num_prop_segments = 0
       for file in os.listdir(self._log_player_options['log_dir']):
-        if file.endswith('.hdf5'):
-          hdf5_filepath = os.path.join(self._log_player_options['log_dir'], file)
-          self._log_status('%s loading HDF5 file %s' % (type(self).__name__, hdf5_filepath))
-          hdf5_file = h5py.File(hdf5_filepath, 'r')
-          if 'xsens-COM' in hdf5_file:
-            self._xsens_is_streaming[self._xsens_msg_types['center_of_mass']] = True
-          if 'xsens-joints' in hdf5_file:
-            self._xsens_is_streaming[self._xsens_msg_types['joint_angle']] = True
-            if 'child' in hdf5_file['xsens-joints']:
-              self._num_body_joints = hdf5_file['xsens-joints']['child']['data'].shape[1]
-            else:
-              self._num_body_joints = hdf5_file['xsens-joints']['body_joint_angles_eulerXZY_xyz_rad']['data'].shape[1]
-          if 'xsens-time' in hdf5_file:
-            self._xsens_is_streaming[self._xsens_msg_types['time_code_str']] = True
-          if 'xsens-segments' in hdf5_file:
-            num_segments = 0
-            if 'orientation_euler_deg' in hdf5_file['xsens-segments']:
-              self._xsens_is_streaming[self._xsens_msg_types['pose_euler']] = True
-              num_segments = hdf5_file['xsens-segments']['orientation_euler_deg']['data'].shape[1]
-            if 'orientation_quaternion' in hdf5_file['xsens-segments']:
-              self._xsens_is_streaming[self._xsens_msg_types['pose_quaternion']] = True
-              num_segments = hdf5_file['xsens-segments']['orientation_quaternion']['data'].shape[1]
-            if 'body_acceleration_xyz_m_ss' in hdf5_file['xsens-segments']:
-              num_segments = hdf5_file['xsens-segments']['body_acceleration_xyz_m_ss']['data'].shape[1]
-            # Determine whether props and/or fingers were used.
-            if num_segments == self._num_body_segments:
-              self._num_fingers = 0
-              self._num_prop_segments = 0
-            elif num_segments > self._num_body_segments and num_segments <= self._num_body_segments+4: # up to 4 prop sensors supported
-              self._num_fingers = 0
-              self._num_prop_segments = num_segments - self._num_body_segments
-            elif num_segments > self._num_body_segments+40:
-              self._num_prop_segments = num_segments - 40 - self._num_body_segments
-              self._num_fingers = num_segments - self._num_prop_segments - self._num_body_segments
-              assert self._num_fingers == 40
-              assert self._num_prop_segments > 0 and self._num_prop_segments <= 4
-            else:
-              self._num_prop_segments = 0
-              self._num_fingers = num_segments - self._num_body_segments
-          hdf5_file.close()
+        if not file.endswith('.hdf5'):
+          continue
+        with h5py.File(os.path.join(self._log_player_options['log_dir'], file), 'r') as hdf5_file:
+          for char_id in (0, 1):
+            segments_name = self._get_existing_device_name(hdf5_file, 'xsens-segments', char_id)
+            if segments_name is None:
+              continue
+            state = self._get_character_state(char_id)
+            segments = hdf5_file[segments_name]
+            state['label'] = segments.attrs.get('xsens_character_label', state['label'])
+            state['num_body_segments'] = 23
+            for stream_name, msg_type in [('orientation_euler_deg', 'pose_euler'),
+                                          ('orientation_quaternion', 'pose_quaternion')]:
+              state['is_streaming'][self._xsens_msg_types[msg_type]] = stream_name in segments
+            state['is_streaming'][self._xsens_msg_types['center_of_mass']] = self._get_existing_device_name(hdf5_file, 'xsens-CoM', char_id) is not None
+            state['is_streaming'][self._xsens_msg_types['time_code_str']] = self._get_existing_device_name(hdf5_file, 'xsens-time', char_id) is not None
+            joints_name = self._get_existing_device_name(hdf5_file, 'xsens-joints', char_id)
+            if joints_name is not None:
+              state['is_streaming'][self._xsens_msg_types['joint_angle']] = True
+              joints = hdf5_file[joints_name]
+              joint_stream = 'child' if 'child' in joints else 'body_joint_angles_eulerXZY_xyz_rad'
+              state['num_body_joints'] = joints[joint_stream]['data'].shape[1]
+            for stream_name in ('orientation_euler_deg', 'orientation_quaternion', 'body_acceleration_xyz_m_ss'):
+              if stream_name in segments:
+                num_extra_segments = segments[stream_name]['data'].shape[1] - 23
+                state['num_fingers'] = 40 if num_extra_segments >= 40 else 0
+                state['num_prop_segments'] = num_extra_segments - state['num_fingers']
       if self._print_debug:
-        debug_msg  = 'Got Xsens state from past data logs:\n'
-        debug_msg += '  num segments: %s\n' % self._num_body_segments
-        debug_msg += '  num fingers : %s\n' % self._num_fingers
-        debug_msg += '  num joints  : %s\n' % self._num_body_joints
-        debug_msg += '  active streams: %s\n' % get_dict_str(self._xsens_is_streaming)
-        self._log_debug(debug_msg.strip())
+        self._log_debug('Got Xsens state from past data logs:\n%s' % get_dict_str(self._characters))
     
     # Store any visualization options.
     self._prop_hand_for_visualization = prop_hand_for_visualization
+
+  # Use one-based suit IDs in recorded groups; retain old names when reading logs.
+  def _get_device_name(self, device_name, char_id=0):
+    return device_name.replace('xsens-', 'xsens-suit%02d-' % (char_id + 1), 1)
+
+  def _get_existing_device_name(self, groups, device_name, char_id=0):
+    legacy_name = device_name if char_id == 0 else device_name.replace('xsens-', 'xsens-2-', 1)
+    return next((name for name in (self._get_device_name(device_name, char_id), legacy_name) if name in groups), None)
+
+  def _get_character_id(self, device_name):
+    return 1 if device_name.startswith(('xsens-suit02-', 'xsens-2-')) else 0
+
+  def _get_character_state(self, char_id):
+    if char_id not in self._characters:
+      self._characters[char_id] = {
+        'num_body_segments': None, 'num_prop_segments': None,
+        'num_fingers': None, 'num_body_joints': None,
+        'sample_index': None, 'receive_time_s': None,
+        'label': 'MVN System %d' % (char_id + 1),
+        'is_streaming': dict.fromkeys(self._xsens_msg_types.values(), False),
+      }
+    return self._characters[char_id]
 
   # Set up streams associated with an Xsens message.
   # Streams will be set up when its message type is first receieved,
   #  so that segment/joint counts are known and so only streams
   #  that are currently active in Xsens will be created.
-  def _setup_streams_for_xsens_message(self, message_type):
+  def _setup_streams_for_xsens_message(self, message_type, char_id=0):
+    state = self._get_character_state(char_id)
     
     # Define headings for each stream; will populate self._headings.
-    self._define_data_headings()
-    self._define_data_notes()
+    self._define_data_notes(state['num_prop_segments'] or 0)
     
     # All streams will have the Xsens sample counter and time code added.
     extra_data_info = {
@@ -199,73 +201,73 @@ class XsensStreamer(SensorStreamer):
       }
       
     # Segment positions and orientations
-    if message_type == self._xsens_msg_types['pose_euler'] \
-        or message_type == self._xsens_msg_types['pose_quaternion']:
-      self.add_stream(device_name='xsens-segments',
+    if message_type in [self._xsens_msg_types['pose_euler'], self._xsens_msg_types['pose_quaternion']] \
+        and 'position_cm' not in self._streams_info.get(self._get_device_name('xsens-segments', char_id), {}):
+      self.add_stream(device_name=self._get_device_name('xsens-segments', char_id),
                       stream_name='position_cm',
                       data_type='float32',
-                      sample_size=(self._num_body_segments + self._num_prop_segments + self._num_fingers, 3),
+                      sample_size=(state['num_body_segments'] + state['num_prop_segments'] + state['num_fingers'], 3),
                       sampling_rate_hz=None,
                       extra_data_info=extra_data_info,
                       data_notes=self._data_notes_stream['xsens-segments']['position_cm'])
     if message_type == self._xsens_msg_types['pose_euler']:
-      self.add_stream(device_name='xsens-segments',
+      self.add_stream(device_name=self._get_device_name('xsens-segments', char_id),
                       stream_name='orientation_euler_deg',
                       data_type='float32',
-                      sample_size=(self._num_body_segments + self._num_prop_segments + self._num_fingers, 3),
+                      sample_size=(state['num_body_segments'] + state['num_prop_segments'] + state['num_fingers'], 3),
                       sampling_rate_hz=None,
                       extra_data_info=extra_data_info,
                       data_notes=self._data_notes_stream['xsens-segments']['orientation_euler_deg'])
     if message_type == self._xsens_msg_types['pose_quaternion']:
-      self.add_stream(device_name='xsens-segments',
+      self.add_stream(device_name=self._get_device_name('xsens-segments', char_id),
                       stream_name='orientation_quaternion',
                       data_type='float32',
-                      sample_size=(self._num_body_segments + self._num_prop_segments + self._num_fingers, 4),
+                      sample_size=(state['num_body_segments'] + state['num_prop_segments'] + state['num_fingers'], 4),
                       sampling_rate_hz=None,
                       extra_data_info=extra_data_info,
                       data_notes=self._data_notes_stream['xsens-segments']['orientation_quaternion'])
 
     # Joint angles
     if message_type == self._xsens_msg_types['joint_angle']:
-      self.add_stream(device_name='xsens-joints',
+      self.add_stream(device_name=self._get_device_name('xsens-joints', char_id),
                       stream_name='rotation_deg',
                       data_type='float32',
-                      sample_size=(self._num_body_joints, 3),
+                      sample_size=(state['num_body_joints'], 3),
                       sampling_rate_hz=None,
                       extra_data_info=extra_data_info,
                       data_notes=self._data_notes_stream['xsens-joints']['rotation_deg'])
-      self.add_stream(device_name='xsens-joints',
+      self.add_stream(device_name=self._get_device_name('xsens-joints', char_id),
                       stream_name='parent',
                       data_type='float32',
-                      sample_size=(self._num_body_joints),
+                      sample_size=(state['num_body_joints']),
                       sampling_rate_hz=None,
                       extra_data_info=extra_data_info,
                       data_notes=self._data_notes_stream['xsens-joints']['parent'])
-      self.add_stream(device_name='xsens-joints',
+      self.add_stream(device_name=self._get_device_name('xsens-joints', char_id),
                       stream_name='child',
                       data_type='float32',
-                      sample_size=(self._num_body_joints),
+                      sample_size=(state['num_body_joints']),
                       sampling_rate_hz=None,
                       extra_data_info=extra_data_info,
                       data_notes=self._data_notes_stream['xsens-joints']['child'])
 
     # Center of mass dynamics
     if message_type == self._xsens_msg_types['center_of_mass']:
-      self.add_stream(device_name='xsens-CoM',
+      self.add_stream(device_name=self._get_device_name('xsens-CoM', char_id),
                       stream_name='position_cm',
                       data_type='float32',
                       sample_size=(3),
                       sampling_rate_hz=None,
                       extra_data_info=extra_data_info,
                       data_notes=self._data_notes_stream['xsens-CoM']['position_cm'])
-      self.add_stream(device_name='xsens-CoM',
+      self.add_stream(device_name=self._get_device_name('xsens-CoM', char_id),
                       stream_name='velocity_cm_s',
                       data_type='float32',
                       sample_size=(3),
                       sampling_rate_hz=None,
                       extra_data_info=extra_data_info,
                       data_notes=self._data_notes_stream['xsens-CoM']['velocity_cm_s'])
-      self.add_stream(device_name='xsens-CoM',
+      self.add_stream(device_name=self._get_device_name('xsens-CoM', char_id),
                       stream_name='acceleration_cm_ss',
                       data_type='float32',
                       sample_size=(3),
@@ -278,13 +280,22 @@ class XsensStreamer(SensorStreamer):
       extra_data_info_time = extra_data_info.copy()
       extra_data_info_time['device_time_utc_str']  = {'data_type': 'S12', 'sample_size': [1]}
       extra_data_info_time['device_timestamp_str'] = {'data_type': 'S26', 'sample_size': [1]}
-      self.add_stream(device_name='xsens-time',
+      self.add_stream(device_name=self._get_device_name('xsens-time', char_id),
                       stream_name='device_timestamp_s',
                       data_type='float64',
                       sample_size=(1),
                       sampling_rate_hz=None,
                       extra_data_info=extra_data_info_time,
                       data_notes=self._data_notes_stream['xsens-time']['device_timestamp_s'])
+
+    self._update_character_metadata(char_id)
+
+  def _update_character_metadata(self, char_id):
+    for name in ('xsens-segments', 'xsens-joints', 'xsens-CoM', 'xsens-time'):
+      device_name = self._get_device_name(name, char_id)
+      if device_name in self._streams_info:
+        self._metadata.setdefault(device_name, {}).update(
+            xsens_character_id=char_id, xsens_character_label=self._get_character_state(char_id)['label'])
 
   # Connect to the Xsens network streams, and determine what streams are active.
   def _connect(self, timeout_s=10):
@@ -315,7 +326,7 @@ class XsensStreamer(SensorStreamer):
     self._print_status = print_status
     self._print_debug = print_debug
     self._log_status('Found the following stream states (keys are Xsens message types):')
-    self._log_status(get_dict_str(self._xsens_is_streaming))
+    self._log_status(get_dict_str(self._characters))
     self._log_status('Done connecting')
 
     return True
@@ -376,25 +387,35 @@ class XsensStreamer(SensorStreamer):
       num_props = int.from_bytes(num_props, byteorder='big', signed=False) # number of props (swords etc)
       num_fingers = int.from_bytes(num_fingers, byteorder='big', signed=False) # number of finger track segments
       reserved = int.from_bytes(reserved, byteorder='big', signed=False)
-      assert datagram_counter == (1 << 7), 'Not a single last message' # We did not implement datagram splitting
-      assert char_id == 0, 'We only support a single person (a single character).'
     except TypeError:
       # Not all message parts were received.
       # This will be dealt with below, after checking if some of it was at least received.
       pass
 
-    # If the message type and sample counter are known,
-    #  use this time as the best-guess timestamp for the data.
-    if message_type is not None and sample_counter is not None:
-      if self._xsens_sample_index != sample_counter:
-        # self._log_debug('Updating timestamp receive time, and setting sample counter to %d' % sample_counter)
-        self._xsens_timestep_receive_time_s = self._xsens_message_start_time_s
-        self._xsens_sample_index = sample_counter
-
-    # Check that all were present by checking the last one.
+    # Wait for a complete message before using its character or stream state.
     if payload_size is None:
       self._log_debug('Incomplete message')
       return None
+    payload, payload_end_index = self._read_bytes(message, next_index, payload_size)
+    if payload is None:
+      self._log_debug('No message payload yet')
+      return None
+    # Character metadata contains a length-prefixed list of name:value lines.
+    if message_type == 12 and char_id in (0, 1):
+      fields = dict(line.split(':', 1) for line in payload[4:].decode('utf-8').splitlines() if ':' in line)
+      if fields.get('name'):
+        self._get_character_state(char_id)['label'] = fields['name'].strip()
+        self._update_character_metadata(char_id)
+      return payload_end_index-1
+    # Ignore unsupported packets, including fragmented character-scale messages.
+    if message_type not in self._xsens_msg_types.values():
+      return payload_end_index-1
+    assert datagram_counter == (1 << 7), 'Not a single last message' # We did not implement datagram splitting
+    assert char_id in (0, 1), 'Only one or two Xsens characters are supported.'
+    state = self._get_character_state(char_id)
+    if state['sample_index'] != sample_counter:
+      state['receive_time_s'] = self._xsens_message_start_time_s
+      state['sample_index'] = sample_counter
 
     # Organize the metadata so far
     metadata = {
@@ -411,28 +432,22 @@ class XsensStreamer(SensorStreamer):
             'payload_size': payload_size,
         }
     # Validate that the number of segments/joints/fingers remains the same
-    if self._num_body_segments is not None and self._num_body_segments != num_body_segments:
-      self._log_error('ERROR: The number of Xsens segments changed from %d to %d' % (self._num_body_segments, num_body_segments))
-    if self._num_prop_segments is not None and self._num_prop_segments != num_props and message_type in [self._xsens_msg_types['pose_euler'], self._xsens_msg_types['pose_quaternion']]:
-      self._log_error('ERROR: The number of Xsens props changed from %d to %d' % (self._num_prop_segments, num_props))
-    if self._num_fingers is not None and self._num_fingers != num_fingers and message_type in [self._xsens_msg_types['pose_euler'], self._xsens_msg_types['pose_quaternion']]:
-      self._log_error('ERROR: The number of Xsens fingers changed from %d to %d' % (self._num_fingers, num_fingers))
-    if self._num_body_joints is not None and self._num_body_joints != num_items and message_type == self._xsens_msg_types['joint_angle']:
-      self._log_error('ERROR: The number of Xsens joints changed from %d to %d' % (self._num_body_joints, num_items))
+    if state['num_body_segments'] is not None and state['num_body_segments'] != num_body_segments:
+      self._log_error('ERROR: The number of Xsens segments changed from %d to %d' % (state['num_body_segments'], num_body_segments))
+    if state['num_prop_segments'] is not None and state['num_prop_segments'] != num_props and message_type in [self._xsens_msg_types['pose_euler'], self._xsens_msg_types['pose_quaternion']]:
+      self._log_error('ERROR: The number of Xsens props changed from %d to %d' % (state['num_prop_segments'], num_props))
+    if state['num_fingers'] is not None and state['num_fingers'] != num_fingers and message_type in [self._xsens_msg_types['pose_euler'], self._xsens_msg_types['pose_quaternion']]:
+      self._log_error('ERROR: The number of Xsens fingers changed from %d to %d' % (state['num_fingers'], num_fingers))
+    if state['num_body_joints'] is not None and state['num_body_joints'] != num_items and message_type == self._xsens_msg_types['joint_angle']:
+      self._log_error('ERROR: The number of Xsens joints changed from %d to %d' % (state['num_body_joints'], num_items))
 
     # Store the number of segments/joints/fingers if needed
-    self._num_body_segments = num_body_segments # note that this field is correct even if the message is not segment-based
+    state['num_body_segments'] = num_body_segments # note that this field is correct even if the message is not segment-based
     if message_type in [self._xsens_msg_types['pose_euler'], self._xsens_msg_types['pose_quaternion']]:
-      self._num_fingers = num_fingers
-      self._num_prop_segments = num_props
+      state['num_fingers'] = num_fingers
+      state['num_prop_segments'] = num_props
     if message_type == self._xsens_msg_types['joint_angle']:
-      self._num_body_joints = num_items
-
-    # Read the payload, and check that it is fully present
-    payload, payload_end_index = self._read_bytes(message, next_index, payload_size)
-    if payload is None:
-      self._log_debug('No message payload yet')
-      return None
+      state['num_body_joints'] = num_items
 
     extra_data = {
       'xsens_sample_number'     : sample_counter,
@@ -442,13 +457,13 @@ class XsensStreamer(SensorStreamer):
     if self._print_debug:
       self._log_debug(get_dict_str(metadata))
       self._log_debug(get_dict_str(extra_data))
-      self._log_debug(self._xsens_timestep_receive_time_s)
+      self._log_debug(state['receive_time_s'])
 
     # Set up the streams for this message if needed
-    if not self._xsens_is_streaming[message_type]:
+    if not state['is_streaming'][message_type]:
       self._log_debug('Setting up Xsens streams for message type %d' % message_type)
-      self._setup_streams_for_xsens_message(message_type)
-      self._xsens_is_streaming[message_type] = True
+      self._setup_streams_for_xsens_message(message_type, char_id)
+      state['is_streaming'][message_type] = True
 
     # Euler and Quaternion messages are very similar,
     #   so parse them with the same code.
@@ -498,11 +513,11 @@ class XsensStreamer(SensorStreamer):
         segment_rotations[segment_id-1, :] = segment_rotation
 
       # Store the data
-      self.append_data('xsens-segments', rotation_stream_name,
-                        self._xsens_timestep_receive_time_s, segment_rotations, extra_data=extra_data)
-      if is_euler or not self._xsens_is_streaming[self._xsens_msg_types['pose_euler']]:
-        self.append_data('xsens-segments', 'position_cm',
-                          self._xsens_timestep_receive_time_s, segment_positions_cm, extra_data=extra_data)
+      self.append_data(self._get_device_name('xsens-segments', char_id), rotation_stream_name,
+                        state['receive_time_s'], segment_rotations, extra_data=extra_data)
+      if is_euler or not state['is_streaming'][self._xsens_msg_types['pose_euler']]:
+        self.append_data(self._get_device_name('xsens-segments', char_id), 'position_cm',
+                          state['receive_time_s'], segment_positions_cm, extra_data=extra_data)
       if self._print_debug:
         self._log_debug(segment_positions_cm)
         self._log_debug(segment_rotations)
@@ -539,12 +554,12 @@ class XsensStreamer(SensorStreamer):
           joint_rotations_deg[joint_index, :] = joint_rotation_deg
 
       # Store the data
-      self.append_data('xsens-joints', 'rotation_deg',
-                        self._xsens_timestep_receive_time_s, joint_rotations_deg, extra_data=extra_data)
-      self.append_data('xsens-joints', 'parent',
-                        self._xsens_timestep_receive_time_s, joint_parents, extra_data=extra_data)
-      self.append_data('xsens-joints', 'child',
-                        self._xsens_timestep_receive_time_s, joint_childs, extra_data=extra_data)
+      self.append_data(self._get_device_name('xsens-joints', char_id), 'rotation_deg',
+                        state['receive_time_s'], joint_rotations_deg, extra_data=extra_data)
+      self.append_data(self._get_device_name('xsens-joints', char_id), 'parent',
+                        state['receive_time_s'], joint_parents, extra_data=extra_data)
+      self.append_data(self._get_device_name('xsens-joints', char_id), 'child',
+                        state['receive_time_s'], joint_childs, extra_data=extra_data)
       if self._print_debug:
         self._log_debug(joint_rotations_deg)
         self._log_debug(joint_parents)
@@ -564,12 +579,12 @@ class XsensStreamer(SensorStreamer):
       com_acceleration_m_ss = np.array(struct.unpack('!3f', com_acceleration_m_ss), np.float32)
       
       # Store the data
-      self.append_data('xsens-CoM', 'position_cm',
-                        self._xsens_timestep_receive_time_s, 100.0*com_position_m, extra_data=extra_data)
-      self.append_data('xsens-CoM', 'velocity_cm_s',
-                        self._xsens_timestep_receive_time_s, 100.0*com_velocity_m_s, extra_data=extra_data)
-      self.append_data('xsens-CoM', 'acceleration_cm_ss',
-                        self._xsens_timestep_receive_time_s, 100.0*com_acceleration_m_ss, extra_data=extra_data)
+      self.append_data(self._get_device_name('xsens-CoM', char_id), 'position_cm',
+                        state['receive_time_s'], 100.0*com_position_m, extra_data=extra_data)
+      self.append_data(self._get_device_name('xsens-CoM', char_id), 'velocity_cm_s',
+                        state['receive_time_s'], 100.0*com_velocity_m_s, extra_data=extra_data)
+      self.append_data(self._get_device_name('xsens-CoM', char_id), 'acceleration_cm_ss',
+                        state['receive_time_s'], 100.0*com_acceleration_m_ss, extra_data=extra_data)
       if self._print_debug:
         self._log_debug(100.0*com_position_m)
         self._log_debug(100.0*com_velocity_m_s)
@@ -593,8 +608,8 @@ class XsensStreamer(SensorStreamer):
       # Store the data
       extra_data['device_time_utc_str'] = time_code_str
       extra_data['device_timestamp_str'] = get_time_str(time_code_s, '%Y-%m-%d %H:%M:%S.%f')
-      self.append_data('xsens-time', 'device_timestamp_s',
-                        self._xsens_timestep_receive_time_s, time_code_s, extra_data=extra_data)
+      self.append_data(self._get_device_name('xsens-time', char_id), 'device_timestamp_s',
+                        state['receive_time_s'], time_code_s, extra_data=extra_data)
       # self._log_debug(time_code_str)
 
     # The message had a type that is not currently being processed/recorded.
@@ -679,29 +694,58 @@ class XsensStreamer(SensorStreamer):
   ###### VISUALIZATION ######
   ###########################
 
-  # Specify how the stream should be visualized.
-  # No visualization_options are currently supported.
+  # Visualization aliases are views of the recorded suit streams, never extra logs.
+  def _get_position_sources(self):
+    sources = OrderedDict()
+    for char_id in (0, 1):
+      device_name = self._get_existing_device_name(self._streams_info, 'xsens-segments', char_id)
+      if device_name is not None:
+        for stream_name in ('position_cm', 'body_position_xyz_m'):
+          if stream_name in self._streams_info[device_name]:
+            sources[char_id + 1] = (device_name, stream_name)
+            break
+    return sources
+
+  def get_visualization_stream_infos(self):
+    streams_info = {device: dict(streams) for device, streams in self._streams_info.items()}
+    sources = self._get_position_sources()
+    if sources:
+      device_name, stream_name = next(iter(sources.values()))
+      source_info = self._streams_info[device_name][stream_name]
+      for alias in self._position_visualization_modes:
+        info = dict(source_info, visualization_only=True, visualization_default=(alias == 'position_cm'))
+        streams_info.setdefault('xsens-segments', {})[alias] = info
+    return streams_info
+
+  def get_visualization_data(self, device_name, stream_name, ending_time_s=None):
+    _, selected_suit = self._position_visualization_modes[stream_name]
+    positions = OrderedDict()
+    suit_times_s = {}
+    for suit_id, (source_device, source_stream) in self._get_position_sources().items():
+      if selected_suit is not None and suit_id != selected_suit:
+        continue
+      index = (self.get_num_timesteps(source_device, source_stream) - 1 if ending_time_s is None
+               else self.get_index_for_time_s(source_device, source_stream, ending_time_s, 'before'))
+      if index is None or index < 0:
+        continue
+      data = self.get_data(source_device, source_stream, starting_index=index, ending_index=index+1, return_deepcopy=False)
+      if data is not None:
+        position = np.asarray(data['data'][-1])
+        positions[suit_id] = 100*position if source_stream == 'body_position_xyz_m' else position
+        suit_times_s[suit_id] = data['time_s'][-1]
+    return {'data': [positions], 'suit_times_s': suit_times_s} if positions else None
+
   def get_default_visualization_options(self, visualization_options=None):
-    # Visualize the segments position stream by drawing a skeleton.
-    options = {}
-    options['xsens-segments'] = {}
-    options['xsens-segments']['position_cm'] = {
-      'class': XsensSkeletonVisualizer,
-      'position_units': 'cm',
-      'prop_hand_for_visualization': self._prop_hand_for_visualization,
-    }
-    options['xsens-segments']['body_position_xyz_m'] = {
-      'class': XsensSkeletonVisualizer,
-      'position_units': 'm',
-      'prop_hand_for_visualization': self._prop_hand_for_visualization,
-    }
-
-    # Don't visualize the other devices/streams.
-    for (device_name, device_info) in self._streams_info.items():
-      options.setdefault(device_name, {})
-      for (stream_name, stream_info) in device_info.items():
-        options[device_name].setdefault(stream_name, {'class': None})
-
+    options = {device_name: {stream_name: {'class': None} for stream_name in streams_info}
+               for device_name, streams_info in self._streams_info.items()}
+    if self._get_position_sources():
+      options.setdefault('xsens-segments', {})
+      for alias, (mode, suit_id) in self._position_visualization_modes.items():
+        options['xsens-segments'][alias] = {
+          'class': XsensSkeletonVisualizer, 'position_units': 'cm',
+          'mode': mode, 'suit_id': suit_id,
+          'prop_hand_for_visualization': self._prop_hand_for_visualization,
+        }
     return options
 
   #####################################
@@ -755,7 +799,7 @@ class XsensStreamer(SensorStreamer):
       pass
     self._log_userAction('')
     self._log_userAction('Note that to later merge the data with the streamed log, use')
-    self._log_userAction(' the Xsens software to export an Excel file in the same folder')
+    self._log_userAction(' the Xsens software to export an MVNX file for each suit in the same folder')
     self._log_userAction(' as the recording.  HD reprocessing can be done too if desired.')
     self._log_userAction('--------------------\n')
   
@@ -796,20 +840,55 @@ class XsensStreamer(SensorStreamer):
         return (None, error_msg)
       return (filepaths[0], '')
     
-    # Look for an MVNX and/or Excel export.
+    # Match each export to its streamed character before changing any HDF5 groups.
     data_dir_external_original = os.path.join(data_dir_external_original, 'xsens')
-    (excel_filepath, error_msg_excel) = get_filepath_forExportType(data_dir_external_original, 'xlsx', postfix_to_prefer=external_data_postfix_to_prefer)
-    (mvnx_filepath, error_msg_mvnx) = get_filepath_forExportType(data_dir_external_original, 'mvnx', postfix_to_prefer=external_data_postfix_to_prefer)
-    
-    # Call the appropriate merging function.
-    if mvnx_filepath is not None:
-      self._merge_mvnx_data_with_streamed_data(mvnx_filepath, hdf5_file_toUpdate, hdf5_file_archived)
-    elif excel_filepath is not None:
-      self._merge_excel_data_with_streamed_data(excel_filepath, hdf5_file_toUpdate, hdf5_file_archived)
+    mvnx_filepaths = glob.glob(os.path.join(data_dir_external_original, '*.mvnx'))
+    mvnx_filepaths = [file for file in mvnx_filepaths if '~$' not in file]
+    character_labels = {}
+    for device_name, device_group in hdf5_file_toUpdate.items():
+      if device_name.startswith('xsens-'):
+        char_id = self._get_character_id(device_name)
+        character_labels[char_id] = device_group.attrs.get('xsens_character_label', character_labels.get(char_id, 'MVN System %d' % (char_id + 1)))
+    if not character_labels:
+      character_labels = {0: 'MVN System 1'}
+    if mvnx_filepaths:
+      exports_by_label = {}
+      for filepath in mvnx_filepaths:
+        exports_by_label.setdefault(self._get_mvnx_subject_label(filepath), []).append(filepath)
+      exports_by_character = {}
+      for label, filepaths in exports_by_label.items():
+        matches = [char_id for char_id, expected_label in character_labels.items() if label == expected_label]
+        # Keep legacy single-suit exports working with any subject name.
+        if len(character_labels) == 1 and len(exports_by_label) == 1:
+          matches = list(character_labels)
+        if len(matches) != 1:
+          raise ValueError('Cannot match MVNX subject %r to streamed Xsens characters %s' % (label, character_labels))
+        postfix = external_data_postfix_to_prefer if external_data_postfix_to_prefer is not None else '_hd'
+        preferred = [file for file in filepaths
+                     if file.lower().endswith(('%s.mvnx' % postfix).lower())
+                     or os.path.splitext(file)[0].rsplit('#', 1)[0].lower().endswith(postfix.lower())]
+        filepaths = preferred or filepaths
+        if len(filepaths) != 1:
+          raise ValueError('Multiple MVNX exports found for subject %r: %s' % (label, filepaths))
+        exports_by_character[matches[0]] = filepaths[0]
+      if set(exports_by_character) != set(character_labels):
+        raise ValueError('An MVNX export is required for each streamed Xsens character: %s' % character_labels)
+      for char_id, filepath in sorted(exports_by_character.items()):
+        self._merge_mvnx_data_with_streamed_data(filepath, hdf5_file_toUpdate, hdf5_file_archived, char_id=char_id)
     else:
-      self._log_error('\n\nAborting data merge for Xsens!')
-      self._log_error('\n  ' + error_msg_excel)
-      self._log_error('\n  ' + error_msg_mvnx)
+      (excel_filepath, error_msg_excel) = get_filepath_forExportType(data_dir_external_original, 'xlsx', postfix_to_prefer=external_data_postfix_to_prefer)
+      if excel_filepath is not None and list(character_labels) == [0]:
+        self._merge_excel_data_with_streamed_data(excel_filepath, hdf5_file_toUpdate, hdf5_file_archived)
+      else:
+        self._log_error('Aborting data merge for Xsens: export an MVNX file for each suit. ' + error_msg_excel)
+
+  # Read only the subject header; exports can be several GB.
+  def _get_mvnx_subject_label(self, mvnx_filepath):
+    with open(mvnx_filepath, 'rb') as fin:
+      for _, element in ET.iterparse(fin, events=['start']):
+        if element.tag.split('}')[-1] == 'subject':
+          return element.get('label', '').strip()
+    raise ValueError('No subject found in %s' % mvnx_filepath)
 
   # A merging helper function to estimate what time every Xsens frame would
   #  have been received by the system, interpolating between frames that
@@ -818,8 +897,9 @@ class XsensStreamer(SensorStreamer):
     # Get the system time that was associated with frame numbers during streaming,
     #  and the 'actual' frame time recorded by the Xsens device.
     self._log_debug('Loading and interpolating streamed timestamps')
-    if 'xsens-time' in hdf5_file_streamed:
-      stream_group = hdf5_file_streamed['xsens-time']['device_timestamp_s']
+    time_device = self._get_existing_device_name(hdf5_file_streamed, 'xsens-time')
+    if time_device is not None:
+      stream_group = hdf5_file_streamed[time_device]['device_timestamp_s']
       streamed_xsens_time_s = np.squeeze(stream_group['data'])
     else:
       # If the Xsens time was not streamed, just get system time from the first device/stream.
@@ -1007,6 +1087,8 @@ class XsensStreamer(SensorStreamer):
                       data=None, # if given, will be used instead of Excel data (sheet name and target shape arguments are ignored)
                       data_processing_fn=None,
                       stream_group_metadata=None):
+      archived_name = self._get_existing_device_name(hdf5_file_archived, device_name)
+      device_name = self._get_device_name(device_name)
       # Extract the desired sheet data.
       if data is None:
         dataframe = excel_dataframes[excel_sheet_name]
@@ -1037,8 +1119,8 @@ class XsensStreamer(SensorStreamer):
       stream_group.create_dataset('time_str', [num_frames, 1], dtype='S26',
                                   data=all_times_str)
       # Copy the original device-level and stream-level metadata.
-      if device_name in hdf5_file_archived:
-        archived_device_group = hdf5_file_archived[device_name]
+      if archived_name is not None:
+        archived_device_group = hdf5_file_archived[archived_name]
         device_group_metadata_original = dict(archived_device_group.attrs.items())
         hdf5_file_toUpdate[device_name].attrs.update(device_group_metadata_original)
         if stream_name in archived_device_group:
@@ -1362,7 +1444,7 @@ class XsensStreamer(SensorStreamer):
   
   # Update a streamed data log with data recorded from the Xsens software exported to MVNX.
   def _merge_mvnx_data_with_streamed_data(self, mvnx_filepath,
-                                          hdf5_file_toUpdate, hdf5_file_archived):
+                                          hdf5_file_toUpdate, hdf5_file_archived, char_id=0):
   
     self._log_status('XsensStreamer merging streamed data with Xsens MVNX data')
     
@@ -1374,6 +1456,8 @@ class XsensStreamer(SensorStreamer):
   
     # Get metadata.
     metadata = self._get_mvnx_metadata(mvnx_xml)
+    metadata['xsens_character_id'] = char_id
+    metadata['xsens_character_label'] = mvnx_xml.find('subject').get('label', '').strip()
     metadata_segments = dict([(key, value) for (key, value) in metadata.items() if 'joint' not in key and 'sensor' not in key and 'contact' not in key])
     metadata_joints = dict([(key, value) for (key, value) in metadata.items() if 'segment' not in key and 'sensor' not in key and 'contact' not in key])
     metadata_com = dict([(key, value) for (key, value) in metadata.items() if 'segment' not in key and 'joint' not in key and 'sensor' not in key and 'contact' not in key])
@@ -1567,7 +1651,7 @@ class XsensStreamer(SensorStreamer):
     # Move all streamed data to the archive HDF5 file.
     self._log_debug('Moving streamed data to the archive HDF5 file')
     for (device_name, device_group) in hdf5_file_toUpdate.items():
-      if 'xsens-' in device_name:
+      if device_name.startswith('xsens-') and self._get_character_id(device_name) == char_id:
         hdf5_file_toUpdate.copy(device_group, hdf5_file_archived,
                                 name=None, shallow=False,
                                 expand_soft=True, expand_external=True, expand_refs=True,
@@ -1590,6 +1674,8 @@ class XsensStreamer(SensorStreamer):
     def add_hdf5_data(device_name, stream_name,
                       data, target_data_shape_per_frame,
                       stream_group_metadata=None):
+      archived_name = self._get_existing_device_name(hdf5_file_archived, device_name, char_id)
+      device_name = self._get_device_name(device_name, char_id)
       # Reshape so that data for each frame has the desired shape.
       data = data.reshape((data.shape[0], *target_data_shape_per_frame))
       assert data.shape[0] == num_frames
@@ -1611,8 +1697,8 @@ class XsensStreamer(SensorStreamer):
       stream_group.create_dataset('time_str', [num_frames, 1], dtype='S26',
                                   data=times_str)
       # Copy the original device-level and stream-level metadata.
-      if device_name in hdf5_file_archived:
-        archived_device_group = hdf5_file_archived[device_name]
+      if archived_name is not None:
+        archived_device_group = hdf5_file_archived[archived_name]
         device_group_metadata_original = dict(archived_device_group.attrs.items())
         hdf5_file_toUpdate[device_name].attrs.update(device_group_metadata_original)
         if stream_name in archived_device_group:
@@ -1623,6 +1709,8 @@ class XsensStreamer(SensorStreamer):
         # Create a basic device-level metadata if there was none to copy from the original file.
         device_group_metadata = {SensorStreamer.metadata_class_name_key: type(self).__name__}
         hdf5_file_toUpdate[device_name].attrs.update(device_group_metadata)
+      hdf5_file_toUpdate[device_name].attrs.update(
+          xsens_character_id=char_id, xsens_character_label=metadata['xsens_character_label'])
       # Override with provided stream-level metadata if desired.
       if stream_group_metadata is not None:
         hdf5_file_toUpdate[device_name][stream_name].attrs.update(
@@ -1816,7 +1904,7 @@ class XsensStreamer(SensorStreamer):
                   stream_group_metadata=metadata_footContacts)
     
     # Calibration poses.
-    device_group = hdf5_file_toUpdate.create_group('xsens-segments-tpose')
+    device_group = hdf5_file_toUpdate.create_group(self._get_device_name('xsens-segments-tpose', char_id))
     device_group.create_dataset('body_orientation_identity_quaternion_wijk',
                                 data=calibration_data['identity']['segment_orientations_body_quaternion'].reshape((-1, 4)))
     device_group.create_dataset('body_orientation_Tpose_quaternion_wijk',
@@ -1845,8 +1933,8 @@ class XsensStreamer(SensorStreamer):
   ###### DATA NOTES AND HEADINGS ######
   #####################################
   
-  def _define_data_notes(self):
-    self._define_data_headings()
+  def _define_data_notes(self, num_prop_segments=0):
+    self._define_data_headings(num_prop_segments)
     
     ######
     # Notes for streaming data.
@@ -2037,7 +2125,7 @@ class XsensStreamer(SensorStreamer):
       (SensorStreamer.metadata_data_headings_key, self._headings['xsens-foot-contacts']['foot-contacts']),
     ])
     
-  def _define_data_headings(self):
+  def _define_data_headings(self, num_prop_segments=0):
     segment_names_body = [
       # Main-body segments
       'Pelvis', 'L5', 'L3', 'T12', 'T8', 'Neck', 'Head',
@@ -2048,7 +2136,7 @@ class XsensStreamer(SensorStreamer):
       ]
       # Note: props 1-4 would be between body and fingers here if there are any
     segment_names_props = [
-      'Prop %d' % prop_id for prop_id in range(self._num_prop_segments)
+      'Prop %d' % prop_id for prop_id in range(num_prop_segments)
     ]
     segment_names_fingers = [
       # Fingers of left hand

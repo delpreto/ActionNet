@@ -39,6 +39,8 @@ else:
   import pyqtgraph
   import pyqtgraph.opengl as gl
   from pyqtgraph.Qt import QtCore, QtGui
+  if QtGui.QApplication.instance() is None:
+    QtCore.QCoreApplication.setAttribute(QtCore.Qt.ApplicationAttribute.AA_ShareOpenGLContexts)
   import pyqtgraph.exporters
 
 import cv2
@@ -55,7 +57,7 @@ class XsensSkeletonVisualizer(Visualizer):
   def __init__(self, visualizer_options=None, hidden=False,
                      parent_layout=None, parent_layout_size=None,
                      print_debug=False, print_status=False):
-    Visualizer.__init__(self, visualizer_options=visualizer_options, hidden=hidden,
+    Visualizer.__init__(self, visualizer_options=visualizer_options or {}, hidden=hidden,
                               parent_layout=parent_layout, parent_layout_size=parent_layout_size,
                               print_debug=print_debug, print_status=print_status)
   
@@ -64,15 +66,17 @@ class XsensSkeletonVisualizer(Visualizer):
       self._ax = None
     else:
       self._kitchen_floor_size_cm = (150, 300) # x, y
-      self._app = QtGui.QApplication([])
+      self._app = QtGui.QApplication.instance() or QtGui.QApplication([])
       self._layout = parent_layout
       self._is_sub_layout = parent_layout is not None
       self._layout_size = parent_layout_size
       self._plot = None
       self._figure_size = None
     
+    self._mode = self._visualizer_options.get('mode', 'zoomed')
+    self._suit_id = self._visualizer_options.get('suit_id')
     self._position_units = 'cm'
-    self.prop_hand_for_visualization = 'right'
+    self._prop_hand_for_visualization = 'right'
     if 'position_units' in self._visualizer_options:
       self._position_units = self._visualizer_options['position_units']
     if 'prop_hand_for_visualization' in self._visualizer_options:
@@ -143,6 +147,8 @@ class XsensSkeletonVisualizer(Visualizer):
   def init(self, device_name, stream_name, stream_info):
     if self._print_debug: print('XsensSkeletonVisualizer initializing for %s %s' % (device_name, stream_name))
 
+    self._chain_lines = {}
+    self._chain_scatters = {}
     # Set some options.
     if use_matplotlib:
       figure_size = (7, 5)
@@ -178,7 +184,6 @@ class XsensSkeletonVisualizer(Visualizer):
                                squeeze=False, # if False, always return 2D array of axes
                                sharex=True, sharey=True,
                                subplot_kw={
-                                'frame_on': True,
                                 'projection': '3d',
                                 },
                                figsize=figure_size
@@ -187,11 +192,11 @@ class XsensSkeletonVisualizer(Visualizer):
 
       # Set some formatting options.
       # Note that x/y/z will be rearranged to get a good view.
-      fig.suptitle('Xsens Skeleton')
-      ax.set_xlabel('z')
-      ax.set_ylabel('x')
-      ax.set_zlabel('y')
-      ax.view_init(-70, 0) # (elevation, azimuth) # (20, -40)
+      fig.suptitle('Xsens Skeleton: %s' % stream_name)
+      ax.set_xlabel('x')
+      ax.set_ylabel('y')
+      ax.set_zlabel('z')
+      ax.view_init(15, 55) # (elevation, azimuth)
     
       # Save state for future updates.
       self._fig = fig
@@ -209,10 +214,12 @@ class XsensSkeletonVisualizer(Visualizer):
         self._layout.setGeometry(10, 10, *figure_size)
       # Create the 3D plot widget.
       self._glWidget = gl.GLViewWidget()
-      self._glWidget.setWindowTitle('Xsens Skeleton')
+      self._glWidget.setWindowTitle('Xsens Skeleton: %s' % stream_name)
       layout = QtGui.QGridLayout()
       self._layout.setLayout(layout)
       layout.addWidget(self._glWidget, 0,0, 1,1)
+      self._app.processEvents()
+      self._glWidget.makeCurrent()
       
       # Set the camera position and angle.
       # camera_params = {
@@ -258,13 +265,11 @@ class XsensSkeletonVisualizer(Visualizer):
       # Note: to create grid perpendicular to y axis: gy.rotate(90, 1, 0, 0) before translating
       
       # Indicate that no plots have been added yet.
-      self._chain_lines = [None]*len(self._segment_chains_indexes_toPlot)
-      self._chain_scatters = [None]*len(self._segment_chains_indexes_toPlot)
       
       self._exporter = pyqtgraph.exporters.ImageExporter(self._layout.scene())
       
     # Create dummy data, and use it to initialize the plot.
-    segment_positions_cm = np.zeros([len(self._segment_labels), 3])
+    segment_positions_cm = np.zeros([len(self._segment_labels)-1, 3])
     self.update({'data':[segment_positions_cm.tolist()]},
                  visualizing_all_data=True)
 
@@ -273,122 +278,94 @@ class XsensSkeletonVisualizer(Visualizer):
   # @param new_data is a dict with 'data' (all other entries will be ignored).
   #   It should contain all segment positions as a matrix (each row is xyz).
   def update(self, new_data, visualizing_all_data):
-    
-    # Extract the latest segment positions.
-    segment_positions_cm = np.array(new_data['data'][-1])
+    # A regular stream supplies one matrix; visualization aliases supply one per suit.
+    positions = new_data['data'][-1]
+    if not isinstance(positions, dict):
+      positions = {self._suit_id or 1: positions}
+    positions = {suit_id: np.array(data, dtype=float, copy=True)
+                 for suit_id, data in positions.items()
+                 if self._suit_id is None or suit_id == self._suit_id}
+    if not positions:
+      return
     if self._position_units == 'm':
-      segment_positions_cm = 100*segment_positions_cm
-    hand_position_cm = segment_positions_cm[self._segment_labels.index(
-      'Right Hand' if self._prop_hand_for_visualization == 'right' else 'Left Hand'
-    ), :]
-    prop_position_cm = segment_positions_cm[-1, :]
-    
-    # # If no prop is included, draw it as a dummy at the hand.
-    # if segment_positions_cm.shape[0] == self._segment_labels - 1:
-    #   hand_position_cm = segment_positions_cm[self._segment_labels.index(
-    #     'Right Hand' if self._prop_hand_for_visualization == 'right' else 'Left Hand'
-    #   ), :]
-    #   segment_positions_cm = np.vstack([segment_positions_cm, hand_position_cm])
-    
-    if use_matplotlib:
-      plot_x_bounds = np.array([1000, -1000])
-      plot_y_bounds = np.array([1000, -1000])
-      plot_z_bounds = np.array([1000, -1000])
-      ax_lines = self._ax.get_lines()
-      # Draw each connected chain of segments.
-      for (chain_index, chain_name) in enumerate(self._segment_chains_indexes_toPlot.keys()):
-        segment_indexes = self._segment_chains_indexes_toPlot[chain_name]
+      positions = {suit_id: 100*data for suit_id, data in positions.items()}
+    if self._mode == 'zoomed':
+      # Place independently centered skeletons beside each other along the camera's horizontal axis.
+      side_axis = np.array([np.sin(np.deg2rad(55)), -np.cos(np.deg2rad(55)), 0])
+      spacing = max(np.ptp(data @ side_axis) for data in positions.values()) + 50
+      for suit_index, data in enumerate(positions.values()):
+        data[:, :2] -= data[0, :2].copy()
+        projection = data @ side_axis
+        offset = spacing * (suit_index - (len(positions)-1)/2)
+        data += side_axis * (offset - (projection.min()+projection.max())/2)
+
+    if not use_matplotlib:
+      self._glWidget.makeCurrent()
+    plotted_positions = []
+    active_chains = set()
+    for suit_id, segment_positions_cm in positions.items():
+      for chain_name, segment_indexes in self._segment_chains_indexes_toPlot.items():
         try:
           segment_xyz_cm = segment_positions_cm[segment_indexes, :]
         except IndexError:
           if 'prop' in chain_name.lower():
-            continue # skip the prop if it is not being streamed        
+            continue
+          raise
+        key = (suit_id, chain_name)
+        active_chains.add(key)
+        color = self._segment_chains_colors_rgba[chain_name]
+        if suit_id == 2 and 'prop' not in chain_name.lower():
+          color = (0, 0.65, 0, 1)
+        if use_matplotlib:
+          plot_xyz_cm = segment_xyz_cm * np.array([-1, -1, 1])
+          if key not in self._chain_lines or visualizing_all_data:
+            self._chain_lines[key] = self._ax.plot(*plot_xyz_cm.T, '-o', color=color[:3], markersize=5)[0]
           else:
-            raise
-        # Reorder them to make adjusting the plot view angle easier.
-        plot_x = segment_xyz_cm[:, 2]
-        plot_y = segment_xyz_cm[:, 0]
-        plot_z = segment_xyz_cm[:, 1]
-        # Create a fresh plot or update existing data.
-        if not visualizing_all_data:
-          ax_lines[chain_index].set_data_3d(plot_x, plot_y, plot_z)
+            self._chain_lines[key].set_data_3d(*plot_xyz_cm.T)
         else:
-          self._ax.plot(plot_x, plot_y, plot_z, '-o', color=self._segment_chains_colors_rgba[chain_name][0:3], markersize=5)
-        # Update axis bounds.
-        plot_x_bounds = np.array([min(plot_x_bounds[0], min(plot_x)), max(plot_x_bounds[1], max(plot_x))])
-        plot_y_bounds = np.array([min(plot_y_bounds[0], min(plot_y)), max(plot_y_bounds[1], max(plot_y))])
-        plot_z_bounds = np.array([min(plot_z_bounds[0], min(plot_z)), max(plot_z_bounds[1], max(plot_z))])
-  
-      # Expand the limits a bit if they have 0 span.
-      plot_x_bounds = plot_x_bounds if abs(np.diff(plot_x_bounds)[0]) > 0 else plot_x_bounds + [-1, 1]
-      plot_y_bounds = plot_y_bounds if abs(np.diff(plot_y_bounds)[0]) > 0 else plot_y_bounds + [-1, 1]
-      plot_z_bounds = plot_z_bounds if abs(np.diff(plot_z_bounds)[0]) > 0 else plot_z_bounds + [-1, 1]
-      # Set the limits to fit all data.
-      self._ax.set_xlim3d(plot_x_bounds)
-      self._ax.set_ylim3d(plot_y_bounds)
-      self._ax.set_zlim3d(plot_z_bounds)
-      # Set axis scaling to be 'equal' to preserve proper aspect ratio.
-      #  Adapted from https://stackoverflow.com/a/70245893
-      self._ax.set_box_aspect([ub - lb for lb, ub in (self._ax.get_xlim(), self._ax.get_ylim(), self._ax.get_zlim())])
-  
-      # Update the figure to see the changes.
+          # The floor is drawn in the negative x/y quadrant.
+          plot_xyz_cm = segment_xyz_cm * np.array([-1, -1, 1])
+          if key not in self._chain_lines or visualizing_all_data:
+            self._chain_lines[key] = gl.GLLinePlotItem(pos=plot_xyz_cm, color=color, width=3, antialias=True)
+            self._glWidget.addItem(self._chain_lines[key])
+            self._chain_scatters[key] = gl.GLScatterPlotItem(pos=plot_xyz_cm, color=color, size=5, pxMode=False)
+            self._chain_scatters[key].setGLOptions('translucent')
+            self._glWidget.addItem(self._chain_scatters[key])
+          else:
+            self._chain_lines[key].setData(pos=plot_xyz_cm, antialias=True)
+            self._chain_scatters[key].setData(pos=plot_xyz_cm)
+        plotted_positions.append(plot_xyz_cm)
+
+    if not visualizing_all_data:
+      for key in set(self._chain_lines) - active_chains:
+        if use_matplotlib:
+          self._chain_lines.pop(key).remove()
+        else:
+          self._glWidget.removeItem(self._chain_lines.pop(key))
+          self._glWidget.removeItem(self._chain_scatters.pop(key))
+    plot_xyz_cm_all = np.concatenate(plotted_positions)
+    lower, upper = plot_xyz_cm_all.min(axis=0), plot_xyz_cm_all.max(axis=0)
+    if use_matplotlib:
+      padding = np.maximum((upper-lower)*0.05, 5)
+      bounds = list(zip(lower-padding, upper+padding))
+      self._ax.set_xlim3d(bounds[0])
+      self._ax.set_ylim3d(bounds[1])
+      self._ax.set_zlim3d(bounds[2])
+      self._ax.set_box_aspect([hi-lo for lo, hi in bounds])
       self._fig.canvas.draw()
       self._fig.canvas.flush_events()
     else:
-      # Draw each connected chain of segments.
-      plot_xyz_cm_all = np.zeros(shape=(0,3))
-      for (chain_index, chain_name) in enumerate(self._segment_chains_indexes_toPlot.keys()):
-        segment_indexes = self._segment_chains_indexes_toPlot[chain_name]
-        try:
-          segment_xyz_cm = segment_positions_cm[segment_indexes, :]
-        except IndexError:
-          if 'prop' in chain_name.lower():
-            continue # skip the prop if it is not being streamed        
-          else:
-            raise
-        segment_xyz_cm = segment_positions_cm[segment_indexes, :]
-        # Negate the x and y coordinates since the floor was visualized in the negative quadrant.
-        plot_xyz_cm = segment_xyz_cm * np.array([-1, -1, 1])
-        plot_xyz_cm_all = np.concatenate((plot_xyz_cm_all, plot_xyz_cm), axis=0)
-        # Create a fresh plot or update existing data.
-        if self._chain_lines[chain_index] is None or visualizing_all_data:
-          self._chain_lines[chain_index] = gl.GLLinePlotItem(
-                  pos=plot_xyz_cm, color=self._segment_chains_colors_rgba[chain_name],
-                  width=3, antialias=True)
-          self._glWidget.addItem(self._chain_lines[chain_index])
-          self._chain_scatters[chain_index] = gl.GLScatterPlotItem(
-                  pos=plot_xyz_cm, color=self._segment_chains_colors_rgba[chain_name],
-                  size=5, pxMode=False)
-          self._chain_scatters[chain_index].setGLOptions('translucent')
-          self._glWidget.addItem(self._chain_scatters[chain_index])
-          cv2.waitKey(1) # wait for it to actually draw
-          # Show or hide the figure.
-          if not self._is_sub_layout:
-            if not self._hidden:
-              self._layout.show()
-            else:
-              self._layout.hide()
+      center = (lower + upper)/2
+      distance = max(1, max(upper-lower))*1.5*max(1, self._figure_size[0]/self._figure_size[1])
+      self._glWidget.setCameraParams(fov=60, elevation=15.0, azimuth=55,
+                                    center=QtGui.QVector3D(*center), distance=distance)
+      if not self._is_sub_layout:
+        if self._hidden:
+          self._layout.hide()
         else:
-          self._chain_lines[chain_index].setData(pos=plot_xyz_cm, antialias=True)
-          self._chain_scatters[chain_index].setData(pos=plot_xyz_cm)
-      plot_xyz_cm_mean = np.mean(np.array(plot_xyz_cm_all), 0)
-      if np.all(np.abs(plot_xyz_cm_mean) > 0):
-        camera_params = {
-          'fov': 60,
-          # 'rotation': (1.0, 0.0, 0.0, 0.0),
-          'elevation': 15.0,
-          'center': QtGui.QVector3D(plot_xyz_cm_mean[0],
-                                    plot_xyz_cm_mean[1],
-                                    plot_xyz_cm_mean[2]),
-          'azimuth': 55,
-          'distance': np.max(np.max(plot_xyz_cm_all, axis=0) - np.min(plot_xyz_cm_all, axis=0))*1.1
-        }
-        self._glWidget.setCameraParams(**camera_params)
-      
-      # Update the plot to see the changes.
-      if not self._hidden and not self._is_sub_layout:
-        cv2.waitKey(1) # find a better way?
-  
+          self._layout.show()
+          self._app.processEvents()
+
   # Retrieve an image of the most updated visualization.
   # Should return a matrix in RGB format.
   def get_visualization_image(self, device_name, stream_name):
